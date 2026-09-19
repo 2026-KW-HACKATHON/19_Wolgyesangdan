@@ -2,18 +2,11 @@
 name: Bug 템플릿
 about: 버그 수정
 title: ''
-labels: "\U0001F41EBugFix"
+labels: "\U0001F41EBugFix, ✨Feature"
 assignees: ''
 
 ---
 
----
-name: Bug Report
-about: Create a report to help us improve
-title: "[BUG] "
-labels: bug
-assignees: ''
----
 ## ✅ 체크리스트
 
 - [ ] assignee에 본인 추가했나요?
