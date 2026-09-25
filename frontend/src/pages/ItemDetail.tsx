@@ -65,8 +65,8 @@ export default function ItemDetail() {
           </div>
 
           <div className="flex items-center gap-3.5 rounded-2xl bg-[#E7EBD8] px-4.5 py-4">
-            <span className="ms flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-[var(--color-surface)] text-xl text-[var(--color-accent)]">
-              autorenew
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-[var(--color-surface)] text-[var(--color-accent)]">
+              <span className="ms text-xl">autorenew</span>
             </span>
             <div>
               <div className="flex items-baseline gap-1">
