@@ -18,7 +18,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 // TODO: 실제 캠페인 활성 여부는 백엔드 연결 후 API 응답으로 대체
 const CAMPAIGN_ACTIVE = true
 
-export default function Browse() {
+export default function ItemList() {
   const navigate = useNavigate()
   const [category, setCategory] = useState<CategoryGroup | '전체'>('전체')
   const [tradeMethod, setTradeMethod] = useState<TradeMethod | '전체'>('전체')
