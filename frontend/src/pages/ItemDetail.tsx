@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Badge from '../components/Badge'
+import Toast from '../components/Toast'
 import { ITEMS, STATUS_LABEL, TRADE_METHOD_LABEL } from '../data/items'
 import { CAMPAIGN } from '../data/campaign'
 
@@ -16,6 +18,26 @@ export default function ItemDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const item = ITEMS.find((i) => i.id === id)
+
+  const [showCopyToast, setShowCopyToast] = useState(false)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    }
+  }, [])
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setShowCopyToast(true)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setShowCopyToast(false), 2000)
+    } catch {
+      // 클립보드 접근 권한이 없는 등 - 조용히 무시
+    }
+  }
 
   if (!item) {
     return (
@@ -36,13 +58,15 @@ export default function ItemDetail() {
   const statusTone = item.status === 'OPEN' ? 'primary' : item.status === 'ASSIGNING' ? 'warning' : 'neutral'
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <header className="flex h-14 flex-none items-center gap-1.5 px-3.5">
         <button type="button" onClick={() => navigate(-1)} className="flex h-9 w-9 items-center justify-center text-[var(--color-label)]">
           <span className="ms text-2xl">chevron_left</span>
         </button>
         <h1 className="flex-1 truncate text-[17px] font-bold text-[var(--color-label)]">{item.name}</h1>
-        <span className="ms mr-1 text-xl text-[#4A4A40]">ios_share</span>
+        <button type="button" onClick={handleShare} className="flex h-9 w-9 items-center justify-center text-[#4A4A40]">
+          <span className="ms text-xl">ios_share</span>
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -147,6 +171,8 @@ export default function ItemDetail() {
           신청하기
         </button>
       </div>
+
+      <Toast visible={showCopyToast}>URL을 복사했어요</Toast>
     </div>
   )
 }
