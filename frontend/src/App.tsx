@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import Home from './pages/Home'
+import Browse from './pages/Browse'
 import Placeholder from './pages/Placeholder'
 
 function App() {
@@ -8,7 +9,7 @@ function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/browse" element={<Placeholder title="둘러보기" />} />
+        <Route path="/browse" element={<Browse />} />
         <Route path="/register" element={<Placeholder title="등록" />} />
         <Route path="/carbon-report" element={<Placeholder title="탄소절감 리포트" />} />
         <Route path="/mypage" element={<Placeholder title="마이페이지" />} />
