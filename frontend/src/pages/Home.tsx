@@ -4,6 +4,7 @@ import SearchBar from '../components/SearchBar'
 import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
 import { ITEMS } from '../data/items'
+import { CAMPAIGN } from '../data/campaign'
 
 const CATEGORIES = [
   { key: '가구', icon: 'chair' },
@@ -31,12 +32,12 @@ export default function Home() {
       </header>
 
       <CampaignBanner
-        name="2026 자원순환 캠페인"
-        period="9.20 ~ 10.4"
-        hub="광운대 비마관 1층 거점"
-        ddayLabel="종료까지 D-12"
-        reusedCount={128}
-        carbonKg={3420}
+        name={CAMPAIGN.name}
+        period={CAMPAIGN.period}
+        hub={CAMPAIGN.hubName}
+        ddayLabel={CAMPAIGN.ddayLabel}
+        reusedCount={CAMPAIGN.reusedCount}
+        carbonKg={CAMPAIGN.carbonKg}
       />
 
       <div className="px-5">
