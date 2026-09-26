@@ -4,6 +4,7 @@ import SearchBar from '../components/SearchBar'
 import FilterChip from '../components/FilterChip'
 import ItemGridCard from '../components/ItemGridCard'
 import { CONDITION_RANK, ITEMS, type CategoryGroup, type TradeMethod } from '../data/items'
+import { CAMPAIGN } from '../data/campaign'
 
 const CATEGORY_FILTERS: (CategoryGroup | '전체')[] = ['전체', '가구', '가전', '주방', '생활', '기타']
 
@@ -15,9 +16,6 @@ const SORT_LABEL: Record<SortKey, string> = {
   condition: '상태순',
 }
 
-// TODO: 실제 캠페인 활성 여부는 백엔드 연결 후 API 응답으로 대체
-const CAMPAIGN_ACTIVE = true
-
 export default function ItemList() {
   const navigate = useNavigate()
   const [category, setCategory] = useState<CategoryGroup | '전체'>('전체')
@@ -25,7 +23,7 @@ export default function ItemList() {
   const [sortBy, setSortBy] = useState<SortKey>('latest')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
 
-  const tradeMethodFilters: (TradeMethod | '전체')[] = CAMPAIGN_ACTIVE
+  const tradeMethodFilters: (TradeMethod | '전체')[] = CAMPAIGN.active
     ? ['전체', 'DIRECT', 'CAMPAIGN']
     : ['전체', 'DIRECT']
 

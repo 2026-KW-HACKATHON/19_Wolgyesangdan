@@ -2,6 +2,7 @@ export type TradeMethod = 'DIRECT' | 'CAMPAIGN'
 export type ItemStatus = 'OPEN' | 'ASSIGNING' | 'DONE'
 export type CategoryGroup = '가구' | '가전' | '주방' | '생활' | '기타'
 export type Condition = '거의 새것' | '상태 좋음' | '사용감 있음'
+export type TransportDifficulty = '쉬움' | '보통' | '어려움'
 
 export type Item = {
   id: string
@@ -14,6 +15,16 @@ export type Item = {
   tradeMethods: TradeMethod[]
   status: ItemStatus
   deadlineLabel: string
+  description: string
+  usagePeriod: string
+  defect: string
+  workingStatus: string
+  size: string
+  transportDifficulty: TransportDifficulty
+  applicantCount: number
+  maxApplicants: number
+  ownerName: string
+  ownerCompletedCount: number
 }
 
 export const STATUS_LABEL: Record<ItemStatus, string> = {
@@ -45,6 +56,16 @@ export const ITEMS: Item[] = [
     tradeMethods: ['CAMPAIGN', 'DIRECT'],
     status: 'OPEN',
     deadlineLabel: '10.2까지',
+    description: '이사 때문에 내놓아요. 내부 청소 완료했고 회전판까지 그대로 있어요. 작동에 문제 없습니다.',
+    usagePeriod: '2년 사용',
+    defect: '없음',
+    workingStatus: '정상 작동',
+    size: '48 × 36 × 28cm',
+    transportDifficulty: '보통',
+    applicantCount: 3,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 3,
   },
   {
     id: '2',
@@ -57,6 +78,16 @@ export const ITEMS: Item[] = [
     tradeMethods: ['DIRECT'],
     status: 'OPEN',
     deadlineLabel: '9.30까지',
+    description: '3년 정도 쓴 책상이에요. 모서리에 약간 사용감 있지만 흔들림 없이 튼튼합니다.',
+    usagePeriod: '3년 사용',
+    defect: '모서리 사용감',
+    workingStatus: '해당 없음',
+    size: '100 × 50 × 72cm',
+    transportDifficulty: '어려움',
+    applicantCount: 5,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 1,
   },
   {
     id: '3',
@@ -69,6 +100,16 @@ export const ITEMS: Item[] = [
     tradeMethods: ['CAMPAIGN'],
     status: 'OPEN',
     deadlineLabel: '10.4까지',
+    description: '선물 받았는데 이미 있어서 거의 안 썼어요. 박스도 있습니다.',
+    usagePeriod: '1개월 사용',
+    defect: '없음',
+    workingStatus: '정상 작동',
+    size: '22 × 15 × 20cm',
+    transportDifficulty: '쉬움',
+    applicantCount: 1,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 5,
   },
   {
     id: '4',
@@ -81,6 +122,16 @@ export const ITEMS: Item[] = [
     tradeMethods: ['DIRECT'],
     status: 'ASSIGNING',
     deadlineLabel: '9.28까지',
+    description: '원목 느낌 책장이에요. 무겁지 않아서 혼자서도 옮길 수 있어요.',
+    usagePeriod: '1년 사용',
+    defect: '없음',
+    workingStatus: '해당 없음',
+    size: '60 × 24 × 90cm',
+    transportDifficulty: '보통',
+    applicantCount: 5,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 2,
   },
   {
     id: '5',
@@ -93,6 +144,16 @@ export const ITEMS: Item[] = [
     tradeMethods: ['DIRECT'],
     status: 'OPEN',
     deadlineLabel: '10.5까지',
+    description: '은은한 조명이라 침실용으로 좋아요. LED 전구 포함입니다.',
+    usagePeriod: '6개월 사용',
+    defect: '없음',
+    workingStatus: '정상 작동',
+    size: '25 × 25 × 140cm',
+    transportDifficulty: '쉬움',
+    applicantCount: 0,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 0,
   },
   {
     id: '6',
@@ -105,6 +166,16 @@ export const ITEMS: Item[] = [
     tradeMethods: ['DIRECT'],
     status: 'ASSIGNING',
     deadlineLabel: '9.26까지',
+    description: '캠핑용으로 샀는데 안 쓰게 됐어요. 2개 같이 드려요.',
+    usagePeriod: '2년 사용',
+    defect: '다리 부분 스크래치',
+    workingStatus: '해당 없음',
+    size: '48 × 45 × 80cm',
+    transportDifficulty: '쉬움',
+    applicantCount: 4,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 1,
   },
   {
     id: '7',
@@ -117,5 +188,15 @@ export const ITEMS: Item[] = [
     tradeMethods: ['DIRECT'],
     status: 'OPEN',
     deadlineLabel: '10.1까지',
+    description: '접이식이라 보관도 편해요. 몇 번 안 썼습니다.',
+    usagePeriod: '2개월 사용',
+    defect: '없음',
+    workingStatus: '해당 없음',
+    size: '60 × 60 × 90cm (접었을 때)',
+    transportDifficulty: '쉬움',
+    applicantCount: 2,
+    maxApplicants: 5,
+    ownerName: '월계1동 이웃',
+    ownerCompletedCount: 4,
   },
 ]
