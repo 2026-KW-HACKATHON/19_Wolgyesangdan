@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.global.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,7 +16,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Reservation {
+public class Reservation extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,12 +54,4 @@ public class Reservation {
 	private LocalDateTime reconfirmedAt;
 
 	private LocalDateTime completedAt;
-
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
-
-	@PrePersist
-	void onCreate() {
-		this.createdAt = LocalDateTime.now();
-	}
 }

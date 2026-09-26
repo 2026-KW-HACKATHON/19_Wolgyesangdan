@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
+import com.Wolgyesangdan.backend.global.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,7 +17,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Item {
+public class Item extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -95,17 +95,7 @@ public class Item {
 	@Column(nullable = false, length = 20)
 	private ItemStatus status;
 
+	@Builder.Default
 	@Column(nullable = false)
-	private Integer applicantCount;
-
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
-
-	@PrePersist
-	void onCreate() {
-		this.createdAt = LocalDateTime.now();
-		if (this.applicantCount == null) {
-			this.applicantCount = 0;
-		}
-	}
+	private Integer applicantCount = 0;
 }

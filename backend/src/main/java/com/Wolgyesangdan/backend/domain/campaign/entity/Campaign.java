@@ -1,7 +1,8 @@
 package com.Wolgyesangdan.backend.domain.campaign.entity;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+
+import com.Wolgyesangdan.backend.global.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,7 +11,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Campaign {
+public class Campaign extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,12 +66,4 @@ public class Campaign {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private CampaignStatus status;
-
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
-
-	@PrePersist
-	void onCreate() {
-		this.createdAt = LocalDateTime.now();
-	}
 }

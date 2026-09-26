@@ -14,7 +14,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -60,8 +59,9 @@ public class PriorityVerification {
 	@Column(length = 255)
 	private String address;
 
+	@Builder.Default
 	@Column(nullable = false)
-	private LocalDateTime submittedAt;
+	private LocalDateTime submittedAt = LocalDateTime.now();
 
 	private LocalDateTime reviewedAt;
 
@@ -73,11 +73,4 @@ public class PriorityVerification {
 	private String rejectionReason;
 
 	private LocalDateTime expiresAt;
-
-	@PrePersist
-	void onCreate() {
-		if (this.submittedAt == null) {
-			this.submittedAt = LocalDateTime.now();
-		}
-	}
 }

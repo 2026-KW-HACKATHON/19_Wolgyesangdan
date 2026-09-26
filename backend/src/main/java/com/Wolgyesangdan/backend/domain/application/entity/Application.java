@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
+import com.Wolgyesangdan.backend.global.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,7 +16,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Application {
+public class Application extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,11 +47,13 @@ public class Application {
 	@JoinColumn(name = "applicant_id", nullable = false)
 	private User applicant;
 
+	@Builder.Default
 	@Column(nullable = false)
-	private LocalDateTime appliedAt;
+	private LocalDateTime appliedAt = LocalDateTime.now();
 
+	@Builder.Default
 	@Column(nullable = false)
-	private Integer priorityScore;
+	private Integer priorityScore = 0;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -60,18 +62,4 @@ public class Application {
 	private Integer waitlistRank;
 
 	private LocalDateTime selectedAt;
-
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
-
-	@PrePersist
-	void onCreate() {
-		this.createdAt = LocalDateTime.now();
-		if (this.appliedAt == null) {
-			this.appliedAt = this.createdAt;
-		}
-		if (this.priorityScore == null) {
-			this.priorityScore = 0;
-		}
-	}
 }
