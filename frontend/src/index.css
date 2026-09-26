@@ -2,6 +2,7 @@
 
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --font-hand: "Gaegu", cursive;
 
   --color-bg: #efeadf;
   --color-screen: #f6f1e4;
@@ -13,6 +14,30 @@
   --color-label: #1f2419;
   --color-label-alt: #6b6857;
   --color-body: #3f4436;
+
+  /* 로그인·인증 화면 */
+  --color-sunken: #ebe4d1;
+  --color-track: #e0d8c3;
+  --color-border-strong: #ddd6c4;
+  --color-border-deep: #cfc5a9;
+  --color-ink-2: #4a4a40;
+  --color-ink-3: #5a5344;
+  --color-ink-disabled: #bdb6a2;
+  --color-primary-tint: #e7ebd8;
+  --color-primary-tint-ink: #3a4430;
+  --color-terracotta: #b9603a;
+  --color-terracotta-ink: #8a4a28;
+  --color-terracotta-deep: #5a3a22;
+  --color-amber-tint: #f6e9d8;
+  --color-amber-badge: #f7e6c9;
+  --color-amber-ink: #8a5a18;
+  --color-amber-badge-ink: #7a4e14;
+  --color-clay-tint: #f2e5d3;
+  --color-clay-ink: #a96b33;
+  --color-kakao: #fee500;
+  --color-kakao-ink: #1a1a1a;
+  --color-google-ink: #25282e;
+  --color-google-badge: #ededed;
 }
 
 .ms {
