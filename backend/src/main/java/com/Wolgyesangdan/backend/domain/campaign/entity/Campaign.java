@@ -64,6 +64,6 @@ public class Campaign extends BaseTimeEntity {
 	private String hubHours;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private CampaignStatus status;
 }

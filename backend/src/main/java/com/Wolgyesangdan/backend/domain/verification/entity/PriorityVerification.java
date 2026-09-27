@@ -38,11 +38,11 @@ public class PriorityVerification {
 	private User user;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private VerificationType verificationType;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private VerificationStatus status;
 
 	@Column(length = 30)

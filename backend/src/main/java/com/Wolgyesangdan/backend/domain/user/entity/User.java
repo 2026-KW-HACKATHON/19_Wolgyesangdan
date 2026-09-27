@@ -44,6 +44,6 @@ public class User extends BaseTimeEntity {
 	private String openchatLink;
 
 	@Enumerated(EnumType.STRING)
-	@Column(length = 20)
+	@Column(length = 30)
 	private ContactType contactType;
 }

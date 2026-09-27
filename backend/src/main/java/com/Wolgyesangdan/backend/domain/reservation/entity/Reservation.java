@@ -40,13 +40,13 @@ public class Reservation extends BaseTimeEntity {
 	private Application application;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private TradeMethod tradeMethod;
 
 	private LocalDateTime scheduledAt;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private ReservationStatus status;
 
 	private LocalDateTime reconfirmationDeadline;

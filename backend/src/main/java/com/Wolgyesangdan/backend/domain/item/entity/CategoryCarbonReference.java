@@ -43,7 +43,7 @@ public class CategoryCarbonReference {
 	private String categoryGroup;
 
 	@Column(nullable = false)
-	private Integer carbonReductionKg;
+	private int carbonReductionKg;
 
 	@Column(length = 255)
 	private String source;

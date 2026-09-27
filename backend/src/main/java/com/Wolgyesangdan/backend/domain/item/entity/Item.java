@@ -78,7 +78,7 @@ public class Item extends BaseTimeEntity {
 	private String transportDifficulty;
 
 	@Column(nullable = false)
-	private Integer estimatedCarbonReduction;
+	private int estimatedCarbonReduction;
 
 	@Column(nullable = false)
 	private LocalDate availableFrom;
@@ -92,10 +92,9 @@ public class Item extends BaseTimeEntity {
 	private LocalDateTime applicationDeadline;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private ItemStatus status;
 
-	@Builder.Default
 	@Column(nullable = false)
-	private Integer applicantCount = 0;
+	private int applicantCount;
 }

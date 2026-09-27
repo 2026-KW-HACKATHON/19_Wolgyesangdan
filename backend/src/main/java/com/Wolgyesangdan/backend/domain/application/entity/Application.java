@@ -47,16 +47,11 @@ public class Application extends BaseTimeEntity {
 	@JoinColumn(name = "applicant_id", nullable = false)
 	private User applicant;
 
-	@Builder.Default
 	@Column(nullable = false)
-	private LocalDateTime appliedAt = LocalDateTime.now();
-
-	@Builder.Default
-	@Column(nullable = false)
-	private Integer priorityScore = 0;
+	private int priorityScore;
 
 	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
+	@Column(nullable = false, length = 30)
 	private ApplicationStatus status;
 
 	private Integer waitlistRank;

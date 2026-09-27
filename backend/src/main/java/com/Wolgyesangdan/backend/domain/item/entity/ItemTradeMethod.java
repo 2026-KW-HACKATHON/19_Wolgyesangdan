@@ -38,6 +38,6 @@ public class ItemTradeMethod {
 	private Item item;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "trade_method", nullable = false, length = 20)
+	@Column(name = "trade_method", nullable = false, length = 30)
 	private TradeMethod tradeMethod;
 }

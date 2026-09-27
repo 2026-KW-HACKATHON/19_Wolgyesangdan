@@ -35,5 +35,5 @@ public class ItemImage {
 	private String imageUrl;
 
 	@Column(nullable = false)
-	private Integer displayOrder;
+	private int displayOrder;
 }
