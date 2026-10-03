@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
+import CarbonReportPage from './pages/CarbonReportPage'
 import ItemDetail from './pages/ItemDetail'
 import ItemRegisterPage from './pages/ItemRegisterPage'
 import LoginPage from './pages/LoginPage'
@@ -46,7 +47,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/browse" element={<ItemList />} />
           <Route path="/register" element={<ItemRegisterPage />} />
-          <Route path="/carbon-report" element={<Placeholder title="탄소절감 리포트" />} />
+          <Route path="/carbon-report" element={<CarbonReportPage />} />
           <Route path="/mypage" element={<Placeholder title="마이페이지" />} />
         </Route>
         <Route element={<DetailLayout />}>
