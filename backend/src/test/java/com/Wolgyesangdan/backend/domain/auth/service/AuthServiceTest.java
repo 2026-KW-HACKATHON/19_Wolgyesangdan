@@ -1,0 +1,108 @@
+package com.Wolgyesangdan.backend.domain.auth.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import java.time.Duration;
+import java.util.Optional;
+
+import com.Wolgyesangdan.backend.domain.auth.client.KakaoOAuthClient;
+import com.Wolgyesangdan.backend.domain.auth.client.KakaoUser;
+import com.Wolgyesangdan.backend.domain.auth.dto.KakaoLoginRequest;
+import com.Wolgyesangdan.backend.domain.auth.dto.LoginResponse;
+import com.Wolgyesangdan.backend.domain.auth.dto.TokenRefreshRequest;
+import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
+import com.Wolgyesangdan.backend.domain.auth.repository.RefreshTokenRepository;
+import com.Wolgyesangdan.backend.domain.user.entity.User;
+import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
+import com.Wolgyesangdan.backend.global.security.JwtProperties;
+import com.Wolgyesangdan.backend.global.security.JwtProvider;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
+
+class AuthServiceTest {
+
+	private final JwtProperties jwtProperties = new JwtProperties(
+			"test-secret-key-that-is-long-enough-for-hs256", Duration.ofHours(1), Duration.ofDays(14));
+	private final JwtProvider jwtProvider = new JwtProvider(jwtProperties);
+
+	private KakaoOAuthClient kakaoOAuthClient;
+	private UserRepository userRepository;
+	private RefreshTokenRepository refreshTokenRepository;
+	private AuthService authService;
+
+	@BeforeEach
+	void setUp() {
+		kakaoOAuthClient = Mockito.mock(KakaoOAuthClient.class);
+		userRepository = Mockito.mock(UserRepository.class);
+		refreshTokenRepository = Mockito.mock(RefreshTokenRepository.class);
+		authService = new AuthService(kakaoOAuthClient, userRepository, refreshTokenRepository, jwtProvider,
+				jwtProperties);
+		given(userRepository.save(any(User.class))).willAnswer(invocation -> withId(invocation.getArgument(0), 1L));
+	}
+
+	@Test
+	void 처음_로그인하면_회원을_만들고_isNewUser는_true() {
+		given(kakaoOAuthClient.getUser("code")).willReturn(new KakaoUser("4012345678", "용민", "a@b.com"));
+		given(userRepository.findByKakaoId("4012345678")).willReturn(Optional.empty());
+
+		LoginResponse response = authService.kakaoLogin(new KakaoLoginRequest("code"));
+
+		assertThat(response.isNewUser()).isTrue();
+		assertThat(response.user()).isEqualTo(new LoginResponse.UserInfo(1L, "용민", "a@b.com"));
+		assertThat(jwtProvider.getUserIdFromAccessToken(response.accessToken())).isEqualTo(1L);
+		assertThat(jwtProvider.getUserIdFromRefreshToken(response.refreshToken())).isEqualTo(1L);
+	}
+
+	@Test
+	void 이미_가입한_회원이면_새로_만들지_않고_isNewUser는_false() {
+		User existing = withId(User.builder().kakaoId("4012345678").nickname("기존").build(), 5L);
+		given(kakaoOAuthClient.getUser("code")).willReturn(new KakaoUser("4012345678", "바뀐닉네임", null));
+		given(userRepository.findByKakaoId("4012345678")).willReturn(Optional.of(existing));
+
+		LoginResponse response = authService.kakaoLogin(new KakaoLoginRequest("code"));
+
+		assertThat(response.isNewUser()).isFalse();
+		assertThat(response.user().id()).isEqualTo(5L);
+		verify(userRepository, never()).save(any());
+	}
+
+	@Test
+	void 닉네임_동의를_안_했으면_카카오사용자_뒤4자리로_채운다() {
+		given(kakaoOAuthClient.getUser("code")).willReturn(new KakaoUser("4012345678", null, null));
+		given(userRepository.findByKakaoId(anyString())).willReturn(Optional.empty());
+
+		assertThat(authService.kakaoLogin(new KakaoLoginRequest("code")).user().nickname()).isEqualTo("카카오사용자5678");
+	}
+
+	@Test
+	void 저장소에_없는_refresh_토큰이면_AUTH_INVALID_REFRESH_TOKEN() {
+		given(refreshTokenRepository.deleteByTokenHash(anyString())).willReturn(0);
+
+		assertThatThrownBy(() -> authService.refresh(new TokenRefreshRequest(jwtProvider.createRefreshToken(1L))))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+	}
+
+	@Test
+	void access_토큰으로_재발급하면_AUTH_INVALID_REFRESH_TOKEN() {
+		assertThatThrownBy(() -> authService.refresh(new TokenRefreshRequest(jwtProvider.createAccessToken(1L))))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+	}
+
+	private static User withId(User user, Long id) {
+		ReflectionTestUtils.setField(user, "id", id);
+		return user;
+	}
+
+}
