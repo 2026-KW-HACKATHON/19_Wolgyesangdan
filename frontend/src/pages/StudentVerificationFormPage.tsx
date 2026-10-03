@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import AgreementCheckbox from '../components/AgreementCheckbox'
 import BottomActionBar from '../components/BottomActionBar'
-import DocumentTypeChips from '../components/DocumentTypeChips'
+import ChoiceChips from '../components/ChoiceChips'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
@@ -88,7 +88,7 @@ export default function StudentVerificationFormPage({
         <p className="mt-1.5 text-[14px] leading-[1.6] font-medium text-ink-3">학교 이름, 본인 이름, 학번이 보이면 됩니다.</p>
       </div>
 
-      <DocumentTypeChips
+      <ChoiceChips
         label="서류 종류"
         required
         options={DOC_TYPES}

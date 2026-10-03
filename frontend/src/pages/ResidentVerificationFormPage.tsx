@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import AgreementCheckbox from '../components/AgreementCheckbox'
 import BottomActionBar from '../components/BottomActionBar'
-import DocumentTypeChips from '../components/DocumentTypeChips'
+import ChoiceChips from '../components/ChoiceChips'
 import NoticeBox from '../components/NoticeBox'
 import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
@@ -92,7 +92,7 @@ export default function ResidentVerificationFormPage({
         </p>
       </div>
 
-      <DocumentTypeChips
+      <ChoiceChips
         label="서류 종류"
         required
         options={DOC_TYPES}
