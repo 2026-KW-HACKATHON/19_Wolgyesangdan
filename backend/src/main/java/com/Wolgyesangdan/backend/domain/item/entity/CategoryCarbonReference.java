@@ -53,4 +53,9 @@ public class CategoryCarbonReference {
 	@LastModifiedDate
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	public void update(int carbonReductionKg, String source) {
+		this.carbonReductionKg = carbonReductionKg;
+		this.source = source;
+	}
 }
