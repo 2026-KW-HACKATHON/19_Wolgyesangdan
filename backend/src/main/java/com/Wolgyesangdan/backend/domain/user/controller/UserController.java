@@ -1,5 +1,6 @@
 package com.Wolgyesangdan.backend.domain.user.controller;
 
+import com.Wolgyesangdan.backend.domain.user.dto.ContactResponse;
 import com.Wolgyesangdan.backend.domain.user.dto.MyInfoResponse;
 import com.Wolgyesangdan.backend.domain.user.service.UserService;
 
@@ -19,6 +20,11 @@ public class UserController {
 	@GetMapping("/me")
 	public MyInfoResponse getMyInfo(@AuthenticationPrincipal Long userId) {
 		return userService.getMyInfo(userId);
+	}
+
+	@GetMapping("/me/contact")
+	public ContactResponse getMyContact(@AuthenticationPrincipal Long userId) {
+		return userService.getMyContact(userId);
 	}
 
 }

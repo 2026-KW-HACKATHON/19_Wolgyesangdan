@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDateTime;
 
+import com.Wolgyesangdan.backend.domain.user.dto.ContactResponse;
 import com.Wolgyesangdan.backend.domain.user.dto.MyInfoResponse;
 import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
 import com.Wolgyesangdan.backend.domain.user.service.UserService;
@@ -82,6 +83,36 @@ class UserControllerTest {
 		mockMvc.perform(get("/users/me").header(HttpHeaders.AUTHORIZATION, bearer(99L)))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("NOT_FOUND"));
+	}
+
+	@Test
+	void 내_연락_수단을_조회한다() throws Exception {
+		given(userService.getMyContact(1L)).willReturn(
+				new ContactResponse(ContactType.PHONE, "010-1234-5678", "https://open.kakao.com/o/xxxxxxx"));
+
+		mockMvc.perform(get("/users/me/contact").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.contactType").value("PHONE"))
+				.andExpect(jsonPath("$.phone").value("010-1234-5678"))
+				.andExpect(jsonPath("$.openchatLink").value("https://open.kakao.com/o/xxxxxxx"));
+	}
+
+	@Test
+	void 연락_수단_미설정이면_모두_null() throws Exception {
+		given(userService.getMyContact(2L)).willReturn(new ContactResponse(null, null, null));
+
+		mockMvc.perform(get("/users/me/contact").header(HttpHeaders.AUTHORIZATION, bearer(2L)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.contactType").isEmpty())
+				.andExpect(jsonPath("$.phone").isEmpty())
+				.andExpect(jsonPath("$.openchatLink").isEmpty());
+	}
+
+	@Test
+	void 토큰_없이_연락_수단을_조회하면_401() throws Exception {
+		mockMvc.perform(get("/users/me/contact"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
 	}
 
 	private String bearer(Long userId) {
