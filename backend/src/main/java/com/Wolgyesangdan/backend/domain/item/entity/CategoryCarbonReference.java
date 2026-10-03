@@ -6,6 +6,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
@@ -40,7 +41,8 @@ public class CategoryCarbonReference {
 	private Long id;
 
 	@Column(unique = true, nullable = false, length = 20)
-	private String categoryGroup;
+	@Convert(converter = CategoryGroupConverter.class)
+	private CategoryGroup categoryGroup;
 
 	@Column(nullable = false)
 	private int carbonReductionKg;

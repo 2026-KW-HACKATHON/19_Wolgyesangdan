@@ -8,6 +8,7 @@ import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.global.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -48,7 +49,8 @@ public class Item extends BaseTimeEntity {
 	private String name;
 
 	@Column(nullable = false, length = 20)
-	private String categoryGroup;
+	@Convert(converter = CategoryGroupConverter.class)
+	private CategoryGroup categoryGroup;
 
 	@Column(nullable = false, length = 30)
 	private String category;
