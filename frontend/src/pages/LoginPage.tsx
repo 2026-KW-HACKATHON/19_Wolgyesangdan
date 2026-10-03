@@ -1,11 +1,10 @@
+import { useState } from 'react'
 import MarketLogo from '../assets/MarketLogo'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import Screen from '../components/Screen'
-import type { SocialProvider } from '../types/auth'
+import { startKakaoLogin } from '../lib/kakao'
 
 interface LoginPageProps {
-  /** 지정하지 않으면 OAuth 리다이렉트 URL로 이동하는 기본 동작을 씁니다. */
-  onLogin?: (provider: SocialProvider) => void
   onBrowse?: () => void
 }
 
@@ -13,19 +12,18 @@ interface LoginPageProps {
  * 로그인 화면 (#1a) — design_handoff_login_auth/README.md 기준 구현.
  *
  * 로그인 없이도 "둘러보기"로 홈에 진입할 수 있고, 신청·등록 시점에만
- * 로그인이 요구됩니다. 소셜 로그인은 OAuth 리다이렉트로 처리됩니다.
+ * 로그인이 요구됩니다. 로그인은 카카오만 지원합니다 — 카카오 로그인 후
+ * /oauth/kakao/callback(KakaoCallbackPage)으로 돌아옵니다.
  */
-export default function LoginPage({ onLogin, onBrowse }: LoginPageProps) {
-  const handleKakaoLogin = () => {
-    if (onLogin) return onLogin('kakao')
-    // TODO: 카카오 OAuth 연동 — 백엔드 엔드포인트로 리다이렉트
-    window.location.href = '/auth/social/kakao'
-  }
+export default function LoginPage({ onBrowse }: LoginPageProps) {
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const handleGoogleLogin = () => {
-    if (onLogin) return onLogin('google')
-    // TODO: 구글 OAuth 연동 — 백엔드 엔드포인트로 리다이렉트
-    window.location.href = '/auth/social/google'
+  const handleKakaoLogin = () => {
+    try {
+      startKakaoLogin()
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '카카오 로그인을 시작하지 못했어요.')
+    }
   }
 
   const handleBrowse = () => {
@@ -68,19 +66,11 @@ export default function LoginPage({ onLogin, onBrowse }: LoginPageProps) {
           <MaterialIcon name="chat_bubble" size={20} className="absolute left-[18px]" />
           카카오로 시작하기
         </button>
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          className="relative flex h-[54px] cursor-pointer items-center justify-center gap-2 rounded-[14px] border border-border-strong bg-white text-[16px] font-bold text-google-ink"
-        >
-          <span
-            aria-hidden="true"
-            className="absolute left-[18px] flex size-5 items-center justify-center rounded-full bg-google-badge text-[13px] font-extrabold text-ink-2"
-          >
-            G
-          </span>
-          구글로 시작하기
-        </button>
+        {errorMessage && (
+          <p role="alert" className="text-center text-[13px] font-medium text-ink-3">
+            {errorMessage}
+          </p>
+        )}
       </div>
 
       <p className="px-8 pt-3.5 pb-7 text-center text-[12px] leading-[1.6] font-medium text-label-alt">

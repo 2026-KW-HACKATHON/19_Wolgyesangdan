@@ -10,6 +10,7 @@ import MyPage from './pages/MyPage'
 import MyVerificationPage from './pages/MyVerificationPage'
 import ItemDetail from './pages/ItemDetail'
 import ItemRegisterPage from './pages/ItemRegisterPage'
+import KakaoCallbackPage from './pages/KakaoCallbackPage'
 import LoginPage from './pages/LoginPage'
 import ResidentVerificationFormPage from './pages/ResidentVerificationFormPage'
 import StudentVerificationFormPage from './pages/StudentVerificationFormPage'
@@ -53,10 +54,8 @@ function App() {
         </Route>
         <Route element={<DetailLayout />}>
           <Route path="/items/:id" element={<ItemDetail />} />
-          <Route
-            path="/login"
-            element={<LoginPage onLogin={() => navigate('/verification')} onBrowse={() => navigate('/')} />}
-          />
+          <Route path="/login" element={<LoginPage onBrowse={() => navigate('/')} />} />
+          <Route path="/oauth/kakao/callback" element={<KakaoCallbackPage />} />
           <Route
             path="/verification"
             element={
