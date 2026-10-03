@@ -6,10 +6,11 @@ import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
 import CarbonReportPage from './pages/CarbonReportPage'
+import MyPage from './pages/MyPage'
+import MyVerificationPage from './pages/MyVerificationPage'
 import ItemDetail from './pages/ItemDetail'
 import ItemRegisterPage from './pages/ItemRegisterPage'
 import LoginPage from './pages/LoginPage'
-import Placeholder from './pages/Placeholder'
 import ResidentVerificationFormPage from './pages/ResidentVerificationFormPage'
 import StudentVerificationFormPage from './pages/StudentVerificationFormPage'
 import VerificationCompletePage from './pages/VerificationCompletePage'
@@ -48,7 +49,7 @@ function App() {
           <Route path="/browse" element={<ItemList />} />
           <Route path="/register" element={<ItemRegisterPage />} />
           <Route path="/carbon-report" element={<CarbonReportPage />} />
-          <Route path="/mypage" element={<Placeholder title="마이페이지" />} />
+          <Route path="/mypage" element={<MyPage />} />
         </Route>
         <Route element={<DetailLayout />}>
           <Route path="/items/:id" element={<ItemDetail />} />
@@ -86,6 +87,7 @@ function App() {
           />
           <Route path="/verification/complete" element={<VerificationCompleteRoute />} />
           <Route path="/settings/contact" element={<ContactSettingsPage />} />
+          <Route path="/mypage/verification" element={<MyVerificationPage />} />
         </Route>
       </Routes>
     </ContactProvider>
