@@ -1,19 +1,21 @@
-interface DocumentTypeChipsProps {
+import { chipClassName } from './chipStyles'
+
+interface ChoiceChipsProps<T extends string> {
   label: string
   required?: boolean
-  options: string[]
-  value: string | null
-  onChange: (value: string) => void
+  options: readonly T[]
+  value: T | null
+  onChange: (value: T) => void
 }
 
-/** 서류 종류 단일 선택 칩 목록. */
-export default function DocumentTypeChips({
+/** 단일 선택 칩 목록 (서류 종류, 카테고리, 상태 등). */
+export default function ChoiceChips<T extends string>({
   label,
   required,
   options,
   value,
   onChange,
-}: DocumentTypeChipsProps) {
+}: ChoiceChipsProps<T>) {
   return (
     <div className="px-5 pt-4.5">
       <div className="mb-[9px] text-[14px] font-bold text-body">
@@ -30,11 +32,7 @@ export default function DocumentTypeChips({
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(option)}
-              className={`cursor-pointer rounded-full border px-[15px] py-2 text-[14px] ${
-                selected
-                  ? 'border-primary bg-primary font-bold text-screen'
-                  : 'border-border bg-surface font-semibold text-ink-2'
-              }`}
+              className={chipClassName(selected)}
             >
               {option}
             </button>
