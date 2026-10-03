@@ -1,13 +1,17 @@
 package com.Wolgyesangdan.backend.domain.user.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDateTime;
 
 import com.Wolgyesangdan.backend.domain.user.dto.ContactResponse;
+import com.Wolgyesangdan.backend.domain.user.dto.ContactUpdateRequest;
 import com.Wolgyesangdan.backend.domain.user.dto.MyInfoResponse;
 import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
 import com.Wolgyesangdan.backend.domain.user.service.UserService;
@@ -22,8 +26,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest(controllers = UserController.class,
 		properties = "jwt.secret=test-secret-key-that-is-long-enough-for-hs256")
@@ -113,6 +119,76 @@ class UserControllerTest {
 		mockMvc.perform(get("/users/me/contact"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
+	@Test
+	void 오픈채팅으로_연락_수단을_설정한다() throws Exception {
+		given(userService.updateMyContact(eq(1L), any(ContactUpdateRequest.class))).willReturn(
+				new ContactResponse(ContactType.OPENCHAT, null, "https://open.kakao.com/o/abc123"));
+
+		putContact(1L, "{\"contactType\":\"OPENCHAT\",\"openchatLink\":\"https://open.kakao.com/o/abc123\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.contactType").value("OPENCHAT"))
+				.andExpect(jsonPath("$.openchatLink").value("https://open.kakao.com/o/abc123"));
+	}
+
+	@Test
+	void 전화번호로_연락_수단을_설정한다() throws Exception {
+		given(userService.updateMyContact(eq(1L), any(ContactUpdateRequest.class))).willReturn(
+				new ContactResponse(ContactType.PHONE, "010-1234-5678", null));
+
+		putContact(1L, "{\"contactType\":\"PHONE\",\"phone\":\"010-1234-5678\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.contactType").value("PHONE"))
+				.andExpect(jsonPath("$.phone").value("010-1234-5678"));
+	}
+
+	@Test
+	void contactType이_없으면_400() throws Exception {
+		putContact(1L, "{\"phone\":\"010-1234-5678\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("contactType"));
+	}
+
+	@Test
+	void PHONE인데_전화번호가_없으면_400() throws Exception {
+		putContact(1L, "{\"contactType\":\"PHONE\",\"openchatLink\":\"https://open.kakao.com/o/abc123\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("valueProvidedForContactType"));
+	}
+
+	@Test
+	void 전화번호_형식이_틀리면_400() throws Exception {
+		putContact(1L, "{\"contactType\":\"PHONE\",\"phone\":\"01012345678\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("phone"));
+	}
+
+	@Test
+	void 오픈채팅_링크_형식이_틀리면_400() throws Exception {
+		putContact(1L, "{\"contactType\":\"OPENCHAT\",\"openchatLink\":\"https://example.com/o/abc\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("openchatLink"));
+	}
+
+	@Test
+	void 토큰_없이_연락_수단을_설정하면_401() throws Exception {
+		mockMvc.perform(put("/users/me/contact")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"contactType\":\"PHONE\",\"phone\":\"010-1234-5678\"}"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
+	private ResultActions putContact(Long userId, String body) throws Exception {
+		return mockMvc.perform(put("/users/me/contact")
+				.header(HttpHeaders.AUTHORIZATION, bearer(userId))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body));
 	}
 
 	private String bearer(Long userId) {
