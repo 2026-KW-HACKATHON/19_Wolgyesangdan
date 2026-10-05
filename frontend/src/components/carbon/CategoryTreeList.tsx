@@ -20,7 +20,7 @@ export default function CategoryTreeList({ byCategory }: { byCategory: CategoryS
 
   return (
     <ul className="flex flex-col gap-3.5 px-5">
-      {rows.map((row) => {
+      {rows.map((row, i) => {
         const tile = CATEGORY_TILE[row.category]
         const percent = Math.round(row.ratio * 100)
         return (
@@ -40,8 +40,9 @@ export default function CategoryTreeList({ byCategory }: { byCategory: CategoryS
               </div>
               <div className="h-2.5 rounded-full bg-sunken">
                 <div
-                  className="h-full max-w-full rounded-full bg-primary"
-                  style={{ width: `${Math.min(row.ratio * 100 * BAR_SCALE, 100)}%` }}
+                  // 0에서 제 값까지 자라고, 아래 행일수록 조금씩 늦게 시작한다
+                  className="h-full max-w-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
+                  style={{ width: `${Math.min(row.ratio * 100 * BAR_SCALE, 100)}%`, animationDelay: `${i * 0.08}s` }}
                 />
               </div>
             </div>

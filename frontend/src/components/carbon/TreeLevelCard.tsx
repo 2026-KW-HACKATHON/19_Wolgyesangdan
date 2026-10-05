@@ -52,7 +52,10 @@ export default function TreeLevelCard({ since, reusedCount, co2eTotalKg }: TreeL
           aria-valuenow={Math.round(progress * 100)}
           aria-label={next ? `${next.name}까지 진행률` : '최고 레벨 달성'}
         >
-          <div className="h-full rounded-full bg-primary" style={{ width: `${progress * 100}%` }} />
+          <div
+            className="h-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
+            style={{ width: `${progress * 100}%` }}
+          />
         </div>
 
         <ol className="mt-3 flex">
