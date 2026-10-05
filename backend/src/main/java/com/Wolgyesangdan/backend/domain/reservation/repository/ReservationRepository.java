@@ -40,6 +40,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 			""")
 	List<ItemSchedule> findActiveSchedulesByItemIdIn(@Param("itemIds") Collection<Long> itemIds);
 
+	/** 상세 조회용 — 신청·신청자·물품·등록자를 한 번에 가져온다 */
+	@EntityGraph(attributePaths = {"application.applicant", "application.item.owner"})
+	Optional<Reservation> findWithParticipantsByApplicationId(Long applicationId);
+
 	/** 재확인용 — 신청자 확인에 필요한 신청 건을 한 번에 가져온다 */
 	@EntityGraph(attributePaths = "application")
 	Optional<Reservation> findWithApplicationById(Long id);
