@@ -96,25 +96,30 @@ public class ItemService {
 
 	/**
 	 * 내가 등록한 물품 (마이페이지). 본인 목록이라 취소된 물품까지 상태와 관계없이 전부, 최근 등록순.
-	 * 대표 사진과 전달 예정 일시는 페이지에 담긴 물품 id로 한 번씩만 조회해서 붙인다 (N+1 방지).
+	 * 대표 사진과 진행 중인 예약(배정된 신청 id·전달 예정 일시)은 페이지에 담긴 물품 id로 한 번씩만 조회해서 붙인다 (N+1 방지).
 	 */
 	public Page<MyItemSummaryResponse> getMyItems(Long userId, int page, int size) {
 		Page<Item> items = itemRepository.findByOwnerId(userId,
 				PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
 		List<Long> itemIds = items.map(Item::getId).getContent();
 		if (itemIds.isEmpty()) {
-			return items.map(item -> MyItemSummaryResponse.of(item, null, null));
+			return items.map(item -> MyItemSummaryResponse.of(item, null, null, null));
 		}
 
 		Map<Long, String> thumbnails = findThumbnails(itemIds);
 		// 노쇼 승계로 진행 중인 예약이 여러 건이면 나중 건(id 순으로 뒤)을 쓴다
-		Map<Long, LocalDateTime> schedules = new HashMap<>();
+		Map<Long, ItemSchedule> schedules = new HashMap<>();
 		reservationRepository.findActiveSchedulesByItemIdIn(itemIds)
-				.forEach(schedule -> schedules.put(schedule.itemId(), schedule.scheduledAt()));
+				.forEach(schedule -> schedules.put(schedule.itemId(), schedule));
 
-		return items.map(item -> MyItemSummaryResponse.of(item,
-				thumbnails.get(item.getId()),
-				SCHEDULED_STATUSES.contains(item.getStatus()) ? schedules.get(item.getId()) : null));
+		return items.map(item -> {
+			// 배정 확정 전(모집 중·마감)이나 취소된 물품은 예약 정보를 내려주지 않는다
+			ItemSchedule schedule = SCHEDULED_STATUSES.contains(item.getStatus()) ? schedules.get(item.getId()) : null;
+			return MyItemSummaryResponse.of(item,
+					thumbnails.get(item.getId()),
+					schedule == null ? null : schedule.applicationId(),
+					schedule == null ? null : schedule.scheduledAt());
+		});
 	}
 
 	/**
