@@ -14,3 +14,13 @@ kakao:
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+# 헬스 체크(GET /actuator/health)만 공개. 로드밸런서·배포 확인용이라 DB 상태 등 상세 정보는 숨긴다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

@@ -55,6 +55,8 @@ public class SecurityConfig {
 						.permitAll()
 						// 로컬 개발용 임시 로그인 (DevAuthController, local 프로필에서만 존재)
 						.requestMatchers("/dev/**").permitAll()
+						// 헬스 체크 (로드밸런서·배포 확인용)
+						.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
 						.requestMatchers("/error").permitAll()
 						.anyRequest().authenticated())
 				.exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))

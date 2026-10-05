@@ -1,0 +1,25 @@
+# 운영 서버용 설정. SPRING_PROFILES_ACTIVE=prod 로 실행한다.
+# 값은 전부 서버 환경변수로 받는다 (.env 파일을 읽지 않음). 필요한 변수 목록은 .env.prod.example 참고.
+# 운영에 꼭 필요한 값은 기본값을 두지 않아서, 빠뜨리면 서버가 뜨지 않고 바로 실패한다.
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 마이그레이션 도구가 없어서 update로 둔다 — 테이블·컬럼 추가만 하고 삭제는 하지 않는다.
+      # 기존 컬럼의 NOT NULL 해제 같은 변경은 자동으로 안 되므로 PR에 적힌 SQL을 직접 실행해야 한다.
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: false
+
+# 로드밸런서·nginx 뒤에서 원래 요청의 프로토콜(https)·호스트를 인식
+server:
+  forward-headers-strategy: framework
+
+kakao:
+  redirect-uri: ${KAKAO_REDIRECT_URI}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
