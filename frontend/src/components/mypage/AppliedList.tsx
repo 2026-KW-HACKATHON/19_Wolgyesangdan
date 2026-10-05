@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMyApplications, type ApplicationStatus, type MyApplicationSummary } from '../../api/applications'
+import {
+  cancelApplication,
+  getMyApplications,
+  type ApplicationStatus,
+  type MyApplicationSummary,
+} from '../../api/applications'
 import { ApiError } from '../../api/client'
 import { getReservation, type ReservationDetail, type ReservationStatus } from '../../api/reservations'
 import { isLoggedIn } from '../../lib/authStorage'
@@ -182,7 +187,11 @@ export default function AppliedList() {
   const loggedIn = isLoggedIn()
   const [applications, setApplications] = useState<MyApplicationSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [hiddenIds, setHiddenIds] = useState<number[]>([])
+  // 목록을 다시 불러올 때마다 올린다 (취소 후 남은 신청의 대기 순번이 당겨지므로 서버 값으로 새로 받는다)
+  const [reloadKey, setReloadKey] = useState(0)
+  /** 취소 요청 중인 신청 id — 버튼을 잠근다 */
+  const [cancelingId, setCancelingId] = useState<number | null>(null)
+  const [cancelError, setCancelError] = useState<{ id: number; message: string } | null>(null)
 
   useEffect(() => {
     if (!loggedIn) return
@@ -197,12 +206,25 @@ export default function AppliedList() {
     return () => {
       ignore = true
     }
-  }, [loggedIn])
+  }, [loggedIn, reloadKey])
 
-  const handleCancel = (id: number) => {
-    // TODO: DELETE /applications/:id 연동. 취소하면 뒤 순번이 자동으로 당겨진다.
-    if (!window.confirm('신청을 취소할까요?')) return
-    setHiddenIds((prev) => [...prev, id])
+  const handleCancel = async (id: number) => {
+    if (cancelingId !== null || !window.confirm('신청을 취소할까요?')) return
+    setCancelingId(id)
+    setCancelError(null)
+    try {
+      await cancelApplication(id)
+      setReloadKey((key) => key + 1)
+    } catch (e) {
+      setCancelError({
+        id,
+        message: e instanceof ApiError ? e.message : '신청을 취소하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      })
+      // 그 사이 배정되는 등 상태가 바뀌었을 수 있어서 목록도 새로 받는다
+      if (e instanceof ApiError && e.status === 409) setReloadKey((key) => key + 1)
+    } finally {
+      setCancelingId(null)
+    }
   }
 
   if (!loggedIn) {
@@ -219,14 +241,13 @@ export default function AppliedList() {
     return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">신청한 물품을 불러오는 중이에요…</p>
   }
 
-  const items = applications.filter((a) => !hiddenIds.includes(a.id))
-  if (items.length === 0) {
+  if (applications.length === 0) {
     return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">아직 신청한 물품이 없어요</p>
   }
 
   return (
     <div className="flex flex-col gap-3 px-5">
-      {items.map((item) => {
+      {applications.map((item) => {
         const selected = item.status === 'SELECTED'
         // 끝난 신청(전달 완료·취소)은 흐리게 두고 버튼을 보여주지 않는다
         const closed = item.status === 'COMPLETED' || item.status === 'CANCELED'
@@ -278,9 +299,10 @@ export default function AppliedList() {
                   <button
                     type="button"
                     onClick={() => handleCancel(item.id)}
-                    className="flex-1 cursor-pointer rounded-xl border border-border py-2.5 text-[13px] font-bold text-ink-2"
+                    disabled={cancelingId !== null}
+                    className="flex-1 cursor-pointer rounded-xl border border-border py-2.5 text-[13px] font-bold text-ink-2 disabled:cursor-default disabled:opacity-60"
                   >
-                    신청 취소
+                    {cancelingId === item.id ? '취소하는 중…' : '신청 취소'}
                   </button>
                 )}
                 <button
@@ -291,6 +313,11 @@ export default function AppliedList() {
                   물품 보기
                 </button>
               </div>
+            )}
+            {cancelError?.id === item.id && (
+              <p role="alert" className="mt-2 text-[12px] font-semibold text-terracotta">
+                {cancelError.message}
+              </p>
             )}
           </div>
         )
