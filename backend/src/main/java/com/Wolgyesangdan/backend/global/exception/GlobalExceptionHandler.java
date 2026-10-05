@@ -3,7 +3,11 @@ package com.Wolgyesangdan.backend.global.exception;
 import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
+import java.util.stream.Collectors;
+
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import tools.jackson.core.JacksonException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -43,6 +47,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 				.toList();
 		return ResponseEntity.status(status)
 				.body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, errors));
+	}
+
+	// 요청 본문 JSON을 읽지 못한 경우. 특정 필드 값이 문제면(없는 enum 값, 날짜 형식 오류 등) 그 필드를 errors에 담고,
+	// JSON 자체가 깨졌으면 errors 없이 INVALID_INPUT으로 내려준다.
+	@Override
+	protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		if (ex.getCause() instanceof JacksonException jacksonException && !jacksonException.getPath().isEmpty()) {
+			String field = jacksonException.getPath().stream()
+					.map(reference -> reference.getPropertyName() != null
+							? reference.getPropertyName()
+							: "[" + reference.getIndex() + "]")
+					.collect(Collectors.joining(".")).replace(".[", "[");
+			List<ErrorResponse.FieldError> errors = List.of(new ErrorResponse.FieldError(field, "올바르지 않은 값입니다."));
+			return ResponseEntity.status(status).body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, errors));
+		}
+		return ResponseEntity.status(status).body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT));
 	}
 
 	// 쿼리 파라미터·경로 변수 값이 타입에 안 맞는 경우 (없는 enum 값, 숫자 자리에 문자 등)

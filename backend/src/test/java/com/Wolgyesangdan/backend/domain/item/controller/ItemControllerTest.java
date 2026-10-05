@@ -1,5 +1,9 @@
 package com.Wolgyesangdan.backend.domain.item.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
@@ -30,6 +35,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -45,6 +52,9 @@ class ItemControllerTest {
 
 	@MockitoBean
 	private ItemService itemService;
+
+	@Autowired
+	private JwtProvider jwtProvider;
 
 	@Test
 	void 비로그인으로_카테고리_목록을_조회한다() throws Exception {
@@ -169,6 +179,81 @@ class ItemControllerTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
 				.andExpect(jsonPath("$.errors[0].field").value("itemId"));
+	}
+
+	private static final String VALID_CREATE_BODY = """
+			{"name":"전자레인지","categoryGroup":"가전","conditionGrade":"상태 좋음",
+			 "tradeMethods":["DIRECT"],"imageUrls":["https://img/1.jpg"]}
+			""";
+
+	@Test
+	void 물품을_등록하면_201과_Location_헤더로_상세를_내려준다() throws Exception {
+		given(itemService.createItem(eq(1L), any(ItemCreateRequest.class))).willReturn(detail(10L));
+
+		createItem(VALID_CREATE_BODY)
+				.andExpect(status().isCreated())
+				.andExpect(header().string("Location", "/items/10"))
+				.andExpect(jsonPath("$.id").value(10));
+	}
+
+	@Test
+	void 필수_항목이_빠지면_400() throws Exception {
+		createItem("{\"name\":\"\",\"categoryGroup\":\"가전\",\"conditionGrade\":\"상태 좋음\",\"tradeMethods\":[],\"imageUrls\":[]}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors.length()").value(3)); // name, tradeMethods, imageUrls
+	}
+
+	@Test
+	void 사진이_5장을_넘으면_400() throws Exception {
+		createItem(VALID_CREATE_BODY.replace("[\"https://img/1.jpg\"]",
+						"[\"https://a/1\",\"https://a/2\",\"https://a/3\",\"https://a/4\",\"https://a/5\",\"https://a/6\"]"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("imageUrls"));
+	}
+
+	@Test
+	void 상태_등급이_정해진_값이_아니면_400() throws Exception {
+		createItem(VALID_CREATE_BODY.replace("상태 좋음", "매우 좋음"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("conditionGrade"));
+	}
+
+	@Test
+	void 본문에_없는_카테고리를_보내면_400_INVALID_INPUT과_필드명() throws Exception {
+		createItem(VALID_CREATE_BODY.replace("\"가전\"", "\"가전제품\""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("categoryGroup"));
+	}
+
+	@Test
+	void 전달_가능_시작일이_종료일보다_늦으면_400() throws Exception {
+		createItem(VALID_CREATE_BODY.replace("\"name\"",
+						"\"availableFrom\":\"2026-10-10\",\"availableUntil\":\"2026-10-05\",\"name\""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("availablePeriodValid"));
+	}
+
+	@Test
+	void 비로그인으로_물품을_등록하면_401() throws Exception {
+		mockMvc.perform(post("/items").contentType(MediaType.APPLICATION_JSON).content(VALID_CREATE_BODY))
+				.andExpect(status().isUnauthorized());
+	}
+
+	private org.springframework.test.web.servlet.ResultActions createItem(String body) throws Exception {
+		return mockMvc.perform(post("/items")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body));
+	}
+
+	private static ItemDetailResponse detail(Long id) {
+		return new ItemDetailResponse(id, "전자레인지", null, CategoryGroup.APPLIANCE, null, "상태 좋음", null, false,
+				null, null, null, null, 24, null, null, null, LocalDateTime.of(2026, 10, 8, 23, 59, 59),
+				ItemStatus.OPEN, 0, 5, List.of(TradeMethod.DIRECT),
+				List.of(new ItemDetailResponse.ImageResponse("https://img/1.jpg", 0)), null,
+				new ItemDetailResponse.OwnerInfo("등록자", 0));
 	}
 
 }

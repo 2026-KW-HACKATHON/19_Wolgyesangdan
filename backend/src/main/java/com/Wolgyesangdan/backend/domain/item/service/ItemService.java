@@ -1,11 +1,19 @@
 package com.Wolgyesangdan.backend.domain.item.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.stream.IntStream;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
+import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
@@ -23,6 +31,9 @@ import com.Wolgyesangdan.backend.domain.item.repository.ItemSpecifications;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemTradeMethodRepository;
 
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
+import com.Wolgyesangdan.backend.domain.user.entity.User;
+import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
+import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
@@ -45,6 +56,12 @@ public class ItemService {
 	private final ItemTradeMethodRepository itemTradeMethodRepository;
 	private final CategoryCarbonReferenceRepository categoryCarbonReferenceRepository;
 	private final ReservationRepository reservationRepository;
+	private final UserRepository userRepository;
+	private final CampaignRepository campaignRepository;
+
+	/** 직거래만 하는 물품의 신청 기간 (등록일 + N일 23:59:59 마감) */
+	static final int DIRECT_APPLICATION_DAYS = 3;
+	private static final LocalTime END_OF_DAY = LocalTime.of(23, 59, 59);
 
 	/**
 	 * 물품 목록. 검색·필터·정렬은 ItemSpecifications에서 처리한다.
@@ -88,6 +105,86 @@ public class ItemService {
 		List<ItemImage> images = itemImageRepository.findByItemIdOrderByDisplayOrderAsc(itemId);
 		long givenCount = reservationRepository.countCompletedByItemOwnerId(item.getOwner().getId());
 		return ItemDetailResponse.of(item, tradeMethods, images, givenCount);
+	}
+
+	/**
+	 * 물품 등록 (2026-10-05 결정, #56)
+	 * - 연락 수단을 설정하지 않았으면 등록 불가
+	 * - 거점 거래를 포함하면 캠페인 물품 등록 기간 안이어야 하고, 신청 마감은 캠페인 신청 종료일 23:59:59
+	 * - 직거래만이면 신청 마감은 등록일 + 3일 23:59:59
+	 * - 등록 즉시 OPEN, 예상 탄소 절감량은 카테고리 기준표 값을 스냅샷으로 저장
+	 */
+	@Transactional
+	public ItemDetailResponse createItem(Long userId, ItemCreateRequest request) {
+		User owner = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+		if (owner.getContactType() == null) {
+			throw new BusinessException(ItemErrorCode.ITEM_CONTACT_NOT_SET);
+		}
+
+		LocalDate today = LocalDate.now();
+		EnumSet<TradeMethod> tradeMethods = EnumSet.copyOf(request.tradeMethods());
+		Campaign campaign = tradeMethods.contains(TradeMethod.CAMPAIGN)
+				? findCampaignAcceptingItems(request.campaignId(), today)
+				: null;
+		LocalDateTime applicationDeadline = campaign != null
+				? campaign.getApplicationEndDate().atTime(END_OF_DAY)
+				: today.plusDays(DIRECT_APPLICATION_DAYS).atTime(END_OF_DAY);
+		int carbonReduction = categoryCarbonReferenceRepository.findByCategoryGroup(request.categoryGroup())
+				.orElseThrow(() -> new IllegalStateException("탄소 참조값이 없는 카테고리: " + request.categoryGroup()))
+				.getCarbonReductionKg();
+		boolean defect = Boolean.TRUE.equals(request.defectYn());
+
+		Item item = itemRepository.save(Item.builder()
+				.owner(owner)
+				.campaign(campaign)
+				.name(request.name().strip())
+				.categoryGroup(request.categoryGroup())
+				.category(request.category())
+				.description(request.description())
+				.conditionGrade(request.conditionGrade())
+				.usagePeriod(request.usagePeriod())
+				.defectYn(defect)
+				.defectDescription(defect ? request.defectDescription() : null)
+				.workingStatus(request.workingStatus())
+				.size(request.size())
+				.transportDifficulty(request.transportDifficulty())
+				.estimatedCarbonReduction(carbonReduction)
+				.availableFrom(request.availableFrom())
+				.availableUntil(request.availableUntil())
+				.disposalDeadline(request.disposalDeadline())
+				.applicationDeadline(applicationDeadline)
+				.status(ItemStatus.OPEN)
+				.build());
+		List<ItemImage> images = itemImageRepository.saveAll(IntStream.range(0, request.imageUrls().size())
+				.mapToObj(order -> ItemImage.builder()
+						.item(item)
+						.imageUrl(request.imageUrls().get(order))
+						.displayOrder(order)
+						.build())
+				.toList());
+		itemTradeMethodRepository.saveAll(tradeMethods.stream()
+				.map(tradeMethod -> ItemTradeMethod.builder().item(item).tradeMethod(tradeMethod).build())
+				.toList());
+
+		long givenCount = reservationRepository.countCompletedByItemOwnerId(owner.getId());
+		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount);
+	}
+
+	// 거점 거래는 캠페인 물품 등록 기간(registration_start_date ~ registration_end_date) 안에만 고를 수 있다
+	private Campaign findCampaignAcceptingItems(Long campaignId, LocalDate today) {
+		if (campaignId == null) {
+			throw new BusinessException(ItemErrorCode.ITEM_TRADE_METHOD_INVALID, "거점 거래를 선택하려면 캠페인을 지정해야 합니다.");
+		}
+		Campaign campaign = campaignRepository.findById(campaignId)
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_TRADE_METHOD_INVALID));
+		boolean acceptingItems = !today.isBefore(campaign.getRegistrationStartDate())
+				&& !today.isAfter(campaign.getRegistrationEndDate())
+				&& !today.isAfter(campaign.getApplicationEndDate());
+		if (!acceptingItems) {
+			throw new BusinessException(ItemErrorCode.ITEM_TRADE_METHOD_INVALID);
+		}
+		return campaign;
 	}
 
 	/**

@@ -56,12 +56,22 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
-	void 요청_본문을_읽을_수_없으면_400으로_응답한다() throws Exception {
+	void 요청_본문을_읽을_수_없으면_400_INVALID_INPUT으로_응답한다() throws Exception {
 		mockMvc.perform(post("/test/validation")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("not json"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+	}
+
+	@Test
+	void 본문의_특정_필드_값이_타입에_안_맞으면_그_필드를_errors에_담는다() throws Exception {
+		mockMvc.perform(post("/test/typed")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"count\":\"많이\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("count"));
 	}
 
 	@Test
@@ -89,6 +99,13 @@ class GlobalExceptionHandlerTest {
 		}
 
 		record Request(@NotBlank String name) {
+		}
+
+		@PostMapping("/test/typed")
+		void typed(@RequestBody TypedRequest request) {
+		}
+
+		record TypedRequest(Integer count) {
 		}
 
 	}

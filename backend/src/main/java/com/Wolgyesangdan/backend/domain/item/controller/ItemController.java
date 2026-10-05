@@ -1,8 +1,10 @@
 package com.Wolgyesangdan.backend.domain.item.controller;
 
+import java.net.URI;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
@@ -13,7 +15,12 @@ import com.Wolgyesangdan.backend.domain.item.service.ItemService;
 
 import com.Wolgyesangdan.backend.global.dto.PageResponse;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,6 +62,14 @@ public class ItemController {
 	@GetMapping("/{itemId}")
 	public ItemDetailResponse getItem(@PathVariable Long itemId) {
 		return itemService.getItem(itemId);
+	}
+
+	/** 물품 등록 (로그인 필요). 응답은 상세 조회와 같은 형태 + 201 Created */
+	@PostMapping
+	public ResponseEntity<ItemDetailResponse> createItem(@AuthenticationPrincipal Long userId,
+			@Valid @RequestBody ItemCreateRequest request) {
+		ItemDetailResponse created = itemService.createItem(userId, request);
+		return ResponseEntity.created(URI.create("/items/" + created.id())).body(created);
 	}
 
 }

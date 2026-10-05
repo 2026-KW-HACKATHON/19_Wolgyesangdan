@@ -55,7 +55,7 @@ public class Item extends BaseTimeEntity {
 	@Convert(converter = CategoryGroupConverter.class)
 	private CategoryGroup categoryGroup;
 
-	@Column(nullable = false, length = 30)
+	@Column(length = 30)
 	private String category;
 
 	@Column(columnDefinition = "TEXT")
@@ -79,16 +79,14 @@ public class Item extends BaseTimeEntity {
 	@Column(length = 50)
 	private String size;
 
-	@Column(nullable = false, length = 20)
+	@Column(length = 20)
 	private String transportDifficulty;
 
 	@Column(nullable = false)
 	private int estimatedCarbonReduction;
 
-	@Column(nullable = false)
 	private LocalDate availableFrom;
 
-	@Column(nullable = false)
 	private LocalDate availableUntil;
 
 	private LocalDate disposalDeadline;
