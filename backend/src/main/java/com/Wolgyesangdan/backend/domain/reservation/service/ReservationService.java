@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 import java.util.EnumSet;
 
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
+import com.Wolgyesangdan.backend.domain.item.entity.Item;
+import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.reservation.dto.CompleteResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReservationDetailResponse;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
@@ -84,6 +87,45 @@ public class ReservationService {
 
 		reservation.reconfirm(now);
 		return ReconfirmResponse.from(reservation);
+	}
+
+	/**
+	 * 직거래 전달 완료 (2026-10-05 결정, #100). 물품 등록자만, 신청자가 수령을 재확인한 직거래 예약만 완료할 수 있다.
+	 * 예약·신청·물품을 모두 COMPLETED로 바꿔서 탄소 리포트·자원순환 기록·전달 완료 횟수에 집계되게 한다.
+	 * 노쇼 승계 스케줄러와 같은 순서로 물품부터 잠근다.
+	 */
+	@Transactional
+	public CompleteResponse complete(Long userId, Long reservationId) {
+		return complete(userId, reservationId, LocalDateTime.now());
+	}
+
+	CompleteResponse complete(Long userId, Long reservationId, LocalDateTime now) {
+		Long itemId = reservationRepository.findItemIdById(reservationId)
+				.orElseThrow(() -> new BusinessException(ReservationErrorCode.RESERVATION_NOT_FOUND));
+		Item item = itemRepository.findByIdForUpdate(itemId)
+				.orElseThrow(() -> new BusinessException(ReservationErrorCode.RESERVATION_NOT_FOUND));
+		Reservation reservation = reservationRepository.findWithApplicationById(reservationId)
+				.orElseThrow(() -> new BusinessException(ReservationErrorCode.RESERVATION_NOT_FOUND));
+		if (!item.getOwner().getId().equals(userId)) {
+			throw new BusinessException(ReservationErrorCode.RESERVATION_NOT_ITEM_OWNER);
+		}
+		if (reservation.getStatus() == ReservationStatus.COMPLETED) {
+			throw new BusinessException(ReservationErrorCode.RESERVATION_ALREADY_COMPLETED);
+		}
+		if (reservation.getTradeMethod() != TradeMethod.DIRECT) {
+			throw new BusinessException(ReservationErrorCode.RESERVATION_NOT_DIRECT);
+		}
+		if (reservation.getStatus() == ReservationStatus.SCHEDULED) {
+			throw new BusinessException(ReservationErrorCode.RESERVATION_NOT_RECONFIRMED);
+		}
+		if (reservation.getStatus() != ReservationStatus.RECONFIRMED) {
+			throw new BusinessException(ReservationErrorCode.RESERVATION_NOT_COMPLETABLE); // 노쇼·취소된 예약
+		}
+
+		reservation.complete(now);
+		reservation.getApplication().complete();
+		item.complete();
+		return CompleteResponse.from(reservation);
 	}
 
 }

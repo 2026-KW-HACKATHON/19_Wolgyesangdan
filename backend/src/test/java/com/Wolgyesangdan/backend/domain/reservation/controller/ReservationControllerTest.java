@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDateTime;
 
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.reservation.dto.CompleteResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReservationDetailResponse;
 import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
@@ -156,6 +157,51 @@ class ReservationControllerTest {
 
 	private ResultActions getReservation(String applicationId) throws Exception {
 		return mockMvc.perform(get("/applications/" + applicationId + "/reservation")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L)));
+	}
+
+	@Test
+	void 직거래_전달을_완료한다() throws Exception {
+		given(reservationService.complete(1L, 3L)).willReturn(
+				new CompleteResponse(3L, ReservationStatus.COMPLETED, LocalDateTime.of(2026, 10, 6, 18, 0)));
+
+		complete("3")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(3))
+				.andExpect(jsonPath("$.status").value("COMPLETED"))
+				.andExpect(jsonPath("$.completedAt").value("2026-10-06T18:00:00"));
+	}
+
+	@Test
+	void 재확인_전이면_409() throws Exception {
+		given(reservationService.complete(1L, 3L))
+				.willThrow(new BusinessException(ReservationErrorCode.RESERVATION_NOT_RECONFIRMED));
+
+		complete("3")
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("RESERVATION_NOT_RECONFIRMED"))
+				.andExpect(jsonPath("$.message").value("신청자가 수령을 재확인한 뒤에 완료할 수 있습니다."));
+	}
+
+	@Test
+	void 등록자가_아니면_403() throws Exception {
+		given(reservationService.complete(1L, 3L))
+				.willThrow(new BusinessException(ReservationErrorCode.RESERVATION_NOT_ITEM_OWNER));
+
+		complete("3")
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("RESERVATION_NOT_ITEM_OWNER"));
+	}
+
+	@Test
+	void 토큰_없이_완료하면_401() throws Exception {
+		mockMvc.perform(patch("/reservations/3/complete"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
+	private ResultActions complete(String reservationId) throws Exception {
+		return mockMvc.perform(patch("/reservations/" + reservationId + "/complete")
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L)));
 	}
 

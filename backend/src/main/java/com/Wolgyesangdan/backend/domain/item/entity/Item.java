@@ -132,4 +132,9 @@ public class Item extends BaseTimeEntity {
 	public void cancel() {
 		this.status = ItemStatus.CANCELED;
 	}
+
+	/** 거래 완료 — 탄소 절감량 집계에 들어간다 */
+	public void complete() {
+		this.status = ItemStatus.COMPLETED;
+	}
 }
