@@ -79,23 +79,33 @@ public class ApplicationService {
 
 	/**
 	 * 신청 취소. WAITING 상태일 때만 가능하고, 이미 SELECTED(이상)된 신청은 취소할 수 없다
-	 * (배정 취소는 예약 도메인의 별도 흐름 — #89). 물품 행을 잠그고 읽어서 apply()와의 동시 변경을 막는다.
+	 * (배정 취소는 예약 도메인의 별도 흐름 — #89).
+	 *
+	 * 물품을 먼저 잠그고(findByIdForUpdate) 그 다음에 신청을 읽어야 한다 — 신청을 먼저 읽으면 영속성
+	 * 컨텍스트에 캐시돼서, 잠금을 기다리는 동안(배정 스케줄러 #92가 먼저 SELECTED로 바꿀 수 있음) 바뀐
+	 * 최신 상태가 아니라 잠그기 전에 읽은 낡은 상태로 검증하게 된다.
 	 */
 	@Transactional
 	public void cancel(Long userId, Long applicationId) {
+		Long itemId = applicationRepository.findItemIdById(applicationId)
+				.orElseThrow(() -> new BusinessException(ApplicationErrorCode.APPLICATION_NOT_FOUND));
+		Item item = itemRepository.findByIdForUpdate(itemId)
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 		Application application = applicationRepository.findById(applicationId)
 				.orElseThrow(() -> new BusinessException(ApplicationErrorCode.APPLICATION_NOT_FOUND));
+
 		if (!application.getApplicant().getId().equals(userId)) {
 			throw new BusinessException(ApplicationErrorCode.APPLICATION_NOT_OWNER);
+		}
+		if (application.getStatus() == ApplicationStatus.CANCELED) {
+			throw new BusinessException(ApplicationErrorCode.APPLICATION_ALREADY_CANCELED);
 		}
 		if (application.getStatus() != ApplicationStatus.WAITING) {
 			throw new BusinessException(ApplicationErrorCode.APPLICATION_ALREADY_SELECTED);
 		}
 
-		Item item = itemRepository.findByIdForUpdate(application.getItem().getId())
-				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 		application.cancel();
-		item.decreaseApplicantCount();
+		item.decreaseApplicantCount(LocalDateTime.now());
 		recalculateWaitlistRanks(item);
 	}
 

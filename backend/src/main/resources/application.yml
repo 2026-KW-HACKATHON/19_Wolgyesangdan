@@ -15,6 +15,10 @@ kakao:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
+# 배정·승계 스케줄러 (SchedulingConfig). 로컬에서 끄려면 .env에 SCHEDULING_ENABLED=false
+scheduling:
+  enabled: ${SCHEDULING_ENABLED:true}
+
 # 헬스 체크(GET /actuator/health)만 공개. 로드밸런서·배포 확인용이라 DB 상태 등 상세 정보는 숨긴다
 management:
   endpoints:

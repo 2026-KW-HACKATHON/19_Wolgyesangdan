@@ -112,8 +112,24 @@ public class Item extends BaseTimeEntity {
 		}
 	}
 
-	/** 신청 취소 — 신청자 수를 줄인다 (상태 전환은 다루지 않는다 — #89) */
-	public void decreaseApplicantCount() {
+	/**
+	 * 신청 취소 — 신청자 수를 줄이고, 정원이 꽉 차서 CLOSED였다면 신청 마감 전인 경우에만 다시 OPEN으로 되돌린다
+	 * (요구사항 명세서 미정 사항 4번, 2026-10-05 결정).
+	 */
+	public void decreaseApplicantCount(LocalDateTime now) {
 		this.applicantCount--;
+		if (this.status == ItemStatus.CLOSED && this.applicationDeadline.isAfter(now)) {
+			this.status = ItemStatus.OPEN;
+		}
+	}
+
+	/** 배정 확정 — 전달·수령이 끝날 때까지 "예약 중" */
+	public void assign() {
+		this.status = ItemStatus.ASSIGNED;
+	}
+
+	/** 받을 사람이 없어 종료 (2026-10-05 결정 — 신청자 0명이거나 승계할 대기자가 없을 때) */
+	public void cancel() {
+		this.status = ItemStatus.CANCELED;
 	}
 }
