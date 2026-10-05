@@ -229,6 +229,54 @@ class ApplicationServiceTest {
 		assertThat(secondApplication.getWaitlistRank()).isEqualTo(1);
 	}
 
+	@Test
+	void 이미_취소한_신청을_다시_취소하면_409() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.cancel(applicant.getId(), response.id());
+		entityManager.flush();
+
+		assertThatThrownBy(() -> applicationService.cancel(applicant.getId(), response.id()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ApplicationErrorCode.APPLICATION_ALREADY_CANCELED);
+	}
+
+	@Test
+	void 정원_마감으로_CLOSED된_물품도_신청_마감_전이면_취소시_다시_OPEN된다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		User lastFiller = null;
+		Long lastApplicationId = null;
+		for (int i = 0; i < 5; i++) {
+			User filler = persistEligibleApplicant("대기자" + i);
+			lastApplicationId = applicationService.apply(filler.getId(), item.getId()).id();
+			lastFiller = filler;
+		}
+		entityManager.flush();
+		assertThat(item.getStatus()).isEqualTo(ItemStatus.CLOSED);
+
+		applicationService.cancel(lastFiller.getId(), lastApplicationId);
+
+		assertThat(item.getStatus()).isEqualTo(ItemStatus.OPEN);
+		assertThat(item.getApplicantCount()).isEqualTo(4);
+	}
+
+	@Test
+	void 신청_마감_시각이_지난_뒤에는_취소해도_CLOSED를_유지한다() {
+		Item item = persist(item(owner, ItemStatus.CLOSED, LocalDateTime.now().minusSeconds(1), 4));
+		Application waiting = persist(Application.builder()
+				.item(item)
+				.applicant(applicant)
+				.priorityScore(0)
+				.status(ApplicationStatus.WAITING)
+				.build());
+
+		applicationService.cancel(applicant.getId(), waiting.getId());
+
+		assertThat(item.getStatus()).isEqualTo(ItemStatus.CLOSED);
+		assertThat(item.getApplicantCount()).isEqualTo(3);
+	}
+
 	private User persistEligibleApplicant(String nickname) {
 		User user = persist(user(nickname));
 		user.updateContact(ContactType.OPENCHAT, null, "https://open.kakao.com/o/abc");

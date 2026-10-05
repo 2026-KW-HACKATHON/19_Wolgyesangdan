@@ -122,6 +122,16 @@ class ApplicationControllerTest {
 	}
 
 	@Test
+	void 이미_취소한_신청이면_취소시_409를_반환한다() throws Exception {
+		willThrow(new BusinessException(ApplicationErrorCode.APPLICATION_ALREADY_CANCELED))
+				.given(applicationService).cancel(1L, 5L);
+
+		mockMvc.perform(delete("/applications/5").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("APPLICATION_ALREADY_CANCELED"));
+	}
+
+	@Test
 	void 토큰_없이_취소하면_401() throws Exception {
 		mockMvc.perform(delete("/applications/5"))
 				.andExpect(status().isUnauthorized())
