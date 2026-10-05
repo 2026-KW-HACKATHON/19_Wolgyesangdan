@@ -5,6 +5,12 @@ export type CategoryGroup = '가구' | '가전' | '주방' | '생활' | '기타'
 
 export type TradeMethod = 'DIRECT' | 'CAMPAIGN'
 
+/** GET /items/categories 의 한 줄 — 카테고리별 예상 탄소 절감량 참조값 */
+export interface CategoryCarbon {
+  categoryGroup: CategoryGroup
+  carbonReductionKg: number
+}
+
 /** 목록·상세에는 OPEN·CLOSED·ASSIGNED·COMPLETED만 내려온다 */
 export type ItemStatus = 'REGISTERED' | 'OPEN' | 'CLOSED' | 'ASSIGNED' | 'COMPLETED' | 'CANCELED'
 
