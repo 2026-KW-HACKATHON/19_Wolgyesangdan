@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.Wolgyesangdan.backend.domain.carbonreport.dto.MyImpactResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
 
@@ -24,6 +25,24 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 				and r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
 			""")
 	long countCompletedByItemOwnerId(@Param("ownerId") Long ownerId);
+
+	/**
+	 * 나의 자원순환 기록 — 거래 완료된 예약 중 내가 등록자(전달)인 것과 신청자(수령)인 것의 수,
+	 * 그리고 그 물품들의 예상 탄소 절감량 합계를 쿼리 한 번으로 계산한다.
+	 * 본인 물품에는 신청할 수 없어서 한 예약이 전달·수령 양쪽에 동시에 잡히는 경우는 없다.
+	 */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.carbonreport.dto.MyImpactResponse(
+				coalesce(sum(case when i.owner.id = :userId then 1 else 0 end), 0L),
+				coalesce(sum(case when a.applicant.id = :userId then 1 else 0 end), 0L),
+				coalesce(sum(i.estimatedCarbonReduction), 0L))
+			from Reservation r
+				join r.application a
+				join a.item i
+			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
+				and (i.owner.id = :userId or a.applicant.id = :userId)
+			""")
+	MyImpactResponse summarizeMyImpact(@Param("userId") Long userId);
 
 	/**
 	 * 물품별 진행 중인 예약의 전달 예정 일시. 노쇼·취소된 예약은 빼고,
