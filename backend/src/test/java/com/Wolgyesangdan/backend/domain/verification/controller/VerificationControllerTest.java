@@ -1,7 +1,10 @@
 package com.Wolgyesangdan.backend.domain.verification.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,10 +13,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
+import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
+import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
+import com.Wolgyesangdan.backend.domain.verification.exception.VerificationErrorCode;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
 import com.Wolgyesangdan.backend.global.security.JwtAuthenticationEntryPoint;
 import com.Wolgyesangdan.backend.global.security.JwtProvider;
 
@@ -22,8 +29,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 @WebMvcTest(controllers = VerificationController.class,
 		properties = "jwt.secret=test-secret-key-that-is-long-enough-for-hs256")
@@ -92,6 +101,105 @@ class VerificationControllerTest {
 		mockMvc.perform(get("/verifications/me"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
+	@Test
+	void 학생_인증을_신청한다() throws Exception {
+		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class))).willReturn(
+				new VerificationCreateResponse(10L, VerificationType.STUDENT, VerificationStatus.PENDING,
+						LocalDateTime.of(2026, 9, 26, 15, 0)));
+
+		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"studentId\":\"202312345\",\"department\":\"산업디자인\"}")
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.id").value(10))
+				.andExpect(jsonPath("$.verificationType").value("STUDENT"))
+				.andExpect(jsonPath("$.status").value("PENDING"))
+				.andExpect(jsonPath("$.submittedAt").value("2026-09-26T15:00:00"));
+	}
+
+	@Test
+	void 주민_인증을_신청한다() throws Exception {
+		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class))).willReturn(
+				new VerificationCreateResponse(11L, VerificationType.RESIDENT, VerificationStatus.PENDING,
+						LocalDateTime.of(2026, 9, 26, 15, 0)));
+
+		postVerification(1L, "{\"verificationType\":\"RESIDENT\",\"name\":\"정하늘\",\"address\":\"서울 노원구 월계로 1\"}")
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.verificationType").value("RESIDENT"));
+	}
+
+	@Test
+	void 저소득층_인증은_유형만_보내면_된다() throws Exception {
+		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class))).willReturn(
+				new VerificationCreateResponse(12L, VerificationType.LOW_INCOME, VerificationStatus.PENDING,
+						LocalDateTime.of(2026, 9, 26, 15, 0)));
+
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\"}")
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.verificationType").value("LOW_INCOME"));
+	}
+
+	@Test
+	void verificationType이_없으면_400() throws Exception {
+		postVerification(1L, "{\"studentId\":\"202312345\",\"department\":\"산업디자인\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("verificationType"));
+	}
+
+	@Test
+	void STUDENT인데_학과가_없으면_400() throws Exception {
+		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"studentId\":\"202312345\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("valueProvidedForVerificationType"));
+	}
+
+	@Test
+	void RESIDENT인데_주소가_빈_값이면_400() throws Exception {
+		postVerification(1L, "{\"verificationType\":\"RESIDENT\",\"name\":\"정하늘\",\"address\":\"  \"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("valueProvidedForVerificationType"));
+	}
+
+	@Test
+	void 학번_형식이_틀리면_400() throws Exception {
+		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class)))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_INVALID_STUDENT_ID));
+
+		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"studentId\":\"abc\",\"department\":\"산업디자인\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VERIFICATION_INVALID_STUDENT_ID"));
+	}
+
+	@Test
+	void 이미_심사_중인_신청이_있으면_409() throws Exception {
+		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class)))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_PENDING));
+
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\"}")
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.status").value(409))
+				.andExpect(jsonPath("$.code").value("VERIFICATION_ALREADY_PENDING"))
+				.andExpect(jsonPath("$.message").value("이미 심사 중인 인증 신청이 있습니다."))
+				.andExpect(jsonPath("$.errors").isEmpty());
+	}
+
+	@Test
+	void 토큰_없이_신청하면_401() throws Exception {
+		mockMvc.perform(post("/verifications")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"verificationType\":\"LOW_INCOME\"}"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
+	private ResultActions postVerification(Long userId, String body) throws Exception {
+		return mockMvc.perform(post("/verifications")
+				.header(HttpHeaders.AUTHORIZATION, bearer(userId))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body));
 	}
 
 	private String bearer(Long userId) {
