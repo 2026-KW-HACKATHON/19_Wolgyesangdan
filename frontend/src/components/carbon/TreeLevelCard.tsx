@@ -6,14 +6,14 @@ import TreeScene from './TreeScene'
 
 interface TreeLevelCardProps {
   /** 누적 집계 시작 월 (YYYY-MM) */
-  since: string
+  since: string | null
   reusedCount: number
-  co2eTotalKg: number
+  carbonReductionKg: number
 }
 
 /** 5b ① 동네 나무 카드. 누적 절감량에 따라 장면이 5d의 레벨 5단계로 바뀐다. */
-export default function TreeLevelCard({ since, reusedCount, co2eTotalKg }: TreeLevelCardProps) {
-  const { level, next, remainKg, progress, fruits } = treeProgress(co2eTotalKg, reusedCount)
+export default function TreeLevelCard({ since, reusedCount, carbonReductionKg }: TreeLevelCardProps) {
+  const { level, next, remainKg, progress, fruits } = treeProgress(carbonReductionKg, reusedCount)
 
   return (
     <section className="mx-5 mt-3 overflow-hidden rounded-3xl border border-border bg-surface">
@@ -23,9 +23,12 @@ export default function TreeLevelCard({ since, reusedCount, co2eTotalKg }: TreeL
           <MaterialIcon name="park" size={14} />
           Lv.{level.lv} {level.name}
         </span>
-        <span className="absolute top-4 right-4 z-10 text-[12px] font-semibold text-[#57603F]">
-          {formatYearMonth(since)}부터
-        </span>
+        {/* 아직 거래가 없으면 시작 월이 없어 문구를 숨긴다 */}
+        {since && (
+          <span className="absolute top-4 right-4 z-10 text-[12px] font-semibold text-[#57603F]">
+            {formatYearMonth(since)}부터
+          </span>
+        )}
         {fruits > 0 && (
           <span className="absolute right-3 bottom-2 z-10 rounded-lg bg-surface px-2 py-[3px] text-[11px] font-bold text-terracotta-deep">
             열매 1개 = 물품 100개
@@ -34,7 +37,7 @@ export default function TreeLevelCard({ since, reusedCount, co2eTotalKg }: TreeL
       </div>
 
       <div className="px-[18px] pt-4 pb-[18px]">
-        <MetricPair countLabel="함께 나눈 물품" count={reusedCount} co2eKg={co2eTotalKg} />
+        <MetricPair countLabel="함께 나눈 물품" count={reusedCount} carbonReductionKg={carbonReductionKg} />
 
         <div className="mt-4 flex items-baseline justify-between">
           <span className="text-[13px] font-bold text-body">
