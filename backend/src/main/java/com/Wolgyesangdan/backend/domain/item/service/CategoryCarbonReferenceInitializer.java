@@ -27,14 +27,26 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CategoryCarbonReferenceInitializer implements ApplicationRunner {
 
-	// ⚠️ 임시값(placeholder) — 실측 EPD/LCA 데이터로 교체 필요 (#16)
-	static final String SOURCE = "임시값(placeholder) — 실측 EPD/LCA 데이터로 교체 필요";
-	static final Map<CategoryGroup, Integer> CARBON_REDUCTION_KG = new EnumMap<>(Map.of(
-			CategoryGroup.FURNITURE, 30,
-			CategoryGroup.APPLIANCE, 24,
-			CategoryGroup.KITCHEN, 10,
-			CategoryGroup.LIVING, 15,
-			CategoryGroup.ETC, 8));
+	/** 카테고리 대분류 하나의 참조값 — 예상 탄소 절감량(kg CO2e)과 그 근거 */
+	record Reference(int carbonReductionKg, String source) {
+	}
+
+	/**
+	 * 재사용 1건이 새 제품 1개의 생산을 대체한다고 보고(1:1 대체, 잠재적 절감량) 그 생산 배출량을 절감량으로 쓴다 (#16, 2026-10-05).
+	 * 가구는 WRAP 품목별 연구, 나머지는 영국 정부 환산계수(DESNZ 2024, 신제품 생산 kg CO2e/t)에 대표 물품 무게를 곱했다.
+	 * 동네 안 직거래라 운송 배출은 무시한다. 자세한 근거는 요구사항 명세서 6.5 "탄소 절감량" 참고.
+	 */
+	static final Map<CategoryGroup, Reference> REFERENCES = new EnumMap<>(Map.of(
+			CategoryGroup.FURNITURE, new Reference(35,
+					"WRAP(2012) 가구 재사용 연구: 소파 40~55kg, 식탁 20kg의 중간값"),
+			CategoryGroup.APPLIANCE, new Reference(70,
+					"UK DESNZ 2024 소형 가전 생산 5,648kgCO2e/t × 전자레인지 12kg"),
+			CategoryGroup.KITCHEN, new Reference(8,
+					"UK DESNZ 2024 금속 생산 3,465kgCO2e/t × 냄비·프라이팬 2kg"),
+			CategoryGroup.LIVING, new Reference(15,
+					"UK DESNZ 2024 플라스틱 평균 생산 3,165kgCO2e/t × 플라스틱 수납장 5kg"),
+			CategoryGroup.ETC, new Reference(8,
+					"UK DESNZ 2024 플라스틱 평균 생산 3,165kgCO2e/t × 플라스틱 소품 2.5kg")));
 
 	private final CategoryCarbonReferenceRepository categoryCarbonReferenceRepository;
 
@@ -42,26 +54,27 @@ public class CategoryCarbonReferenceInitializer implements ApplicationRunner {
 	@Transactional
 	public void run(ApplicationArguments args) {
 		for (CategoryGroup categoryGroup : CategoryGroup.values()) {
-			Integer carbonReductionKg = CARBON_REDUCTION_KG.get(categoryGroup);
-			if (carbonReductionKg == null) {
+			Reference expected = REFERENCES.get(categoryGroup);
+			if (expected == null) {
 				throw new IllegalStateException("탄소 참조값이 정의되지 않은 카테고리 대분류: " + categoryGroup
-						+ " — CategoryCarbonReferenceInitializer.CARBON_REDUCTION_KG에 추가하세요.");
+						+ " — CategoryCarbonReferenceInitializer.REFERENCES에 추가하세요.");
 			}
 			categoryCarbonReferenceRepository.findByCategoryGroup(categoryGroup).ifPresentOrElse(
-					reference -> updateIfChanged(reference, carbonReductionKg),
+					reference -> updateIfChanged(reference, expected),
 					() -> categoryCarbonReferenceRepository.save(CategoryCarbonReference.builder()
 							.categoryGroup(categoryGroup)
-							.carbonReductionKg(carbonReductionKg)
-							.source(SOURCE)
+							.carbonReductionKg(expected.carbonReductionKg())
+							.source(expected.source())
 							.build()));
 		}
 		log.info("탄소 참조표 동기화 완료: {}", Arrays.toString(CategoryGroup.values()));
 	}
 
 	// 값이 같으면 건드리지 않는다 — updated_at이 "실제로 값이 바뀐 시각"을 가리키게 하기 위함
-	private void updateIfChanged(CategoryCarbonReference reference, int carbonReductionKg) {
-		if (reference.getCarbonReductionKg() != carbonReductionKg || !Objects.equals(reference.getSource(), SOURCE)) {
-			reference.update(carbonReductionKg, SOURCE);
+	private void updateIfChanged(CategoryCarbonReference reference, Reference expected) {
+		if (reference.getCarbonReductionKg() != expected.carbonReductionKg()
+				|| !Objects.equals(reference.getSource(), expected.source())) {
+			reference.update(expected.carbonReductionKg(), expected.source());
 		}
 	}
 
