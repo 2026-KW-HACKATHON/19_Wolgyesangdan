@@ -6,7 +6,6 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.function.BinaryOperator;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.Wolgyesangdan.backend.domain.user.entity.User;
@@ -36,15 +35,11 @@ public class VerificationService {
 			.comparing(PriorityVerification::getSubmittedAt)
 			.thenComparing(PriorityVerification::getId);
 
-	// 프론트 StudentVerificationFormPage의 검증과 동일 (숫자 4~12자). 앞 4자리가 입학연도
-	private static final Pattern STUDENT_ID_PATTERN = Pattern.compile("^\\d{4,12}$");
-	private static final int FIRST_ADMISSION_YEAR = 1934; // 광운대 개교 연도
-
 	private final PriorityVerificationRepository priorityVerificationRepository;
 	private final UserRepository userRepository;
 
 	/**
-	 * 이웃 인증 신청. 항상 PENDING으로 접수하고, 실제 확인·승인은 운영진이 앱 밖에서 한다.
+	 * 우선배정 인증 신청 (신입생·기초수급자). 항상 PENDING으로 접수하고, 서류 확인·승인은 운영진이 앱 밖에서 한다.
 	 * 같은 유형에 심사 중인 신청이나 유효한 승인이 있으면 거절한다 (반려·만료된 뒤에는 다시 신청 가능).
 	 */
 	@Transactional
@@ -54,22 +49,13 @@ public class VerificationService {
 
 	VerificationCreateResponse createVerification(Long userId, VerificationCreateRequest request, LocalDateTime now) {
 		VerificationType type = request.verificationType();
-		PriorityVerification.PriorityVerificationBuilder verification = PriorityVerification.builder()
+		PriorityVerification verification = PriorityVerification.builder()
 				.verificationType(type)
+				.documentType(request.documentType())
 				.status(VerificationStatus.PENDING)
-				.submittedAt(now);
-		// 해당 유형의 값만 저장하고 나머지는 보내도 무시한다
-		switch (type) {
-			case STUDENT -> {
-				String studentId = request.studentId().strip();
-				verification.studentId(studentId)
-						.department(request.department().strip())
-						.admissionYear(parseAdmissionYear(studentId, now.getYear()));
-			}
-			case RESIDENT -> verification.name(request.name().strip()).address(request.address().strip());
-			case LOW_INCOME -> {
-			}
-		}
+				.submittedAt(now)
+				.user(findUser(userId))
+				.build();
 		if (priorityVerificationRepository.existsByUserIdAndVerificationTypeAndStatus(userId, type,
 				VerificationStatus.PENDING)) {
 			throw new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_PENDING);
@@ -81,8 +67,7 @@ public class VerificationService {
 		if (alreadyApproved) {
 			throw new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
 		}
-		return VerificationCreateResponse.from(
-				priorityVerificationRepository.save(verification.user(findUser(userId)).build()));
+		return VerificationCreateResponse.from(priorityVerificationRepository.save(verification));
 	}
 
 	/**
@@ -101,7 +86,7 @@ public class VerificationService {
 	}
 
 	/**
-	 * 유형별 가장 최근 제출 건 (RESIDENT → STUDENT → LOW_INCOME 순). 물품 신청 자격 체크도 이 조회를 쓴다.
+	 * 유형별 가장 최근 제출 건 (NEIGHBORHOOD → FRESHMAN → LOW_INCOME 순). 신청 자격·우선배정 점수도 이 조회를 쓴다.
 	 * 승인 여부는 getStatus()가 아니라 statusAt(now)로 판단해야 만료된 인증이 통과하지 않는다.
 	 */
 	public Collection<PriorityVerification> findLatestByType(Long userId) {
@@ -112,16 +97,30 @@ public class VerificationService {
 				.values();
 	}
 
-	// 입학연도는 따로 받지 않고 학번 앞 4자리에서 계산한다. 개교 전이거나 올해보다 뒤면 잘못된 학번
-	private int parseAdmissionYear(String studentId, int thisYear) {
-		if (!STUDENT_ID_PATTERN.matcher(studentId).matches()) {
-			throw new BusinessException(VerificationErrorCode.VERIFICATION_INVALID_STUDENT_ID);
-		}
-		int admissionYear = Integer.parseInt(studentId.substring(0, 4));
-		if (admissionYear < FIRST_ADMISSION_YEAR || admissionYear > thisYear) {
-			throw new BusinessException(VerificationErrorCode.VERIFICATION_INVALID_STUDENT_ID);
-		}
-		return admissionYear;
+	/** 나눔 신청 자격 — 동네 인증이 유효하게 승인돼 있는지 (물품 신청에서 사용) */
+	public boolean hasNeighborhoodVerification(Long userId) {
+		return hasNeighborhoodVerification(userId, LocalDateTime.now());
+	}
+
+	boolean hasNeighborhoodVerification(Long userId, LocalDateTime now) {
+		return findLatestByType(userId).stream()
+				.anyMatch(latest -> latest.getVerificationType() == VerificationType.NEIGHBORHOOD
+						&& latest.statusAt(now) == VerificationStatus.APPROVED);
+	}
+
+	/**
+	 * 우선배정 점수 — 신입생·기초수급자 중 하나라도 유효하게 승인돼 있으면 1, 아니면 0 (가산점 중복 없음).
+	 * 물품 신청 시점에 계산해 Application.priorityScore에 저장한다.
+	 */
+	public int calculatePriorityScore(Long userId) {
+		return calculatePriorityScore(userId, LocalDateTime.now());
+	}
+
+	int calculatePriorityScore(Long userId, LocalDateTime now) {
+		boolean prioritized = findLatestByType(userId).stream()
+				.anyMatch(latest -> latest.getVerificationType().isPriority()
+						&& latest.statusAt(now) == VerificationStatus.APPROVED);
+		return prioritized ? 1 : 0;
 	}
 
 	// 유효한 토큰인데 회원이 없는 경우 — 회원 탈퇴 기능이 없어서 운영진이 DB에서 직접 지운 경우뿐
