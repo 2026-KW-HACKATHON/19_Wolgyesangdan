@@ -12,7 +12,9 @@ import com.Wolgyesangdan.backend.domain.item.repository.CategoryCarbonReferenceR
 import com.Wolgyesangdan.backend.domain.item.repository.ItemImageRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemTradeMethodRepository;
+import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
+import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -23,7 +25,8 @@ class ItemServiceTest {
 			Mockito.mock(CategoryCarbonReferenceRepository.class);
 	private final ItemService itemService = new ItemService(Mockito.mock(ItemRepository.class),
 			Mockito.mock(ItemImageRepository.class), Mockito.mock(ItemTradeMethodRepository.class),
-			categoryCarbonReferenceRepository, Mockito.mock(ReservationRepository.class));
+			categoryCarbonReferenceRepository, Mockito.mock(ReservationRepository.class),
+			Mockito.mock(UserRepository.class), Mockito.mock(CampaignRepository.class));
 
 	@Test
 	void 카테고리는_DB_순서와_상관없이_대분류_선언_순서로_내려준다() {
