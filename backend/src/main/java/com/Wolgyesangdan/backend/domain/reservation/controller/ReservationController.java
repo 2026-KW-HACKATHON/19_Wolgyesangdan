@@ -1,5 +1,6 @@
 package com.Wolgyesangdan.backend.domain.reservation.controller;
 
+import com.Wolgyesangdan.backend.domain.reservation.dto.CompleteResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReservationDetailResponse;
 import com.Wolgyesangdan.backend.domain.reservation.service.ReservationService;
@@ -28,6 +29,12 @@ public class ReservationController {
 	@PatchMapping("/reservations/{reservationId}/reconfirm")
 	public ReconfirmResponse reconfirm(@AuthenticationPrincipal Long userId, @PathVariable Long reservationId) {
 		return reservationService.reconfirm(userId, reservationId);
+	}
+
+	/** 직거래 전달 완료 (로그인 필요, 물품 등록자만, 신청자가 재확인한 예약만) */
+	@PatchMapping("/reservations/{reservationId}/complete")
+	public CompleteResponse complete(@AuthenticationPrincipal Long userId, @PathVariable Long reservationId) {
+		return reservationService.complete(userId, reservationId);
 	}
 
 }

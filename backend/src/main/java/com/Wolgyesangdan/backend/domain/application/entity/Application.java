@@ -65,9 +65,24 @@ public class Application extends BaseTimeEntity {
 		this.waitlistRank = waitlistRank;
 	}
 
+	public void cancel() {
+		this.status = ApplicationStatus.CANCELED;
+		this.waitlistRank = null;
+	}
+
 	/** 배정 확정 — 대기 순번은 지우지 않고 그대로 둔다 (ERD 수정 ⑯) */
 	public void select(LocalDateTime now) {
 		this.status = ApplicationStatus.SELECTED;
 		this.selectedAt = now;
+	}
+
+	/** 노쇼로 배정에서 빠짐 — 대기 순번은 지우지 않고 그대로 둔다 (ERD 수정 ⑯) */
+	public void dropForNoShow() {
+		this.status = ApplicationStatus.CANCELED;
+	}
+
+	/** 거래 완료 */
+	public void complete() {
+		this.status = ApplicationStatus.COMPLETED;
 	}
 }
