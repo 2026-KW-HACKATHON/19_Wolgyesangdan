@@ -1,11 +1,16 @@
 package com.Wolgyesangdan.backend.domain.item.service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemImageUploadUrlRequest;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryCarbonReference;
@@ -14,11 +19,16 @@ import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemTradeMethod;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.item.repository.CategoryCarbonReferenceRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemImageRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemSpecifications;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemTradeMethodRepository;
+
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
+import com.Wolgyesangdan.backend.global.storage.ImageStorage;
+import com.Wolgyesangdan.backend.global.storage.PresignedUpload;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,6 +49,15 @@ public class ItemService {
 	private final ItemImageRepository itemImageRepository;
 	private final ItemTradeMethodRepository itemTradeMethodRepository;
 	private final CategoryCarbonReferenceRepository categoryCarbonReferenceRepository;
+	private final ImageStorage imageStorage;
+
+	private static final DateTimeFormatter IMAGE_DATE_PATH = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+	private static final Map<String, String> IMAGE_EXTENSIONS = Map.of(
+			"image/jpeg", "jpg",
+			"image/png", "png",
+			"image/webp", "webp",
+			"image/heic", "heic",
+			"image/heif", "heif");
 
 	/**
 	 * 물품 목록. 검색·필터·정렬은 ItemSpecifications에서 처리한다.
@@ -77,6 +96,20 @@ public class ItemService {
 				.sorted(Comparator.comparing(CategoryCarbonReference::getCategoryGroup))
 				.map(CategoryResponse::from)
 				.toList();
+	}
+
+	/**
+	 * 물품 사진 업로드용 presigned URL 발급. 물품이 생기기 전(등록 폼 작성 중)에 호출되므로 itemId 없이 발급한다.
+	 * 경로: items/{yyyy}/{MM}/{dd}/{uuid}.{확장자}
+	 */
+	public ItemImageUploadUrlResponse issueImageUploadUrl(ItemImageUploadUrlRequest request) {
+		if (!imageStorage.isAvailable()) {
+			throw new BusinessException(ItemErrorCode.ITEM_IMAGE_UPLOAD_UNAVAILABLE);
+		}
+		String key = "items/" + LocalDate.now().format(IMAGE_DATE_PATH) + "/" + UUID.randomUUID() + "."
+				+ IMAGE_EXTENSIONS.get(request.contentType());
+		PresignedUpload upload = imageStorage.presignPut(key, request.contentType());
+		return new ItemImageUploadUrlResponse(upload.uploadUrl(), upload.fileUrl());
 	}
 
 }

@@ -3,6 +3,8 @@ package com.Wolgyesangdan.backend.domain.item.controller;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemImageUploadUrlRequest;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
@@ -12,8 +14,11 @@ import com.Wolgyesangdan.backend.domain.item.service.ItemService;
 
 import com.Wolgyesangdan.backend.global.dto.PageResponse;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,6 +52,15 @@ public class ItemController {
 	@GetMapping("/categories")
 	public List<CategoryResponse> getCategories() {
 		return itemService.getCategories();
+	}
+
+	/**
+	 * 물품 사진 업로드 URL 발급 (로그인 필요). 브라우저는 uploadUrl로 사진을 PUT 업로드하고,
+	 * imageUrl을 물품 등록 요청에 담는다.
+	 */
+	@PostMapping("/images/upload-url")
+	public ItemImageUploadUrlResponse issueImageUploadUrl(@Valid @RequestBody ItemImageUploadUrlRequest request) {
+		return itemService.issueImageUploadUrl(request);
 	}
 
 }

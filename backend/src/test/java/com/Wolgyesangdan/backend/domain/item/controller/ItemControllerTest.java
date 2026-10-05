@@ -2,7 +2,9 @@ package com.Wolgyesangdan.backend.domain.item.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemImageUploadUrlRequest;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
@@ -26,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -41,6 +47,9 @@ class ItemControllerTest {
 
 	@MockitoBean
 	private ItemService itemService;
+
+	@Autowired
+	private JwtProvider jwtProvider;
 
 	@Test
 	void 비로그인으로_카테고리_목록을_조회한다() throws Exception {
@@ -123,6 +132,40 @@ class ItemControllerTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
 				.andExpect(jsonPath("$.errors[0].field").value("sort"));
+	}
+
+	@Test
+	void 로그인하면_사진_업로드_URL을_발급한다() throws Exception {
+		given(itemService.issueImageUploadUrl(any(ItemImageUploadUrlRequest.class)))
+				.willReturn(new ItemImageUploadUrlResponse("https://upload", "https://file/items/a.jpg"));
+
+		mockMvc.perform(post("/items/images/upload-url")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"fileName\":\"photo1.jpg\",\"contentType\":\"image/jpeg\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.uploadUrl").value("https://upload"))
+				.andExpect(jsonPath("$.imageUrl").value("https://file/items/a.jpg"));
+	}
+
+	@Test
+	void 이미지가_아닌_형식이면_400() throws Exception {
+		mockMvc.perform(post("/items/images/upload-url")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"fileName\":\"doc.pdf\",\"contentType\":\"application/pdf\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("contentType"));
+	}
+
+	@Test
+	void 비로그인으로_사진_업로드_URL을_요청하면_401() throws Exception {
+		mockMvc.perform(post("/items/images/upload-url")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"fileName\":\"photo1.jpg\",\"contentType\":\"image/jpeg\"}"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
 	}
 
 }

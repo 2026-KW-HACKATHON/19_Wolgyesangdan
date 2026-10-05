@@ -14,3 +14,14 @@ kakao:
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+# 물품 사진 업로드용 S3. 값이 비어 있어도 서버는 뜨고, 이미지 업로드 URL 발급 API만 503으로 응답한다.
+s3:
+  bucket: ${S3_BUCKET:}
+  region: ${S3_REGION:ap-northeast-2}
+  access-key: ${S3_ACCESS_KEY:}
+  secret-key: ${S3_SECRET_KEY:}
+  # 업로드된 사진을 보여줄 주소. 비우면 https://{bucket}.s3.{region}.amazonaws.com
+  public-base-url: ${S3_PUBLIC_BASE_URL:}
+  presign-expiration: 5m
+

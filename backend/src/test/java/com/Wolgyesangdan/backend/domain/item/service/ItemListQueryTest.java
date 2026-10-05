@@ -29,6 +29,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.Wolgyesangdan.backend.global.storage.ImageStorage;
 import org.springframework.data.domain.Page;
 
 /**
@@ -41,6 +44,9 @@ class ItemListQueryTest {
 
 	@Autowired
 	private ItemService itemService;
+
+	@MockitoBean
+	private ImageStorage imageStorage;
 
 	@Autowired
 	private EntityManager entityManager;
