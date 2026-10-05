@@ -15,6 +15,13 @@ kakao:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
+# 비어 있어도(로컬에 AWS 키가 없는 팀원 환경) 서버는 정상 기동하고, 이미지 업로드 URL 발급 API만 503을 응답한다
+s3:
+  bucket: ${S3_BUCKET:}
+  region: ${S3_REGION:}
+  access-key: ${S3_ACCESS_KEY:}
+  secret-key: ${S3_SECRET_KEY:}
+
 # 배정·승계 스케줄러 (SchedulingConfig). 로컬에서 끄려면 .env에 SCHEDULING_ENABLED=false
 scheduling:
   enabled: ${SCHEDULING_ENABLED:true}

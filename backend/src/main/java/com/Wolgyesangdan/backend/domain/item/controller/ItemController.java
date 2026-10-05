@@ -4,6 +4,8 @@ import java.net.URI;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlRequest;
+import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
@@ -11,6 +13,7 @@ import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.item.service.ItemImageUploadService;
 import com.Wolgyesangdan.backend.domain.item.service.ItemService;
 
 import com.Wolgyesangdan.backend.global.dto.PageResponse;
@@ -35,6 +38,7 @@ public class ItemController {
 	private static final int MAX_PAGE_SIZE = 100;
 
 	private final ItemService itemService;
+	private final ItemImageUploadService itemImageUploadService;
 
 	/**
 	 * 물품 목록 (비회원 허용). 모든 검색 조건은 선택이다.
@@ -70,6 +74,15 @@ public class ItemController {
 			@Valid @RequestBody ItemCreateRequest request) {
 		ItemDetailResponse created = itemService.createItem(userId, request);
 		return ResponseEntity.created(URI.create("/items/" + created.id())).body(created);
+	}
+
+	/**
+	 * 물품 사진 업로드용 presigned URL 발급 (로그인 필요). 물품이 아직 없는 등록 폼 작성 중에 호출하므로 itemId를 받지 않는다.
+	 * S3 설정이 비어 있으면 503.
+	 */
+	@PostMapping("/images/upload-url")
+	public ImageUploadUrlResponse issueImageUploadUrl(@Valid @RequestBody ImageUploadUrlRequest request) {
+		return itemImageUploadService.issueUploadUrl(request);
 	}
 
 }
