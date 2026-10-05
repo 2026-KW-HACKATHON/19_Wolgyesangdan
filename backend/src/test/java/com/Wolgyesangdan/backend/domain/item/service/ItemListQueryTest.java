@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
@@ -63,7 +65,7 @@ class ItemListQueryTest {
 		Item completed = persist(item("완료", ItemStatus.COMPLETED));
 		flushAndClear();
 
-		Page<ItemSummaryResponse> page = itemService.getItems(0, 20);
+		Page<ItemSummaryResponse> page = itemService.getItems(ItemSearchCondition.none(), 0, 20);
 
 		assertThat(page.getContent()).extracting(ItemSummaryResponse::id)
 				.containsExactly(completed.getId(), assigned.getId(), closed.getId(), open.getId());
@@ -80,7 +82,7 @@ class ItemListQueryTest {
 		Item noPhoto = persist(item("사진 없음", ItemStatus.OPEN));
 		flushAndClear();
 
-		List<ItemSummaryResponse> content = itemService.getItems(0, 20).getContent();
+		List<ItemSummaryResponse> content = itemService.getItems(ItemSearchCondition.none(), 0, 20).getContent();
 
 		assertThat(content).extracting(ItemSummaryResponse::id, ItemSummaryResponse::thumbnailImageUrl,
 						ItemSummaryResponse::tradeMethods)
@@ -97,7 +99,7 @@ class ItemListQueryTest {
 		}
 		flushAndClear();
 
-		Page<ItemSummaryResponse> page = itemService.getItems(1, 2);
+		Page<ItemSummaryResponse> page = itemService.getItems(ItemSearchCondition.none(), 1, 2);
 
 		assertThat(page.getContent()).extracting(ItemSummaryResponse::name).containsExactly("물품2", "물품1");
 		assertThat(page.getTotalElements()).isEqualTo(5);
@@ -119,10 +121,92 @@ class ItemListQueryTest {
 
 		// 물품(10개)이 페이지 크기(5)보다 많아야 전체 개수 쿼리도 나간다
 		// (한 페이지에 다 들어오면 Spring Data가 개수 쿼리를 생략해서 3번)
-		itemService.getItems(0, 5);
+		itemService.getItems(ItemSearchCondition.none(), 0, 5);
 
 		// 목록 + 전체 개수 + 사진 + 거래 방식 — 물품마다 사진·거래 방식을 따로 조회하지 않음
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+	}
+
+	@Test
+	void 물품명_검색은_부분_일치이고_퍼센트_기호는_글자_그대로_찾는다() {
+		Item microwave = persist(item("전자레인지 20L", ItemStatus.OPEN));
+		persist(item("책상", ItemStatus.OPEN));
+		Item percent = persist(item("100% 새것 의자", ItemStatus.OPEN));
+		flushAndClear();
+
+		assertThat(names(search("레인지", null, null, null))).containsExactly(microwave.getName());
+		assertThat(names(search("%", null, null, null))).containsExactly(percent.getName());
+	}
+
+	@Test
+	void 카테고리와_거래_방식으로_거른다() {
+		Item furnitureDirect = persist(item("가구-직거래", ItemStatus.OPEN, CategoryGroup.FURNITURE, "좋음", 30));
+		persist(tradeMethod(furnitureDirect, TradeMethod.DIRECT));
+		Item furnitureBoth = persist(item("가구-둘다", ItemStatus.OPEN, CategoryGroup.FURNITURE, "좋음", 30));
+		persist(tradeMethod(furnitureBoth, TradeMethod.DIRECT));
+		persist(tradeMethod(furnitureBoth, TradeMethod.CAMPAIGN));
+		Item applianceCampaign = persist(item("가전-거점", ItemStatus.OPEN, CategoryGroup.APPLIANCE, "좋음", 24));
+		persist(tradeMethod(applianceCampaign, TradeMethod.CAMPAIGN));
+		flushAndClear();
+
+		assertThat(names(search(null, CategoryGroup.FURNITURE, null, null)))
+				.containsExactly("가구-둘다", "가구-직거래");
+		assertThat(names(search(null, null, TradeMethod.CAMPAIGN, null)))
+				.containsExactly("가전-거점", "가구-둘다");
+		assertThat(names(search(null, CategoryGroup.FURNITURE, TradeMethod.CAMPAIGN, null)))
+				.containsExactly("가구-둘다");
+	}
+
+	@Test
+	void 탄소_절감량순은_많은_순이고_같으면_최신순() {
+		persist(item("8kg", ItemStatus.OPEN, CategoryGroup.ETC, "좋음", 8));
+		persist(item("30kg-먼저", ItemStatus.OPEN, CategoryGroup.FURNITURE, "좋음", 30));
+		persist(item("24kg", ItemStatus.OPEN, CategoryGroup.APPLIANCE, "좋음", 24));
+		persist(item("30kg-나중", ItemStatus.OPEN, CategoryGroup.FURNITURE, "좋음", 30));
+		flushAndClear();
+
+		assertThat(names(search(null, null, null, ItemSort.CARBON)))
+				.containsExactly("30kg-나중", "30kg-먼저", "24kg", "8kg");
+	}
+
+	@Test
+	void 상태순은_두_가지_표기를_모두_같은_순위로_본다() {
+		persist(item("사용감", ItemStatus.OPEN, CategoryGroup.ETC, "사용감 있음", 8));
+		persist(item("좋음", ItemStatus.OPEN, CategoryGroup.ETC, "좋음", 8));
+		persist(item("거의 새것", ItemStatus.OPEN, CategoryGroup.ETC, "거의 새것", 8));
+		persist(item("상태 좋음", ItemStatus.OPEN, CategoryGroup.ETC, "상태 좋음", 8));
+		persist(item("매우 좋음", ItemStatus.OPEN, CategoryGroup.ETC, "매우 좋음", 8));
+		flushAndClear();
+
+		assertThat(names(search(null, null, null, ItemSort.CONDITION)))
+				.containsExactly("매우 좋음", "거의 새것", "상태 좋음", "좋음", "사용감");
+	}
+
+	@Test
+	void 필터를_걸어도_쿼리는_최대_4번만_나간다() {
+		for (int i = 0; i < 10; i++) {
+			Item item = persist(item("의자" + i, ItemStatus.OPEN, CategoryGroup.FURNITURE, "좋음", 30));
+			persist(image(item, "photo" + i + ".jpg", 0));
+			persist(tradeMethod(item, TradeMethod.DIRECT));
+		}
+		flushAndClear();
+		Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+		statistics.clear();
+
+		Page<ItemSummaryResponse> page =
+				itemService.getItems(search("의자", CategoryGroup.FURNITURE, TradeMethod.DIRECT, ItemSort.CARBON), 0, 5);
+
+		assertThat(page.getTotalElements()).isEqualTo(10);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+	}
+
+	private static ItemSearchCondition search(String keyword, CategoryGroup categoryGroup, TradeMethod tradeMethod,
+			ItemSort sort) {
+		return new ItemSearchCondition(keyword, categoryGroup, tradeMethod, sort);
+	}
+
+	private List<String> names(ItemSearchCondition condition) {
+		return itemService.getItems(condition, 0, 20).getContent().stream().map(ItemSummaryResponse::name).toList();
 	}
 
 	private <T> T persist(T entity) {
@@ -136,14 +220,19 @@ class ItemListQueryTest {
 	}
 
 	private Item item(String name, ItemStatus status) {
+		return item(name, status, CategoryGroup.APPLIANCE, "좋음", 24);
+	}
+
+	private Item item(String name, ItemStatus status, CategoryGroup categoryGroup, String conditionGrade,
+			int carbonReduction) {
 		return Item.builder()
 				.owner(owner)
 				.name(name)
-				.categoryGroup(CategoryGroup.APPLIANCE)
-				.category("생활가전")
-				.conditionGrade("좋음")
+				.categoryGroup(categoryGroup)
+				.category("세부")
+				.conditionGrade(conditionGrade)
 				.transportDifficulty("보통")
-				.estimatedCarbonReduction(24)
+				.estimatedCarbonReduction(carbonReduction)
 				.availableFrom(LocalDate.now())
 				.availableUntil(LocalDate.now())
 				.applicationDeadline(LocalDateTime.now().plusDays(3))
