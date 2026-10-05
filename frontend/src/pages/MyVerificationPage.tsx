@@ -96,7 +96,7 @@ function ResidentRow() {
       </div>
       <button
         type="button"
-        onClick={() => navigate('/verification/resident')}
+        onClick={() => navigate('/verify/location')}
         className="flex-none cursor-pointer text-[13px] font-bold text-accent"
       >
         추가

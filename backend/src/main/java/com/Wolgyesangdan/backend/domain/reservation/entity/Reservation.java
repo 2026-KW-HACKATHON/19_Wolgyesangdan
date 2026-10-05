@@ -22,6 +22,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "reservations")
@@ -40,12 +42,14 @@ public class Reservation extends BaseTimeEntity {
 	private Application application;
 
 	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(nullable = false, length = 30)
 	private TradeMethod tradeMethod;
 
 	private LocalDateTime scheduledAt;
 
 	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(nullable = false, length = 30)
 	private ReservationStatus status;
 
@@ -54,4 +58,10 @@ public class Reservation extends BaseTimeEntity {
 	private LocalDateTime reconfirmedAt;
 
 	private LocalDateTime completedAt;
+
+	/** 수령 재확인 — 가능 여부(상태·기한·본인)는 ReservationService에서 확인한다 */
+	public void reconfirm(LocalDateTime now) {
+		this.status = ReservationStatus.RECONFIRMED;
+		this.reconfirmedAt = now;
+	}
 }

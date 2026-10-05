@@ -2,12 +2,14 @@ package com.Wolgyesangdan.backend.domain.verification.dto;
 
 import java.time.LocalDateTime;
 
+import com.Wolgyesangdan.backend.domain.verification.entity.DocumentType;
 import com.Wolgyesangdan.backend.domain.verification.entity.PriorityVerification;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
 
 public record MyVerificationResponse(
 		VerificationType verificationType,
+		DocumentType documentType,
 		VerificationStatus status,
 		LocalDateTime submittedAt,
 		LocalDateTime reviewedAt,
@@ -19,6 +21,7 @@ public record MyVerificationResponse(
 		VerificationStatus status = verification.statusAt(now);
 		return new MyVerificationResponse(
 				verification.getVerificationType(),
+				verification.getDocumentType(),
 				status,
 				verification.getSubmittedAt(),
 				verification.getReviewedAt(),

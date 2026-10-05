@@ -41,6 +41,159 @@
   --color-kakao-ink: #1a1a1a;
   --color-google-ink: #25282e;
   --color-google-badge: #ededed;
+
+  /* 동네 나무(Lv.4 큰나무부터) 흩날리는 잎. 이동 거리는 잎마다 --leaf-dx / --leaf-dy 로 준다 */
+  --animate-leaf-drift: leaf-drift 6s ease-in-out infinite;
+
+  @keyframes leaf-drift {
+    0% {
+      opacity: 0;
+      transform: translate(0, 0) rotate(0deg);
+    }
+    12% {
+      opacity: 1;
+    }
+    35% {
+      transform: translate(calc(var(--leaf-dx) * 0.55), calc(var(--leaf-dy) * 0.3)) rotate(110deg);
+    }
+    65% {
+      transform: translate(calc(var(--leaf-dx) * 0.45), calc(var(--leaf-dy) * 0.65)) rotate(220deg);
+    }
+    88% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translate(var(--leaf-dx), var(--leaf-dy)) rotate(340deg);
+    }
+  }
+
+  /* 새싹(Lv.1) 잎이 위아래로 천천히 흔들린다. 각도는 잎마다 --sway-from / --sway-to 로 준다 */
+  --animate-sprout-sway: sprout-sway 3s ease-in-out infinite;
+
+  @keyframes sprout-sway {
+    0%,
+    100% {
+      transform: rotate(var(--sway-from));
+    }
+    50% {
+      transform: rotate(var(--sway-to));
+    }
+  }
+
+  /* 동네 나무 장면의 동물들 (TreeCritters). 회전 각도는 부분마다 --critter-rot 로 준다 */
+  --animate-critter-sway: critter-sway 1s ease-in-out infinite;
+  --animate-critter-nod: critter-nod 3.2s ease-in-out infinite;
+  --animate-critter-nibble: critter-nibble 0.4s ease-in-out infinite;
+  --animate-critter-hop: critter-hop 1.7s ease-out infinite;
+
+  /* 계속 왔다 갔다 — 사슴벌레 큰턱, 새 날개, 다람쥐 머리 */
+  @keyframes critter-sway {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    50% {
+      transform: rotate(var(--critter-rot));
+    }
+  }
+
+  /* 두 번 까딱이고 잠깐 쉰다 — 사슴 고개 */
+  @keyframes critter-nod {
+    0%,
+    44%,
+    100% {
+      transform: rotate(0deg);
+    }
+    11%,
+    33% {
+      transform: rotate(var(--critter-rot));
+    }
+    22% {
+      transform: rotate(calc(var(--critter-rot) * 0.35));
+    }
+  }
+
+  /* 도토리를 입으로 올렸다 내린다 — 다람쥐 앞발 */
+  @keyframes critter-nibble {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-2.5px);
+    }
+  }
+
+  /* 크게 한 번, 작게 한 번 뛰고 잠깐 쉰다 — 토끼 */
+  @keyframes critter-hop {
+    0%,
+    34%,
+    64%,
+    100% {
+      transform: translateY(0);
+    }
+    17% {
+      transform: translateY(-12px);
+    }
+    49% {
+      transform: translateY(-7px);
+    }
+  }
+
+  /* 모래시계 (HourglassIcon). 한 주기 = 모래가 다 내려옴(0~68%) → 잠깐 멈춤 → 뒤집힘(76~100%) */
+  --animate-hourglass-flip: hourglass-flip 4.5s linear infinite;
+  --animate-hourglass-drain: hourglass-drain 4.5s linear infinite;
+  --animate-hourglass-fill: hourglass-fill 4.5s linear infinite;
+  --animate-hourglass-stream: hourglass-stream 4.5s linear infinite;
+
+  @keyframes hourglass-flip {
+    0% {
+      transform: rotate(0deg);
+    }
+    76% {
+      transform: rotate(0deg);
+      animation-timing-function: ease-in-out;
+    }
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+
+  /* 위쪽 모래가 내려간다 */
+  @keyframes hourglass-drain {
+    0% {
+      transform: translateY(0);
+    }
+    68%,
+    100% {
+      transform: translateY(8px);
+    }
+  }
+
+  /* 아래쪽 모래가 차오른다 */
+  @keyframes hourglass-fill {
+    0% {
+      transform: translateY(8px);
+    }
+    68%,
+    100% {
+      transform: translateY(0);
+    }
+  }
+
+  /* 떨어지는 모래 줄기 */
+  @keyframes hourglass-stream {
+    0%,
+    68%,
+    100% {
+      opacity: 0;
+    }
+    4%,
+    64% {
+      opacity: 1;
+    }
+  }
 }
 
 .ms {

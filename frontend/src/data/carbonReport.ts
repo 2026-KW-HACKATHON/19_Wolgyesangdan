@@ -1,88 +1,111 @@
-import { CAMPAIGN } from './campaign'
-
-// TODO: 백엔드 연결 후 GET /report?scope=dong|campaign 응답으로 대체
+// TODO: 백엔드 연결 후 GET /carbon-report?scope=dong|campaign 응답으로 대체 (api/carbonReport.ts)
 export type ReportScope = 'dong' | 'campaign'
 
-export interface ReportBar {
-  label: string
+export type CategoryGroup = '가구' | '가전' | '주방' | '생활' | '기타'
+
+export interface CategoryShare {
+  category: CategoryGroup
   kg: number
+  /** 전체 절감량 대비 비율 0~1 */
+  ratio: number
 }
 
-export interface ReportCategory {
-  category: string
-  kg: number
+/** 로그인한 사용자의 기여분. 비로그인이면 응답에 없다. */
+export interface MyContribution {
+  co2eKg: number
 }
 
-export interface CarbonReport {
-  /** 누적 기준을 설명하는 배지 문구 */
-  periodLabel: string
+export interface DongReport {
+  scope: 'dong'
+  /** 누적 집계 시작 월 (YYYY-MM) */
+  since: string
   reusedCount: number
   co2eTotalKg: number
-  trendTitle: string
-  trendSubtitle: string
-  trend: ReportBar[]
-  byCategory: ReportCategory[]
+  byCategory: CategoryShare[]
+  me?: MyContribution
 }
 
-const DONG_REPORT: CarbonReport = {
-  periodLabel: '2025.03부터 누적',
+export interface ReportCampaign {
+  id: number
+  title: string
+  /** YYYY-MM-DD */
+  startAt: string
+  endAt: string
+  status: 'planned' | 'active' | 'ended'
+}
+
+export interface DailyTrade {
+  /** YYYY-MM-DD */
+  date: string
+  count: number
+}
+
+export interface CampaignReport {
+  scope: 'campaign'
+  campaign: ReportCampaign
+  reusedCount: number
+  co2eTotalKg: number
+  /** 시작일 ~ 오늘. 남은 날짜 칸은 화면에서 startAt ~ endAt으로 채운다. */
+  daily: DailyTrade[]
+  byCategory: CategoryShare[]
+  me?: MyContribution
+}
+
+export type CarbonReport = DongReport | CampaignReport
+
+function shares(entries: [CategoryGroup, number][]): CategoryShare[] {
+  const total = entries.reduce((sum, [, kg]) => sum + kg, 0)
+  return entries.map(([category, kg]) => ({ category, kg, ratio: kg / total }))
+}
+
+/** 오늘 기준 offset일 뒤의 YYYY-MM-DD (시안 날짜를 오늘에 맞춰 보여주기 위한 임시 값) */
+function dayFromToday(offset: number) {
+  const now = new Date()
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset)
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
+export const MOCK_DONG_REPORT: DongReport = {
+  scope: 'dong',
+  since: '2025-03',
   reusedCount: 612,
   co2eTotalKg: 15840,
-  trendTitle: '월별 탄소 절감 추이',
-  trendSubtitle: '최근 6개월 · kg CO₂e (예상치)',
-  trend: [
-    { label: '4월', kg: 1800 },
-    { label: '5월', kg: 2100 },
-    { label: '6월', kg: 2500 },
-    { label: '7월', kg: 1800 },
-    { label: '8월', kg: 2700 },
-    { label: '9월', kg: 4300 },
-  ],
-  byCategory: [
-    { category: '가구', kg: 6120 },
-    { category: '가전', kg: 4380 },
-    { category: '주방', kg: 2260 },
-    { category: '생활', kg: 1980 },
-    { category: '기타', kg: 1100 },
-  ],
+  byCategory: shares([
+    ['가구', 6120],
+    ['가전', 4380],
+    ['주방', 2260],
+    ['생활', 1980],
+    ['기타', 1100],
+  ]),
+  me: { co2eKg: 83 },
 }
 
-/** 캠페인 일별 값 (오늘부터 5일, 임시 값) */
-const CAMPAIGN_DAILY = [520, 640, 610, 700, 580]
+/** 시안 5c와 같은 모양: 15일짜리 캠페인의 10일째가 오늘 */
+const CAMPAIGN_DAILY_COUNTS = [6, 9, 11, 8, 14, 17, 12, 15, 19, 17]
 
-/** 오늘부터 count일 동안의 "M.D" 라벨. 캠페인 기간이 확정되면 서버 값으로 대체한다. */
-function upcomingDayLabels(count: number) {
-  const today = new Date()
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i)
-    return `${d.getMonth() + 1}.${d.getDate()}`
-  })
-}
-
-const CAMPAIGN_DAY_LABELS = upcomingDayLabels(CAMPAIGN_DAILY.length)
-
-const CAMPAIGN_REPORT: CarbonReport = {
-  periodLabel: `${CAMPAIGN_DAY_LABELS[0]} ~ ${CAMPAIGN_DAY_LABELS[CAMPAIGN_DAY_LABELS.length - 1]}`,
-  reusedCount: CAMPAIGN.reusedCount,
-  co2eTotalKg: CAMPAIGN.carbonKg,
-  trendTitle: '캠페인 기간 탄소 절감 추이',
-  trendSubtitle: '최근 5일 · kg CO₂e (예상치)',
-  trend: CAMPAIGN_DAILY.map((kg, i) => ({ label: CAMPAIGN_DAY_LABELS[i], kg })),
-  byCategory: [
-    { category: '가구', kg: 1100 },
-    { category: '가전', kg: 900 },
-    { category: '주방', kg: 500 },
-    { category: '생활', kg: 520 },
-    { category: '기타', kg: 400 },
-  ],
-}
-
-export const CARBON_REPORTS: Record<ReportScope, CarbonReport> = {
-  dong: DONG_REPORT,
-  campaign: CAMPAIGN_REPORT,
-}
-
-/** 나무 1그루당 연간 흡수량 6kg CO₂e 가정 */
-export function treeEquivalent(co2eKg: number) {
-  return Math.floor(co2eKg / 6)
+export const MOCK_CAMPAIGN_REPORT: CampaignReport = {
+  scope: 'campaign',
+  campaign: {
+    id: 1,
+    title: '2026 자원순환 캠페인',
+    startAt: dayFromToday(-(CAMPAIGN_DAILY_COUNTS.length - 1)),
+    endAt: dayFromToday(5),
+    status: 'active',
+  },
+  reusedCount: 128,
+  co2eTotalKg: 3420,
+  daily: CAMPAIGN_DAILY_COUNTS.map((count, i) => ({
+    date: dayFromToday(i - (CAMPAIGN_DAILY_COUNTS.length - 1)),
+    count,
+  })),
+  byCategory: shares([
+    ['가구', 1334],
+    ['가전', 958],
+    ['주방', 479],
+    ['생활', 410],
+    ['기타', 239],
+  ]),
+  me: { co2eKg: 41 },
 }

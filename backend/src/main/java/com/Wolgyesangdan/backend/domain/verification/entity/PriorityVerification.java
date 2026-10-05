@@ -20,6 +20,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "priority_verifications")
@@ -38,26 +40,20 @@ public class PriorityVerification {
 	private User user;
 
 	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(nullable = false, length = 30)
 	private VerificationType verificationType;
 
 	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(nullable = false, length = 30)
 	private VerificationStatus status;
 
+	/** 우선배정 인증에서 고른 서류 종류. 동네 인증은 null */
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(length = 30)
-	private String studentId;
-
-	@Column(length = 50)
-	private String department;
-
-	private Integer admissionYear;
-
-	@Column(length = 50)
-	private String name;
-
-	@Column(length = 255)
-	private String address;
+	private DocumentType documentType;
 
 	@Builder.Default
 	@Column(nullable = false)

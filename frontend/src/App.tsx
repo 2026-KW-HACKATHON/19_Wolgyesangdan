@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import DetailLayout from './layouts/DetailLayout'
 import Home from './pages/Home'
@@ -11,36 +11,50 @@ import MyVerificationPage from './pages/MyVerificationPage'
 import ItemDetail from './pages/ItemDetail'
 import ItemRegisterPage from './pages/ItemRegisterPage'
 import KakaoCallbackPage from './pages/KakaoCallbackPage'
+import LocationVerificationPage from './pages/LocationVerificationPage'
 import LoginPage from './pages/LoginPage'
-import ResidentVerificationFormPage from './pages/ResidentVerificationFormPage'
-import StudentVerificationFormPage from './pages/StudentVerificationFormPage'
-import VerificationCompletePage from './pages/VerificationCompletePage'
-import VerificationMethodPage from './pages/VerificationMethodPage'
-import type { VerificationSubmitMeta } from './types/verification'
+import PriorityChoicePage from './pages/PriorityChoicePage'
+import PriorityDocumentPage from './pages/PriorityDocumentPage'
+import VerificationDonePage from './pages/VerificationDonePage'
+import { PRIORITY_TYPES } from './data/priorityVerification'
+import type { PrioritySubmitMeta, PriorityType } from './types/verification'
 
 // 접수 완료 화면은 제출 결과(meta)를 router state로 넘겨받는다.
-// state 없이 직접 진입하면 인증 방법 선택으로 돌려보낸다.
-function VerificationCompleteRoute() {
+// state 없이 직접 진입하면 우선배정 선택으로 돌려보낸다.
+function VerificationDoneRoute() {
   const navigate = useNavigate()
-  const meta = useLocation().state as VerificationSubmitMeta | null
+  const meta = useLocation().state as PrioritySubmitMeta | null
 
-  if (!meta) return <Navigate to="/verification" replace />
+  if (!meta) return <Navigate to="/verify/priority" replace />
 
   return (
-    <VerificationCompletePage
+    <VerificationDonePage
       meta={meta}
-      onGoHome={() => navigate('/')}
-      onViewStatus={() => navigate('/mypage')}
+      onGoHome={() => navigate('/', { replace: true })}
+      onViewStatus={() => navigate('/mypage/verification', { replace: true })}
+    />
+  )
+}
+
+// /verify/priority/freshman | /verify/priority/basic
+function PriorityDocumentRoute() {
+  const navigate = useNavigate()
+  const { type } = useParams()
+
+  if (!PRIORITY_TYPES.includes(type as PriorityType)) return <Navigate to="/verify/priority" replace />
+
+  return (
+    <PriorityDocumentPage
+      type={type as PriorityType}
+      onBack={() => navigate('/verify/priority')}
+      // 접수 완료에서 뒤로가기로 폼에 돌아오지 못하도록 history를 교체(replace)한다.
+      onSubmitSuccess={(meta) => navigate('/verify/done', { replace: true, state: meta })}
     />
   )
 }
 
 function App() {
   const navigate = useNavigate()
-
-  // 접수 완료에서 뒤로가기로 폼에 돌아오지 못하도록 history를 교체(replace)한다.
-  const handleSubmitSuccess = (meta: VerificationSubmitMeta) =>
-    navigate('/verification/complete', { replace: true, state: meta })
 
   return (
     <ContactProvider>
@@ -56,35 +70,31 @@ function App() {
           <Route path="/items/:id" element={<ItemDetail />} />
           <Route path="/login" element={<LoginPage onBrowse={() => navigate('/')} />} />
           <Route path="/oauth/kakao/callback" element={<KakaoCallbackPage />} />
+          {/* 로그인·인증 v2: GPS 동네 인증 → (선택) 우선배정 인증 */}
           <Route
-            path="/verification"
+            path="/verify/location"
             element={
-              <VerificationMethodPage
-                onBack={() => navigate('/login')}
-                onSkip={() => navigate('/')}
-                onNext={(type) => navigate(`/verification/${type}`)}
+              <LocationVerificationPage
+                onBack={() => navigate(-1)}
+                onSkip={() => navigate('/', { replace: true })}
+                onVerified={() => navigate('/verify/priority', { replace: true })}
               />
             }
           />
           <Route
-            path="/verification/resident"
+            path="/verify/priority"
             element={
-              <ResidentVerificationFormPage
-                onBack={() => navigate('/verification')}
-                onSubmitSuccess={handleSubmitSuccess}
+              <PriorityChoicePage
+                onBack={() => navigate(-1)}
+                onSkip={() => navigate('/', { replace: true })}
+                onNext={(type) => navigate(`/verify/priority/${type}`)}
               />
             }
           />
-          <Route
-            path="/verification/student"
-            element={
-              <StudentVerificationFormPage
-                onBack={() => navigate('/verification')}
-                onSubmitSuccess={handleSubmitSuccess}
-              />
-            }
-          />
-          <Route path="/verification/complete" element={<VerificationCompleteRoute />} />
+          <Route path="/verify/priority/:type" element={<PriorityDocumentRoute />} />
+          <Route path="/verify/done" element={<VerificationDoneRoute />} />
+          {/* v1 주소(주민·학생 서류 인증)는 GPS 동네 인증으로 통합됐다 */}
+          <Route path="/verification/*" element={<Navigate to="/verify/location" replace />} />
           <Route path="/settings/contact" element={<ContactSettingsPage />} />
           <Route path="/mypage/verification" element={<MyVerificationPage />} />
         </Route>

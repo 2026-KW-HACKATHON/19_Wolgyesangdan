@@ -11,7 +11,7 @@ import { clearKakaoState, isValidKakaoState } from '../lib/kakao'
 /**
  * 카카오 로그인 후 돌아오는 화면 (/oauth/kakao/callback).
  * 인가 코드를 백엔드(POST /auth/kakao)에 넘겨 서비스 토큰을 받고,
- * 신규 회원은 이웃 인증 화면으로, 기존 회원은 홈으로 보낸다.
+ * 신규 회원은 GPS 동네 인증 화면으로, 기존 회원은 홈으로 보낸다.
  */
 export default function KakaoCallbackPage() {
   const navigate = useNavigate()
@@ -40,7 +40,7 @@ export default function KakaoCallbackPage() {
       .then((response) => {
         clearKakaoState()
         saveTokens(response)
-        navigate(response.isNewUser ? '/verification' : '/', { replace: true })
+        navigate(response.isNewUser ? '/verify/location' : '/', { replace: true })
       })
       .catch((error: unknown) => {
         setLoginError(
