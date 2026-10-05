@@ -1,5 +1,11 @@
 import type { Contact } from '../types/contact'
+import type { MyInfo } from '../types/user'
 import { apiFetch } from './client'
+
+/** 내 정보 (GET /users/me, 로그인 필요) */
+export function getMyInfo() {
+  return apiFetch<MyInfo>('/users/me')
+}
 
 /** GET·PUT /users/me/contact 응답. 아직 설정하지 않았으면 contactType이 null */
 interface ContactResponse {

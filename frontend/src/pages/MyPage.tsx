@@ -5,10 +5,11 @@ import MaterialIcon from '../components/icons/MaterialIcon'
 import AppliedList from '../components/mypage/AppliedList'
 import RegisteredList from '../components/mypage/RegisteredList'
 import { useContact } from '../contexts/ContactContext'
-import { PROFILE } from '../data/mypage'
+import { useMyInfo } from '../hooks/useMyInfo'
 import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
 import { isLoggedIn } from '../lib/authStorage'
+import { formatJoinedPeriod, nicknameInitial } from '../lib/profile'
 
 type TabKey = 'registered' | 'applied'
 
@@ -25,16 +26,26 @@ function summarizeVerification(verifications: MyVerification[]): VerificationSum
   return { label: '미인증', className: 'bg-sunken text-ink-2' }
 }
 
-function ProfileRow({ verification }: { verification: VerificationSummary }) {
+/** 내 정보 (GET /users/me). 동네는 GPS 동네 인증이 승인됐을 때만 보여준다. */
+function ProfileRow({ verification, neighborhoodVerified }: { verification: VerificationSummary; neighborhoodVerified: boolean }) {
+  const { info, loggedIn, loading } = useMyInfo()
   const reviewing = verification.label === '검토 중'
+  const name = info ? info.nickname : loading ? '' : loggedIn ? '정보를 불러오지 못했어요' : '로그인이 필요해요'
+  const detail = info
+    ? `${neighborhoodVerified ? '월계1동' : '동네 인증 전'} · ${formatJoinedPeriod(info.createdAt)}`
+    : loading
+      ? '불러오는 중…'
+      : loggedIn
+        ? '잠시 후 다시 확인해 주세요'
+        : '로그인하면 내 정보를 볼 수 있어요'
   return (
     <div className="flex items-center gap-3.5 px-5 pt-1 pb-5">
       <span className="flex size-16 flex-none items-center justify-center rounded-full bg-primary-tint text-[24px] font-bold text-accent">
-        {PROFILE.initial}
+        {info ? nicknameInitial(info.nickname) : <MaterialIcon name="person" size={28} />}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-[18px] font-extrabold text-label">{PROFILE.name}</span>
+          <span className="truncate text-[18px] font-extrabold text-label">{name}</span>
           {reviewing && (
             <span className="rounded-[7px] bg-amber-badge px-1.5 py-[3px] text-[11px] font-bold text-amber-badge-ink">
               인증 검토 중
@@ -42,7 +53,7 @@ function ProfileRow({ verification }: { verification: VerificationSummary }) {
           )}
         </div>
         <div className="mt-[3px] text-[13px] font-medium text-label-alt">
-          {PROFILE.dong} · 가입 {PROFILE.joinedMonths}개월
+          {detail}
         </div>
       </div>
       <button
@@ -185,7 +196,11 @@ function MenuRows() {
 export default function MyPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: TabKey = searchParams.get('tab') === 'applied' ? 'applied' : 'registered'
-  const verification = summarizeVerification(useMyVerifications().verifications)
+  const { verifications } = useMyVerifications()
+  const verification = summarizeVerification(verifications)
+  const neighborhoodVerified = verifications.some(
+    (v) => v.verificationType === 'NEIGHBORHOOD' && v.status === 'APPROVED',
+  )
 
   const changeTab = (next: TabKey) => {
     setSearchParams(next === 'applied' ? { tab: 'applied' } : {}, { replace: true })
@@ -203,7 +218,7 @@ export default function MyPage() {
         <MaterialIcon name="settings" size={22} className="text-ink-2" />
       </header>
 
-      <ProfileRow verification={verification} />
+      <ProfileRow verification={verification} neighborhoodVerified={neighborhoodVerified} />
       <RecordCard />
       <VerificationCard verification={verification} />
 

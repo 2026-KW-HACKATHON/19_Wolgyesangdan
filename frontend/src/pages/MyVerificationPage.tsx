@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import TopBar from '../components/TopBar'
-import { PROFILE } from '../data/mypage'
 import { DOCUMENT_TYPE_LABEL, PRIORITY_OPTIONS } from '../data/priorityVerification'
+import { useMyInfo } from '../hooks/useMyInfo'
 import { useMyVerifications } from '../hooks/useMyVerifications'
+import { formatJoinedPeriod, nicknameInitial } from '../lib/profile'
 import type { MyVerification, VerificationStatus } from '../types/verification'
 
 const REVIEW_STEPS = ['서류 접수', '검토 중', '완료'] as const
@@ -232,6 +233,7 @@ export default function MyVerificationPage() {
   const { verifications, loading, error } = useMyVerifications()
   const byType = (type: MyVerification['verificationType']) => verifications.find((v) => v.verificationType === type)
   const freshman = byType('FRESHMAN')
+  const { info, loading: infoLoading } = useMyInfo()
 
   return (
     <div className="flex flex-col pb-6">
@@ -239,12 +241,15 @@ export default function MyVerificationPage() {
 
       <div className="flex items-center gap-3.5 px-5 pt-1 pb-4">
         <span className="flex size-14 flex-none items-center justify-center rounded-full bg-primary-tint text-[22px] font-bold text-accent">
-          {PROFILE.initial}
+          {info ? nicknameInitial(info.nickname) : <MaterialIcon name="person" size={26} />}
         </span>
-        <div>
-          <div className="text-[17px] font-extrabold text-label">{PROFILE.name}</div>
+        <div className="min-w-0">
+          <div className="truncate text-[17px] font-extrabold text-label">
+            {info ? info.nickname : infoLoading ? '' : '정보를 불러오지 못했어요'}
+          </div>
           <div className="mt-0.5 text-[13px] font-medium text-label-alt">
-            {PROFILE.provider} 로그인 · 가입 {PROFILE.joinedMonths}개월
+            {/* 로그인은 카카오만 지원한다 */}
+            {info ? `카카오 로그인 · ${formatJoinedPeriod(info.createdAt)}` : infoLoading ? '불러오는 중…' : '잠시 후 다시 확인해 주세요'}
           </div>
         </div>
       </div>
