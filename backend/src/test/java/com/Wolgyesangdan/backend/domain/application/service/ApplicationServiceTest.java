@@ -166,6 +166,117 @@ class ApplicationServiceTest {
 		assertThat(item.getApplicantCount()).isEqualTo(5);
 	}
 
+	@Test
+	void 존재하지_않는_신청이면_404() {
+		assertThatThrownBy(() -> applicationService.cancel(applicant.getId(), -1L))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ApplicationErrorCode.APPLICATION_NOT_FOUND);
+	}
+
+	@Test
+	void 본인_신청이_아니면_403() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		User someoneElse = persistEligibleApplicant("다른사람");
+
+		assertThatThrownBy(() -> applicationService.cancel(someoneElse.getId(), response.id()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ApplicationErrorCode.APPLICATION_NOT_OWNER);
+	}
+
+	@Test
+	void 이미_배정된_신청이면_409() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		Application selected = persist(Application.builder()
+				.item(item)
+				.applicant(applicant)
+				.priorityScore(0)
+				.status(ApplicationStatus.SELECTED)
+				.build());
+
+		assertThatThrownBy(() -> applicationService.cancel(applicant.getId(), selected.getId()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ApplicationErrorCode.APPLICATION_ALREADY_SELECTED);
+	}
+
+	@Test
+	void 취소하면_CANCELED로_바뀌고_신청자_수가_감소한다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		applicationService.cancel(applicant.getId(), response.id());
+
+		Application canceled = entityManager.find(Application.class, response.id());
+		assertThat(canceled.getStatus()).isEqualTo(ApplicationStatus.CANCELED);
+		assertThat(canceled.getWaitlistRank()).isNull();
+		assertThat(item.getApplicantCount()).isZero();
+	}
+
+	@Test
+	void 취소하면_남은_대기자_순번이_앞으로_당겨진다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse firstResponse = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		User second = persistEligibleApplicant("두번째신청자");
+		ApplicationCreateResponse secondResponse = applicationService.apply(second.getId(), item.getId());
+		entityManager.flush();
+		assertThat(secondResponse.waitlistRank()).isEqualTo(2);
+
+		applicationService.cancel(applicant.getId(), firstResponse.id());
+
+		Application secondApplication = entityManager.find(Application.class, secondResponse.id());
+		assertThat(secondApplication.getWaitlistRank()).isEqualTo(1);
+	}
+
+	@Test
+	void 이미_취소한_신청을_다시_취소하면_409() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.cancel(applicant.getId(), response.id());
+		entityManager.flush();
+
+		assertThatThrownBy(() -> applicationService.cancel(applicant.getId(), response.id()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ApplicationErrorCode.APPLICATION_ALREADY_CANCELED);
+	}
+
+	@Test
+	void 정원_마감으로_CLOSED된_물품도_신청_마감_전이면_취소시_다시_OPEN된다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		User lastFiller = null;
+		Long lastApplicationId = null;
+		for (int i = 0; i < 5; i++) {
+			User filler = persistEligibleApplicant("대기자" + i);
+			lastApplicationId = applicationService.apply(filler.getId(), item.getId()).id();
+			lastFiller = filler;
+		}
+		entityManager.flush();
+		assertThat(item.getStatus()).isEqualTo(ItemStatus.CLOSED);
+
+		applicationService.cancel(lastFiller.getId(), lastApplicationId);
+
+		assertThat(item.getStatus()).isEqualTo(ItemStatus.OPEN);
+		assertThat(item.getApplicantCount()).isEqualTo(4);
+	}
+
+	@Test
+	void 신청_마감_시각이_지난_뒤에는_취소해도_CLOSED를_유지한다() {
+		Item item = persist(item(owner, ItemStatus.CLOSED, LocalDateTime.now().minusSeconds(1), 4));
+		Application waiting = persist(Application.builder()
+				.item(item)
+				.applicant(applicant)
+				.priorityScore(0)
+				.status(ApplicationStatus.WAITING)
+				.build());
+
+		applicationService.cancel(applicant.getId(), waiting.getId());
+
+		assertThat(item.getStatus()).isEqualTo(ItemStatus.CLOSED);
+		assertThat(item.getApplicantCount()).isEqualTo(3);
+	}
+
 	private User persistEligibleApplicant(String nickname) {
 		User user = persist(user(nickname));
 		user.updateContact(ContactType.OPENCHAT, null, "https://open.kakao.com/o/abc");
