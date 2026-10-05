@@ -75,4 +75,9 @@ public class Application extends BaseTimeEntity {
 	public void dropForNoShow() {
 		this.status = ApplicationStatus.CANCELED;
 	}
+
+	/** 거래 완료 */
+	public void complete() {
+		this.status = ApplicationStatus.COMPLETED;
+	}
 }

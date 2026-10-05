@@ -69,4 +69,10 @@ public class Reservation extends BaseTimeEntity {
 	public void markNoShow() {
 		this.status = ReservationStatus.NO_SHOW;
 	}
+
+	/** 거래 완료 — 직거래는 등록자의 "전달 완료", 거점 거래는 운영진 DB 처리 */
+	public void complete(LocalDateTime now) {
+		this.status = ReservationStatus.COMPLETED;
+		this.completedAt = now;
+	}
 }
