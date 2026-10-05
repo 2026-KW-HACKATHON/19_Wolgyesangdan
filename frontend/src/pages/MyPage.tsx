@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import MaterialIcon from '../components/icons/MaterialIcon'
+import { useContact } from '../contexts/ContactContext'
 import {
   APPLIED_ITEMS,
   MY_RECORD,
@@ -300,8 +301,10 @@ function AppliedList({ items, onCancel }: { items: AppliedItem[]; onCancel: (id:
 
 function MenuRows() {
   const navigate = useNavigate()
+  const { contact } = useContact()
+  const contactLabel = contact ? (contact.type === 'openchat' ? '오픈채팅방' : '전화번호') : '미설정'
   const rows: { label: string; value?: string; onClick: () => void }[] = [
-    { label: '연락 수단 설정', value: '오픈채팅방', onClick: () => navigate('/settings/contact?next=/mypage') },
+    { label: '연락 수단 설정', value: contactLabel, onClick: () => navigate('/settings/contact?next=/mypage') },
     { label: '인증하기', value: '주민 · 학생 · 우선배정', onClick: () => navigate('/mypage/verification') },
     { label: '이용 안내', onClick: () => {} },
     { label: '문의하기', onClick: () => {} },

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import BottomActionBar from '../components/BottomActionBar'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import PrimaryButton from '../components/PrimaryButton'
@@ -22,6 +23,23 @@ function formatPhone(raw: string) {
 /** 4b 오픈채팅 / 4c 전화번호 설정. 같은 화면에서 모드만 토글한다. */
 export default function ContactSettingsPage() {
   const navigate = useNavigate()
+  const { loading } = useContact()
+
+  // 저장된 연락 수단을 받아 온 뒤에 폼을 그려야 입력칸이 그 값으로 채워진다
+  if (loading) {
+    return (
+      <Screen>
+        <TopBar title="연락 수단 설정" onBack={() => navigate(-1)} />
+        <p className="px-5 py-8 text-center text-[14px] font-medium text-label-alt">연락 수단을 불러오는 중이에요…</p>
+      </Screen>
+    )
+  }
+
+  return <ContactSettingsForm />
+}
+
+function ContactSettingsForm() {
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const next = params.get('next') ?? '/mypage'
   const { contact, saveContact } = useContact()
@@ -31,6 +49,8 @@ export default function ContactSettingsPage() {
   const [phone, setPhone] = useState(contact?.type === 'phone' ? contact.value : '')
   const [verified, setVerified] = useState(contact?.type === 'phone' ? contact.verified : false)
   const [pasteFailed, setPasteFailed] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const linkValid = OPENCHAT_PATTERN.test(link.trim())
   const phoneValid = PHONE_PATTERN.test(phone)
@@ -51,14 +71,26 @@ export default function ContactSettingsPage() {
     setVerified(true)
   }
 
-  const handleSave = () => {
-    if (!canSave) return
-    saveContact(
-      mode === 'openchat'
-        ? { type: 'openchat', value: link.trim(), verified: true }
-        : { type: 'phone', value: phone, verified: true },
-    )
-    navigate(next, { replace: true })
+  // 서버에 저장한 뒤에 다음 화면으로 넘어간다 (PUT /users/me/contact)
+  const handleSave = async () => {
+    if (!canSave || saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await saveContact(
+        mode === 'openchat'
+          ? { type: 'openchat', value: link.trim(), verified: true }
+          : { type: 'phone', value: phone, verified: true },
+      )
+      navigate(next, { replace: true })
+    } catch (e) {
+      setSaveError(
+        e instanceof ApiError
+          ? (e.errors[0]?.message ?? e.message)
+          : '저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      )
+      setSaving(false)
+    }
   }
 
   return (
@@ -204,7 +236,18 @@ export default function ContactSettingsPage() {
       <div className="flex-1" />
 
       <BottomActionBar>
-        <PrimaryButton label="저장하기" disabled={!canSave} onClick={handleSave} />
+        {saveError && (
+          <p role="alert" className="mb-2.5 text-center text-[13px] font-semibold text-terracotta">
+            {saveError}
+          </p>
+        )}
+        <PrimaryButton
+          label="저장하기"
+          disabled={!canSave}
+          loading={saving}
+          loadingLabel="저장 중…"
+          onClick={handleSave}
+        />
       </BottomActionBar>
     </Screen>
   )
