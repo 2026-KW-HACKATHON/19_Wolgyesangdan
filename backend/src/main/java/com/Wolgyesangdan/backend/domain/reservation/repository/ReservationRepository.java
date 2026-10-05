@@ -1,9 +1,13 @@
 package com.Wolgyesangdan.backend.domain.reservation.repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.Wolgyesangdan.backend.domain.reservation.dto.CategoryCarbonSum;
+import com.Wolgyesangdan.backend.domain.reservation.dto.CompletedTrade;
+import com.Wolgyesangdan.backend.domain.reservation.dto.CompletedTradeSummary;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
 import com.Wolgyesangdan.backend.domain.reservation.dto.TradeCounts;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
@@ -26,6 +30,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 			""")
 	long countCompletedByItemOwnerId(@Param("ownerId") Long ownerId);
 
+	// ── 탄소 성과 집계 (carbonreport) ──
+	// 전부 거래 완료(COMPLETED)된 예약 기준이고, campaignId가 null이면 전체, 있으면 그 캠페인 물품만 센다.
+
 	/**
 	 * 한 사용자의 거래 완료 집계 — 거래 완료된 예약 중 그 사람이 등록자(전달)인 것과 신청자(수령)인 것의 수,
 	 * 그리고 그 물품들의 예상 탄소 절감량 합계를 쿼리 한 번으로 계산한다.
@@ -42,8 +49,58 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
 				and (i.owner.id = :userId or a.applicant.id = :userId)
 				and i.owner.id <> a.applicant.id
+				and (:campaignId is null or i.campaign.id = :campaignId)
 			""")
-	TradeCounts summarizeTradesByUserId(@Param("userId") Long userId);
+	TradeCounts summarizeTradesByUserId(@Param("userId") Long userId, @Param("campaignId") Long campaignId);
+
+	/** 거래 완료된 물품 수와 예상 탄소 절감량 합계 */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.reservation.dto.CompletedTradeSummary(
+				count(r), coalesce(sum(i.estimatedCarbonReduction), 0L))
+			from Reservation r
+				join r.application a
+				join a.item i
+			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
+				and (:campaignId is null or i.campaign.id = :campaignId)
+			""")
+	CompletedTradeSummary summarizeCompleted(@Param("campaignId") Long campaignId);
+
+	/** 카테고리 대분류별 예상 탄소 절감량 합계. 거래가 없는 대분류는 결과에 없다. */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.reservation.dto.CategoryCarbonSum(
+				i.categoryGroup, coalesce(sum(i.estimatedCarbonReduction), 0L))
+			from Reservation r
+				join r.application a
+				join a.item i
+			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
+				and (:campaignId is null or i.campaign.id = :campaignId)
+			group by i.categoryGroup
+			""")
+	List<CategoryCarbonSum> sumCompletedByCategoryGroup(@Param("campaignId") Long campaignId);
+
+	/** 처음으로 거래가 완료된 일시. 없으면 null */
+	@Query("""
+			select min(r.completedAt)
+			from Reservation r
+				join r.application a
+				join a.item i
+			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
+				and (:campaignId is null or i.campaign.id = :campaignId)
+			""")
+	LocalDateTime findFirstCompletedAt(@Param("campaignId") Long campaignId);
+
+	/** from 이후 완료된 거래들 (월별·날짜별 묶음용). 기간이 최근 6개월·캠페인 기간으로 짧아 건별로 가져온다. */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.reservation.dto.CompletedTrade(
+				r.completedAt, i.estimatedCarbonReduction)
+			from Reservation r
+				join r.application a
+				join a.item i
+			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
+				and r.completedAt >= :from
+				and (:campaignId is null or i.campaign.id = :campaignId)
+			""")
+	List<CompletedTrade> findCompletedSince(@Param("from") LocalDateTime from, @Param("campaignId") Long campaignId);
 
 	/**
 	 * 물품별 진행 중인 예약의 전달 예정 일시. 노쇼·취소된 예약은 빼고,
