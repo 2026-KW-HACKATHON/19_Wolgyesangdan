@@ -12,11 +12,12 @@ import {
   getReservation,
   reconfirmReservation,
   type ReservationDetail,
-  type ReservationStatus,
 } from '../../api/reservations'
 import { isLoggedIn } from '../../lib/authStorage'
 import { TRADE_METHOD_LABEL } from '../../lib/item'
+import { RESERVATION_STATUS_LABEL, formatDateTime, formatMonthDay } from '../../lib/reservation'
 import MaterialIcon from '../icons/MaterialIcon'
+import ContactTile from './ContactTile'
 
 /** 물품 하나에 받는 신청 정원 — 대기 순번 바의 칸 수 (백엔드 Item.MAX_APPLICANTS) */
 const MAX_APPLICANTS = 5
@@ -30,28 +31,6 @@ const STATUS_BADGE: Record<ApplicationStatus, { label: string; className: string
   CANCELED: { label: '신청 취소됨', className: 'bg-sunken text-ink-2' },
 }
 
-const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
-  SCHEDULED: '약속 예정',
-  HUB_DROP_SCHEDULED: '거점 입고 예정',
-  HUB_RECEIVED: '거점 보관 중',
-  PICKUP_SCHEDULED: '수령 예정',
-  RECONFIRMED: '수령 확정',
-  COMPLETED: '전달 완료',
-  NO_SHOW: '미수령',
-  CANCELED: '거래 취소',
-}
-
-function formatMonthDay(isoDateTime: string) {
-  const date = new Date(isoDateTime)
-  return `${date.getMonth() + 1}.${date.getDate()}`
-}
-
-/** "9.24 17:00" */
-function formatDateTime(isoDateTime: string) {
-  const date = new Date(isoDateTime)
-  return `${formatMonthDay(isoDateTime)} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
-}
-
 /** 대기 순번 5칸 바. 내 순번 이전 칸은 진하게, 내 칸은 중간 톤으로 표시한다. */
 function WaitlistBar({ myNo, total }: { myNo: number; total: number }) {
   return (
@@ -63,44 +42,6 @@ function WaitlistBar({ myNo, total }: { myNo: number; total: number }) {
       })}
     </div>
   )
-}
-
-/** 상대가 공개하기로 고른 연락 수단 하나 */
-function ContactTile({ counterpart }: { counterpart: ReservationDetail['counterpart'] }) {
-  if (counterpart.contactType === 'OPENCHAT' && counterpart.openchatLink) {
-    return (
-      <div className="mt-2.5 flex items-center gap-[9px] rounded-[14px] border border-border bg-surface px-3.5 py-3">
-        <span className="flex size-[34px] flex-none items-center justify-center rounded-[11px] bg-kakao text-kakao-ink">
-          <MaterialIcon name="chat_bubble" size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-bold text-label">카카오 오픈채팅방</div>
-          <div className="truncate text-[12px] font-medium text-label-alt">
-            {counterpart.openchatLink.replace(/^https?:\/\//, '')}
-          </div>
-        </div>
-        <a
-          href={counterpart.openchatLink}
-          target="_blank"
-          rel="noreferrer"
-          className="flex-none rounded-[10px] bg-primary px-2.5 py-2 text-[12px] font-bold text-screen"
-        >
-          열기
-        </a>
-      </div>
-    )
-  }
-  if (counterpart.contactType === 'PHONE' && counterpart.phone) {
-    return (
-      <div className="mt-2.5 flex items-center gap-[9px] rounded-[14px] border border-border bg-surface px-3.5 py-3">
-        <MaterialIcon name="call" size={18} className="text-accent" />
-        <a href={`tel:${counterpart.phone}`} className="flex-1 text-[14px] font-bold text-label">
-          {counterpart.phone}
-        </a>
-      </div>
-    )
-  }
-  return null
 }
 
 /**

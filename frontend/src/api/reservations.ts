@@ -63,3 +63,19 @@ export const RECONFIRMABLE_STATUSES: readonly ReservationStatus[] = [
 export function reconfirmReservation(reservationId: number) {
   return apiFetch<ReconfirmResponse>(`/reservations/${reservationId}/reconfirm`, { method: 'PATCH' })
 }
+
+/** PATCH /reservations/{reservationId}/complete 응답 */
+export interface CompleteResponse {
+  id: number
+  status: ReservationStatus
+  completedAt: string
+}
+
+/**
+ * 직거래 전달 완료 (PATCH /reservations/{reservationId}/complete). 물품 등록자만 할 수 있다.
+ * 신청자가 수령을 재확인한 직거래 예약만 완료된다 — 재확인 전이면 RESERVATION_NOT_RECONFIRMED,
+ * 거점 거래면 RESERVATION_NOT_DIRECT, 이미 끝났으면 RESERVATION_ALREADY_COMPLETED (모두 409).
+ */
+export function completeReservation(reservationId: number) {
+  return apiFetch<CompleteResponse>(`/reservations/${reservationId}/complete`, { method: 'PATCH' })
+}
