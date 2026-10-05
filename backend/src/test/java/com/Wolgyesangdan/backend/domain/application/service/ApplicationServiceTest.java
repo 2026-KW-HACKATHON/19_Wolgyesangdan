@@ -306,7 +306,31 @@ class ApplicationServiceTest {
 	}
 
 	@Test
-	void WAITING이_아니면_waitlistRank는_null로_내려준다() {
+	void 대표_사진은_표시_순서가_가장_앞선_사진이다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		persist(ItemImage.builder().item(item).imageUrl("https://img/second.jpg").displayOrder(1).build());
+		persist(ItemImage.builder().item(item).imageUrl("https://img/first.jpg").displayOrder(0).build());
+		applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).itemThumbnailImageUrl()).isEqualTo("https://img/first.jpg");
+	}
+
+	@Test
+	void 물품에_사진이_없으면_대표_사진은_null이다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).itemThumbnailImageUrl()).isNull();
+	}
+
+	@Test
+	void 취소하면_waitlistRank가_null로_내려준다() {
 		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
 		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
 		entityManager.flush();
@@ -317,6 +341,22 @@ class ApplicationServiceTest {
 
 		assertThat(result.getContent().get(0).status()).isEqualTo(ApplicationStatus.CANCELED);
 		assertThat(result.getContent().get(0).waitlistRank()).isNull();
+	}
+
+	// 배정 확정 후에도 대기 순번을 그대로 보여준다 — "대기 1번이었어요" 화면 (요구사항 APPL-07, 2026-09-26 결정)
+	@Test
+	void 배정_후에도_waitlistRank가_그대로_내려준다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		Application application = entityManager.find(Application.class, response.id());
+		application.select(LocalDateTime.now());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).status()).isEqualTo(ApplicationStatus.SELECTED);
+		assertThat(result.getContent().get(0).waitlistRank()).isEqualTo(1);
 	}
 
 	@Test
