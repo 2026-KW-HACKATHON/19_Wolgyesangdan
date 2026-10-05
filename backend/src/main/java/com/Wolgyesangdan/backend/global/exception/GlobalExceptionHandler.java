@@ -3,6 +3,7 @@ package com.Wolgyesangdan.backend.global.exception;
 import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -42,6 +43,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 				.toList();
 		return ResponseEntity.status(status)
 				.body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, errors));
+	}
+
+	// 쿼리 파라미터·경로 변수 값이 타입에 안 맞는 경우 (없는 enum 값, 숫자 자리에 문자 등)
+	// → 어떤 파라미터가 틀렸는지 알 수 있게 INVALID_INPUT + errors로 내려준다.
+	@Override
+	protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
+			HttpStatusCode status, WebRequest request) {
+		String field = ex.getPropertyName() != null ? ex.getPropertyName() : "unknown";
+		List<ErrorResponse.FieldError> errors =
+				List.of(new ErrorResponse.FieldError(field, "올바르지 않은 값입니다: " + ex.getValue()));
+		return ResponseEntity.status(status).body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, errors));
 	}
 
 	// 스프링 MVC 기본 예외(405, 404, 400 등)도 같은 ErrorResponse 형식으로 내려준다.

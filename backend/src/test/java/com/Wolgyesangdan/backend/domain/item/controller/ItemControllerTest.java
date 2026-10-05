@@ -10,12 +10,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.item.service.ItemService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
+import com.Wolgyesangdan.backend.global.config.WebConfig;
 import com.Wolgyesangdan.backend.global.security.JwtAuthenticationEntryPoint;
 import com.Wolgyesangdan.backend.global.security.JwtProvider;
 
@@ -30,7 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = ItemController.class,
 		properties = "jwt.secret=test-secret-key-that-is-long-enough-for-hs256")
-@Import({SecurityConfig.class, JwtProvider.class, JwtAuthenticationEntryPoint.class})
+@Import({SecurityConfig.class, JwtProvider.class, JwtAuthenticationEntryPoint.class, WebConfig.class})
 class ItemControllerTest {
 
 	@Autowired
@@ -59,7 +62,7 @@ class ItemControllerTest {
 		ItemSummaryResponse item = new ItemSummaryResponse(1L, "전자레인지", "생활가전", CategoryGroup.APPLIANCE, "좋음",
 				"https://example.com/photo1.jpg", 24, List.of(TradeMethod.DIRECT, TradeMethod.CAMPAIGN),
 				ItemStatus.OPEN, 3, 5, LocalDateTime.of(2026, 10, 2, 23, 59, 59));
-		given(itemService.getItems(0, 20)).willReturn(new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1));
+		given(itemService.getItems(ItemSearchCondition.none(), 0, 20)).willReturn(new PageImpl<>(List.of(item), PageRequest.of(0, 20), 1));
 
 		mockMvc.perform(get("/items"))
 				.andExpect(status().isOk())
@@ -82,12 +85,44 @@ class ItemControllerTest {
 
 	@Test
 	void 범위를_벗어난_page_size는_보정한다() throws Exception {
-		given(itemService.getItems(0, 100)).willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 100), 0));
+		given(itemService.getItems(ItemSearchCondition.none(), 0, 100)).willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 100), 0));
 
 		mockMvc.perform(get("/items").param("page", "-1").param("size", "1000"))
 				.andExpect(status().isOk());
 
-		verify(itemService).getItems(0, 100);
+		verify(itemService).getItems(ItemSearchCondition.none(), 0, 100);
+	}
+
+	@Test
+	void 검색_조건을_한글_카테고리까지_받아서_넘긴다() throws Exception {
+		ItemSearchCondition expected =
+				new ItemSearchCondition("의자", CategoryGroup.FURNITURE, TradeMethod.CAMPAIGN, ItemSort.CARBON);
+		given(itemService.getItems(expected, 0, 20)).willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+		mockMvc.perform(get("/items")
+						.param("keyword", "  의자 ")
+						.param("categoryGroup", "가구")
+						.param("tradeMethod", "CAMPAIGN")
+						.param("sort", "CARBON"))
+				.andExpect(status().isOk());
+
+		verify(itemService).getItems(expected, 0, 20);
+	}
+
+	@Test
+	void 없는_카테고리면_400_INVALID_INPUT() throws Exception {
+		mockMvc.perform(get("/items").param("categoryGroup", "가전제품"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("categoryGroup"));
+	}
+
+	@Test
+	void 없는_정렬_기준이면_400_INVALID_INPUT() throws Exception {
+		mockMvc.perform(get("/items").param("sort", "PRICE"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("sort"));
 	}
 
 }
