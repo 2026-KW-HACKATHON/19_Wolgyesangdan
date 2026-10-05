@@ -15,7 +15,6 @@ import com.Wolgyesangdan.backend.domain.campaign.service.CampaignService;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.CategoryCarbon;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.DailyTrade;
-import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.MonthlyCarbon;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.ReportScope;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
@@ -85,32 +84,22 @@ class CarbonReportQueryTest {
 						tuple(CategoryGroup.LIVING, 0L, 0.0),
 						tuple(CategoryGroup.ETC, 0L, 0.0));
 		assertThat(report.campaign()).isNull();
-		assertThat(report.dailyTrades()).isEmpty();
-		assertThat(report.me()).isNull();
+		assertThat(report.dailyTrend()).isEmpty();
+		assertThat(report.myCarbonReductionKg()).isNull();
 	}
 
 	@Test
-	void 월별_추이는_이번_달_포함_최근_6개월이고_거래_없는_달은_0이다() {
-		completed(item(CategoryGroup.FURNITURE, 30, null), at(2026, 3, 15)); // 6개월보다 전
-		completed(item(CategoryGroup.FURNITURE, 30, null), at(2026, 5, 1));
+	void 전체_범위의_시작_월은_가장_처음_거래가_완료된_달이다() {
+		completed(item(CategoryGroup.FURNITURE, 30, null), at(2026, 3, 15));
 		completed(item(CategoryGroup.LIVING, 15, null), at(2026, 5, 31));
 		completed(item(CategoryGroup.ETC, 8, null), at(2026, 10, 5));
 		flushAndClear();
 
 		CarbonReportResponse report = carbonReportService.getReport(ReportScope.ALL, null, TODAY);
 
-		assertThat(report.monthlyTrend())
-				.extracting(MonthlyCarbon::month, MonthlyCarbon::carbonReductionKg)
-				.containsExactly(
-						tuple("2026-05", 45L),
-						tuple("2026-06", 0L),
-						tuple("2026-07", 0L),
-						tuple("2026-08", 0L),
-						tuple("2026-09", 0L),
-						tuple("2026-10", 8L));
-		// 누적 합계와 시작 월은 추이 기간과 관계없이 전체 기준
-		assertThat(report.carbonReductionKg()).isEqualTo(83);
 		assertThat(report.since()).isEqualTo("2026-03");
+		assertThat(report.reusedCount()).isEqualTo(3);
+		assertThat(report.carbonReductionKg()).isEqualTo(53);
 	}
 
 	@Test
@@ -130,7 +119,8 @@ class CarbonReportQueryTest {
 		assertThat(report.campaign().status()).isEqualTo(CampaignStatus.ACTIVE);
 		assertThat(report.campaign().startDate()).isEqualTo(TODAY.minusDays(3));
 		assertThat(report.campaign().endDate()).isEqualTo(TODAY.plusDays(5));
-		assertThat(report.dailyTrades())
+		assertThat(report.since()).isNull(); // 시작 월은 전체 범위에서만
+		assertThat(report.dailyTrend())
 				.extracting(DailyTrade::date, DailyTrade::count)
 				.containsExactly(
 						tuple(TODAY.minusDays(3), 1L),
@@ -153,8 +143,8 @@ class CarbonReportQueryTest {
 		assertThat(report.carbonReductionKg()).isZero();
 		assertThat(report.since()).isNull();
 		assertThat(report.campaign()).isNull();
-		assertThat(report.monthlyTrend()).isEmpty();
-		assertThat(report.dailyTrades()).isEmpty();
+		assertThat(report.dailyTrend()).isEmpty();
+		assertThat(report.myCarbonReductionKg()).isNull();
 		assertThat(report.categoryBreakdown()).hasSize(5)
 				.allSatisfy(category -> assertThat(category.carbonReductionKg()).isZero());
 	}
@@ -167,22 +157,29 @@ class CarbonReportQueryTest {
 		CarbonReportResponse report = carbonReportService.getReport(ReportScope.CAMPAIGN, null, TODAY);
 
 		assertThat(report.campaign().status()).isEqualTo(CampaignStatus.PLANNED);
-		assertThat(report.dailyTrades()).isEmpty();
+		assertThat(report.dailyTrend()).isEmpty();
 	}
 
 	@Test
-	void 로그인하면_같은_범위의_내_기여분을_함께_내려준다() {
+	void 내가_키운_탄소는_내가_등록해서_거래_완료된_물품만_같은_범위로_센다() {
 		Campaign campaign = persist(campaign(TODAY.minusDays(3), TODAY.plusDays(5)));
-		completed(item(CategoryGroup.FURNITURE, 30, campaign), TODAY.minusDays(1).atStartOfDay()); // 내가 전달 (캠페인)
-		completed(item(CategoryGroup.APPLIANCE, 24, null), at(2026, 9, 1)); // 내가 전달 (직거래)
+		completed(item(CategoryGroup.FURNITURE, 30, campaign), TODAY.minusDays(1).atStartOfDay()); // 등록자가 나눔 (캠페인)
+		completed(item(CategoryGroup.APPLIANCE, 24, null), at(2026, 9, 1)); // 등록자가 나눔 (직거래)
 		flushAndClear();
 
-		assertThat(carbonReportService.getReport(ReportScope.ALL, owner.getId(), TODAY).me().carbonReductionKg())
+		assertThat(carbonReportService.getReport(ReportScope.ALL, owner.getId(), TODAY).myCarbonReductionKg())
 				.isEqualTo(54);
-		assertThat(carbonReportService.getReport(ReportScope.CAMPAIGN, owner.getId(), TODAY).me().carbonReductionKg())
+		assertThat(carbonReportService.getReport(ReportScope.CAMPAIGN, owner.getId(), TODAY).myCarbonReductionKg())
 				.isEqualTo(30);
-		assertThat(carbonReportService.getReport(ReportScope.CAMPAIGN, applicant.getId(), TODAY).me().carbonReductionKg())
-				.isEqualTo(30);
+		// 받은 쪽은 세지 않는다 — 한 거래가 두 사람에게 중복으로 잡히지 않게 (동네 전체 = 각자 키운 나무의 합)
+		assertThat(carbonReportService.getReport(ReportScope.ALL, applicant.getId(), TODAY).myCarbonReductionKg())
+				.isZero();
+	}
+
+	@Test
+	void 캠페인이_없어도_로그인했으면_내가_키운_탄소는_0이다() {
+		assertThat(carbonReportService.getReport(ReportScope.CAMPAIGN, owner.getId(), TODAY).myCarbonReductionKg())
+				.isZero();
 	}
 
 	@Test
@@ -191,8 +188,6 @@ class CarbonReportQueryTest {
 
 		assertThat(report.reusedCount()).isZero();
 		assertThat(report.since()).isNull();
-		assertThat(report.monthlyTrend()).hasSize(6)
-				.allSatisfy(month -> assertThat(month.carbonReductionKg()).isZero());
 		assertThat(report.categoryBreakdown()).extracting(CategoryCarbon::ratio).containsOnly(0.0);
 	}
 

@@ -2,6 +2,8 @@ package com.Wolgyesangdan.backend.domain.carbonreport.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
@@ -70,12 +72,16 @@ public class SampleCarbonTradeInitializer {
 		User giver = persist(User.builder().kakaoId(GIVER_KAKAO_ID).nickname("샘플 등록자").build());
 		User receiver = persist(User.builder().kakaoId(RECEIVER_KAKAO_ID).nickname("샘플 신청자").build());
 		LocalDate today = LocalDate.now();
+		// 대분류별 탄소 기준값(5행)은 한 번만 읽어 둔다
+		Map<CategoryGroup, Integer> carbonKgByGroup = categoryCarbonReferenceRepository.findAll().stream()
+				.collect(Collectors.toMap(CategoryCarbonReference::getCategoryGroup,
+						CategoryCarbonReference::getCarbonReductionKg));
 
 		int count = 0;
 		for (int i = 0; i < MONTHLY_TRADES; i++) {
 			// 오래된 달일수록 드물게: 최근 180일 안에서 뒤쪽(최근)으로 몰리게 흩뿌린다
 			int daysAgo = (int) (180 * Math.pow((i + 1) / (double) MONTHLY_TRADES, 1.6));
-			trade(giver, receiver, null, today.minusDays(daysAgo).atTime(10 + i % 8, 0), i);
+			trade(giver, receiver, null, today.minusDays(daysAgo).atTime(10 + i % 8, 0), i, carbonKgByGroup);
 			count++;
 		}
 
@@ -86,18 +92,17 @@ public class SampleCarbonTradeInitializer {
 			LocalDate day = campaign.periodStart();
 			for (int d = 0; !day.isAfter(today) && d < CAMPAIGN_DAILY_TRADES.length; d++, day = day.plusDays(1)) {
 				for (int n = 0; n < CAMPAIGN_DAILY_TRADES[d]; n++) {
-					trade(giver, receiver, campaign, day.atTime(9 + n % 9, n), count++);
+					trade(giver, receiver, campaign, day.atTime(9 + n % 9, n), count++, carbonKgByGroup);
 				}
 			}
 		}
 		log.info("로컬 샘플 거래 완료 {}건 생성 (캠페인: {})", count, campaign == null ? "없음" : campaign.getId());
 	}
 
-	private void trade(User giver, User receiver, Campaign campaign, LocalDateTime completedAt, int seq) {
+	private void trade(User giver, User receiver, Campaign campaign, LocalDateTime completedAt, int seq,
+			Map<CategoryGroup, Integer> carbonKgByGroup) {
 		CategoryGroup group = CATEGORY_CYCLE[seq % CATEGORY_CYCLE.length];
-		int carbonKg = categoryCarbonReferenceRepository.findByCategoryGroup(group)
-				.map(CategoryCarbonReference::getCarbonReductionKg)
-				.orElse(10);
+		int carbonKg = carbonKgByGroup.getOrDefault(group, 10);
 		Item item = persist(Item.builder()
 				.owner(giver)
 				.campaign(campaign)

@@ -1,28 +1,25 @@
 package com.Wolgyesangdan.backend.domain.carbonreport.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.service.CampaignService;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.CategoryCarbon;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.DailyTrade;
-import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.MonthlyCarbon;
-import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.MyContribution;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.CarbonReportResponse.ReportCampaign;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.MyImpactResponse;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.ReportScope;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.reservation.dto.CategoryCarbonSum;
-import com.Wolgyesangdan.backend.domain.reservation.dto.CompletedTrade;
-import com.Wolgyesangdan.backend.domain.reservation.dto.CompletedTradeSummary;
 import com.Wolgyesangdan.backend.domain.reservation.dto.TradeCounts;
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 
@@ -39,19 +36,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CarbonReportService {
 
-	/** 월별 추이 개월 수 (이번 달 포함) */
-	static final int TREND_MONTHS = 6;
-
 	private final ReservationRepository reservationRepository;
 	private final CampaignService campaignService;
 
 	public MyImpactResponse getMyImpact(Long userId) {
-		TradeCounts counts = reservationRepository.summarizeTradesByUserId(userId, null);
+		TradeCounts counts = reservationRepository.summarizeTradesByUserId(userId);
 		return new MyImpactResponse(counts.givenCount(), counts.receivedCount(), counts.carbonReductionKg());
 	}
 
 	/**
-	 * @param userId 로그인 사용자 id. 비로그인이면 null (내 기여분 me를 빼고 내려준다)
+	 * @param userId 로그인 사용자 id. 비회원(토큰이 없거나 잘못됨)이면 null — myCarbonReductionKg를 null로 내려준다
 	 */
 	public CarbonReportResponse getReport(ReportScope scope, Long userId) {
 		return getReport(scope, userId, LocalDate.now());
@@ -64,81 +58,69 @@ public class CarbonReportService {
 		// 캠페인 범위인데 진행 중·예정 캠페인이 없으면 에러가 아니라 전부 0 (캠페인 조회 API와 같은 패턴)
 		return campaignService.findCurrentCampaign(today)
 				.map(campaign -> buildReport(scope, campaign, userId, today))
-				.orElseGet(() -> emptyCampaignReport(userId));
+				.orElseGet(() -> buildEmptyCampaignReport(userId));
 	}
 
 	private CarbonReportResponse buildReport(ReportScope scope, Campaign campaign, Long userId, LocalDate today) {
 		Long campaignId = campaign == null ? null : campaign.getId();
-		CompletedTradeSummary summary = reservationRepository.summarizeCompleted(campaignId);
-
-		YearMonth thisMonth = YearMonth.from(today);
-		YearMonth firstTrendMonth = thisMonth.minusMonths(TREND_MONTHS - 1);
-		// 월별 추이와 날짜별 거래에 필요한 기간을 한 번에 가져온다
-		LocalDate from = campaign == null
-				? firstTrendMonth.atDay(1)
-				: min(firstTrendMonth.atDay(1), campaign.periodStart());
-		List<CompletedTrade> trades = reservationRepository.findCompletedSince(from.atStartOfDay(), campaignId);
+		// 대분류별 합을 더해 전체 물품 수·탄소 합계를 구한다 (같은 행을 두 번 집계하지 않도록)
+		List<CategoryCarbonSum> sums = reservationRepository.sumCompletedByCategoryGroup(campaignId);
+		long reusedCount = sums.stream().mapToLong(CategoryCarbonSum::count).sum();
+		long totalKg = sums.stream().mapToLong(CategoryCarbonSum::carbonReductionKg).sum();
 
 		return new CarbonReportResponse(
 				scope,
-				summary.count(),
-				summary.carbonReductionKg(),
-				Optional.ofNullable(reservationRepository.findFirstCompletedAt(campaignId))
-						.map(first -> YearMonth.from(first).toString())
-						.orElse(null),
+				reusedCount,
+				totalKg,
+				categoryBreakdown(sums, totalKg),
+				myCarbonReductionKg(userId, campaignId),
+				campaign == null ? since() : null,
 				campaign == null ? null : ReportCampaign.of(campaign, today),
-				monthlyTrend(trades, firstTrendMonth, thisMonth),
-				campaign == null ? List.of() : dailyTrades(trades, campaign, today),
-				categoryBreakdown(reservationRepository.sumCompletedByCategoryGroup(campaignId),
-						summary.carbonReductionKg()),
-				myContribution(userId, campaignId));
+				campaign == null ? List.of() : dailyTrend(campaign, today));
 	}
 
-	private CarbonReportResponse emptyCampaignReport(Long userId) {
-		return new CarbonReportResponse(ReportScope.CAMPAIGN, 0, 0, null, null, List.of(), List.of(),
-				categoryBreakdown(List.of(), 0), userId == null ? null : new MyContribution(0));
+	private CarbonReportResponse buildEmptyCampaignReport(Long userId) {
+		return new CarbonReportResponse(ReportScope.CAMPAIGN, 0, 0, categoryBreakdown(List.of(), 0),
+				userId == null ? null : 0L, null, null, List.of());
 	}
 
-	/** first ~ last 달마다 한 칸, 거래가 없는 달은 0 */
-	private static List<MonthlyCarbon> monthlyTrend(List<CompletedTrade> trades, YearMonth first, YearMonth last) {
-		Map<YearMonth, Long> kgByMonth = trades.stream().collect(Collectors.groupingBy(
-				trade -> YearMonth.from(trade.completedAt()),
-				Collectors.summingLong(CompletedTrade::carbonReductionKg)));
-		return Stream.iterate(first, month -> !month.isAfter(last), month -> month.plusMonths(1))
-				.map(month -> new MonthlyCarbon(month.toString(), kgByMonth.getOrDefault(month, 0L)))
-				.toList();
+	/** 월계1동 전체에서 첫 거래가 완료된 달 "YYYY-MM". 거래가 없으면 null */
+	private String since() {
+		return Optional.ofNullable(reservationRepository.findFirstCompletedAt())
+				.map(first -> YearMonth.from(first).toString())
+				.orElse(null);
 	}
 
-	/** 캠페인 시작일 ~ 오늘(종료일이 지났으면 종료일) 하루마다 한 칸. 아직 시작 전이면 빈 배열 */
-	private static List<DailyTrade> dailyTrades(List<CompletedTrade> trades, Campaign campaign, LocalDate today) {
+	/** 캠페인 시작일 ~ 오늘(종료일이 더 이르면 종료일) 하루마다 한 칸, 거래 없는 날은 0. 아직 시작 전이면 빈 배열 */
+	private List<DailyTrade> dailyTrend(Campaign campaign, LocalDate today) {
+		LocalDate start = campaign.periodStart();
 		LocalDate last = min(today, campaign.periodEnd());
-		if (last.isBefore(campaign.periodStart())) {
+		if (last.isBefore(start)) {
 			return List.of();
 		}
-		Map<LocalDate, Long> countByDate = trades.stream().collect(Collectors.groupingBy(
-				trade -> trade.completedAt().toLocalDate(), Collectors.counting()));
-		return campaign.periodStart().datesUntil(last.plusDays(1))
+		Map<LocalDate, Long> countByDate = reservationRepository
+				.findCompletedAtSince(start.atStartOfDay(), campaign.getId()).stream()
+				.collect(Collectors.groupingBy(LocalDateTime::toLocalDate, Collectors.counting()));
+		return start.datesUntil(last.plusDays(1))
 				.map(date -> new DailyTrade(date, countByDate.getOrDefault(date, 0L)))
 				.toList();
 	}
 
 	/** 대분류 5개를 고정 순서로, 거래가 없는 대분류도 0으로 채운다 */
 	private static List<CategoryCarbon> categoryBreakdown(List<CategoryCarbonSum> sums, long totalKg) {
-		Map<CategoryGroup, Long> kgByGroup = sums.stream()
-				.collect(Collectors.toMap(CategoryCarbonSum::categoryGroup, CategoryCarbonSum::carbonReductionKg));
+		Map<CategoryGroup, CategoryCarbonSum> byGroup = sums.stream()
+				.collect(Collectors.toMap(CategoryCarbonSum::categoryGroup, Function.identity()));
 		return Arrays.stream(CategoryGroup.values())
 				.map(group -> {
-					long kg = kgByGroup.getOrDefault(group, 0L);
+					long kg = Optional.ofNullable(byGroup.get(group)).map(CategoryCarbonSum::carbonReductionKg).orElse(0L);
 					return new CategoryCarbon(group, kg, ratio(kg, totalKg));
 				})
 				.toList();
 	}
 
-	private MyContribution myContribution(Long userId, Long campaignId) {
-		if (userId == null) {
-			return null;
-		}
-		return new MyContribution(reservationRepository.summarizeTradesByUserId(userId, campaignId).carbonReductionKg());
+	/** 내가 등록해서(나눔) 거래 완료된 물품의 탄소 합계 — 비회원이면 null */
+	private Long myCarbonReductionKg(Long userId, Long campaignId) {
+		return userId == null ? null : reservationRepository.sumGivenCarbonByUserId(userId, campaignId);
 	}
 
 	/** 소수 둘째 자리 반올림, 전체가 0이면 0 */
