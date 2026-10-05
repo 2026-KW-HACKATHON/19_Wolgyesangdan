@@ -73,4 +73,15 @@ public class PriorityVerification {
 	private String rejectionReason;
 
 	private LocalDateTime expiresAt;
+
+	/**
+	 * 조회 시점 기준 실제 상태. 승인을 EXPIRED로 바꿔주는 처리가 따로 없어서,
+	 * 승인이라도 expiresAt이 지났으면 EXPIRED로 본다. 화면 표시와 신청 자격 체크 모두 이 값을 쓴다.
+	 */
+	public VerificationStatus statusAt(LocalDateTime now) {
+		if (status == VerificationStatus.APPROVED && expiresAt != null && expiresAt.isBefore(now)) {
+			return VerificationStatus.EXPIRED;
+		}
+		return status;
+	}
 }

@@ -14,9 +14,9 @@ public record MyVerificationResponse(
 		String rejectionReason,
 		LocalDateTime expiresAt) {
 
-	// rejectionReason은 REJECTED, expiresAt은 APPROVED일 때만 내려준다
-	public static MyVerificationResponse from(PriorityVerification verification) {
-		VerificationStatus status = verification.getStatus();
+	// status는 조회 시점 기준 (만료일이 지난 승인은 EXPIRED). rejectionReason은 REJECTED, expiresAt은 APPROVED일 때만 내려준다
+	public static MyVerificationResponse from(PriorityVerification verification, LocalDateTime now) {
+		VerificationStatus status = verification.statusAt(now);
 		return new MyVerificationResponse(
 				verification.getVerificationType(),
 				status,

@@ -19,6 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class VerificationServiceTest {
 
 	private static final Long USER_ID = 1L;
+	private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 26, 15, 0);
 	private static final LocalDateTime SUBMITTED_AT = LocalDateTime.of(2026, 9, 10, 9, 0);
 
 	private final PriorityVerificationRepository priorityVerificationRepository = Mockito
@@ -29,7 +30,7 @@ class VerificationServiceTest {
 	void 신청한_적_없으면_빈_목록() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of());
 
-		assertThat(verificationService.getMyVerifications(USER_ID)).isEmpty();
+		assertThat(verificationService.getMyVerifications(USER_ID, NOW)).isEmpty();
 	}
 
 	@Test
@@ -37,7 +38,7 @@ class VerificationServiceTest {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
 				verification(1L, VerificationType.STUDENT, VerificationStatus.PENDING, SUBMITTED_AT)));
 
-		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID);
+		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses).extracting(MyVerificationResponse::verificationType)
 				.containsExactly(VerificationType.STUDENT);
@@ -50,7 +51,7 @@ class VerificationServiceTest {
 				verification(1L, VerificationType.STUDENT, VerificationStatus.REJECTED, SUBMITTED_AT),
 				verification(3L, VerificationType.RESIDENT, VerificationStatus.APPROVED, SUBMITTED_AT.plusDays(1))));
 
-		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID);
+		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses).hasSize(2);
 		assertThat(responses.get(0).verificationType()).isEqualTo(VerificationType.RESIDENT);
@@ -66,7 +67,7 @@ class VerificationServiceTest {
 				verification(1L, VerificationType.LOW_INCOME, VerificationStatus.REJECTED, SUBMITTED_AT),
 				verification(2L, VerificationType.LOW_INCOME, VerificationStatus.PENDING, SUBMITTED_AT)));
 
-		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID);
+		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.get(0).status()).isEqualTo(VerificationStatus.PENDING);
@@ -79,7 +80,7 @@ class VerificationServiceTest {
 				verification(2L, VerificationType.STUDENT, VerificationStatus.PENDING, SUBMITTED_AT),
 				verification(3L, VerificationType.RESIDENT, VerificationStatus.PENDING, SUBMITTED_AT)));
 
-		assertThat(verificationService.getMyVerifications(USER_ID))
+		assertThat(verificationService.getMyVerifications(USER_ID, NOW))
 				.extracting(MyVerificationResponse::verificationType)
 				.containsExactly(VerificationType.RESIDENT, VerificationType.STUDENT, VerificationType.LOW_INCOME);
 	}
@@ -90,7 +91,7 @@ class VerificationServiceTest {
 				reviewed(1L, VerificationType.STUDENT, VerificationStatus.REJECTED),
 				reviewed(2L, VerificationType.RESIDENT, VerificationStatus.APPROVED)));
 
-		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID);
+		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses.get(0).rejectionReason()).isNull();                 // RESIDENT, APPROVED
 		assertThat(responses.get(1).rejectionReason()).isEqualTo("반려 사유");   // STUDENT, REJECTED
@@ -103,11 +104,40 @@ class VerificationServiceTest {
 				reviewed(2L, VerificationType.RESIDENT, VerificationStatus.APPROVED),
 				reviewed(3L, VerificationType.LOW_INCOME, VerificationStatus.EXPIRED)));
 
-		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID);
+		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses.get(0).expiresAt()).isEqualTo(SUBMITTED_AT.plusMonths(6));  // RESIDENT, APPROVED
 		assertThat(responses.get(1).expiresAt()).isNull();                               // STUDENT, REJECTED
 		assertThat(responses.get(2).expiresAt()).isNull();                               // LOW_INCOME, EXPIRED
+	}
+
+	@Test
+	void 만료일이_지난_승인은_EXPIRED로_내려준다() {
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.minusSeconds(1)),   // 만료됨
+				approved(2L, VerificationType.RESIDENT, NOW.plusSeconds(1)),   // 아직 유효
+				approved(3L, VerificationType.LOW_INCOME, null)));             // 만료일 없음
+
+		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
+
+		assertThat(responses.get(0).status()).isEqualTo(VerificationStatus.APPROVED);   // RESIDENT
+		assertThat(responses.get(0).expiresAt()).isEqualTo(NOW.plusSeconds(1));
+		assertThat(responses.get(1).status()).isEqualTo(VerificationStatus.EXPIRED);    // STUDENT
+		assertThat(responses.get(1).expiresAt()).isNull();
+		assertThat(responses.get(2).status()).isEqualTo(VerificationStatus.APPROVED);   // LOW_INCOME
+		assertThat(responses.get(2).expiresAt()).isNull();
+	}
+
+	private static PriorityVerification approved(Long id, VerificationType type, LocalDateTime expiresAt) {
+		PriorityVerification verification = PriorityVerification.builder()
+				.verificationType(type)
+				.status(VerificationStatus.APPROVED)
+				.submittedAt(SUBMITTED_AT)
+				.reviewedAt(SUBMITTED_AT.plusDays(1))
+				.expiresAt(expiresAt)
+				.build();
+		ReflectionTestUtils.setField(verification, "id", id);
+		return verification;
 	}
 
 	private static PriorityVerification verification(Long id, VerificationType type, VerificationStatus status,
