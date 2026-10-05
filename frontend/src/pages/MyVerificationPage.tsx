@@ -15,6 +15,21 @@ const STATUS_LABEL: Record<VerificationStatus, string> = {
   EXPIRED: '기간 만료',
 }
 
+/** 배지 색 — 반려·만료는 성공처럼 보이지 않게 회색으로 둔다 */
+const STATUS_BADGE: Record<VerificationStatus, string> = {
+  PENDING: 'bg-amber-badge text-amber-badge-ink',
+  APPROVED: 'bg-primary-tint text-primary-tint-ink',
+  REJECTED: 'bg-sunken text-ink-2',
+  EXPIRED: 'bg-sunken text-ink-2',
+}
+
+const STATUS_ICON: Record<VerificationStatus, string> = {
+  PENDING: 'hourglass_top',
+  APPROVED: 'verified',
+  REJECTED: 'error',
+  EXPIRED: 'error',
+}
+
 function formatMonthDay(isoDateTime: string) {
   const date = new Date(isoDateTime)
   return `${date.getMonth() + 1}.${date.getDate()}`
@@ -27,7 +42,7 @@ function canReapply(status: VerificationStatus) {
 
 /** 상태별 안내 문구. 반려 사유·만료일은 서버가 해당 상태일 때만 내려준다. */
 function statusNote({ status, rejectionReason, expiresAt }: MyVerification) {
-  if (status === 'PENDING') return '보통 1~2일(평일 기준) 안에 끝나요. 결과는 알림으로 알려드려요.'
+  if (status === 'PENDING') return '보통 1~2일(평일 기준) 안에 끝나요. 결과는 마이페이지에서 확인할 수 있어요.'
   if (status === 'APPROVED') return expiresAt ? `${formatMonthDay(expiresAt)}까지 유효해요.` : '인증이 완료됐어요.'
   if (status === 'REJECTED') return rejectionReason ?? '서류를 확인하지 못했어요. 다시 신청해 주세요.'
   return '인증 기간이 끝났어요. 다시 신청해 주세요.'
@@ -38,14 +53,16 @@ function FreshmanCard({ verification }: { verification: MyVerification }) {
   const navigate = useNavigate()
   const { status, submittedAt, documentType } = verification
   const approved = status === 'APPROVED'
-  // 3단계 진행 바에서 어디까지 채울지 — 승인이면 끝까지, 아니면 '검토 중'까지
+  // 3단계 진행 바에서 어디까지 채울지 — 승인이면 끝까지, 심사 중이면 '검토 중'까지
   const done = approved ? 3 : 2
+  // 반려·만료는 진행 중인 심사가 없어서 진행 바를 보여주지 않는다
+  const reapply = canReapply(status)
 
   return (
     <div className="mb-2.5 rounded-[18px] border border-border bg-surface px-4 py-4">
       <div className="flex items-center gap-2.5">
         <span className="flex size-[38px] flex-none items-center justify-center rounded-xl bg-amber-tint text-amber-ink">
-          <MaterialIcon name={approved ? 'verified' : 'hourglass_top'} size={20} />
+          <MaterialIcon name={STATUS_ICON[status]} size={20} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-bold text-label">{PRIORITY_OPTIONS.freshman.title}</div>
@@ -53,45 +70,45 @@ function FreshmanCard({ verification }: { verification: MyVerification }) {
             {formatMonthDay(submittedAt)} 신청{documentType && ` · ${DOCUMENT_TYPE_LABEL[documentType]}`}
           </div>
         </div>
-        <span
-          className={`flex-none rounded-[7px] px-2 py-1 text-[11px] font-bold ${
-            status === 'PENDING' ? 'bg-amber-badge text-amber-badge-ink' : 'bg-primary-tint text-primary-tint-ink'
-          }`}
-        >
+        <span className={`flex-none rounded-[7px] px-2 py-1 text-[11px] font-bold ${STATUS_BADGE[status]}`}>
           {STATUS_LABEL[status]}
         </span>
       </div>
 
-      <div className="mt-3.5 flex gap-1.5">
-        {REVIEW_STEPS.map((_, i) => (
-          <span
-            key={i}
-            className={`h-[5px] flex-1 rounded-[3px] ${
-              i < done - 1 || (i === done - 1 && approved)
-                ? 'bg-primary'
-                : i === done - 1
-                  ? 'bg-amber-step'
-                  : 'bg-track'
-            }`}
-          />
-        ))}
-      </div>
-      <div className="mt-1.5 flex">
-        {REVIEW_STEPS.map((label, i) => (
-          <span
-            key={label}
-            className={`flex-1 text-[11px] font-bold ${
-              i === 0 ? 'text-left' : i === REVIEW_STEPS.length - 1 ? 'text-right' : 'text-center'
-            } ${i < done ? 'text-accent' : 'font-medium text-label-alt'}`}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
+      {!reapply && (
+        <>
+          <div className="mt-3.5 flex gap-1.5">
+            {REVIEW_STEPS.map((_, i) => (
+              <span
+                key={i}
+                className={`h-[5px] flex-1 rounded-[3px] ${
+                  i < done - 1 || (i === done - 1 && approved)
+                    ? 'bg-primary'
+                    : i === done - 1
+                      ? 'bg-amber-step'
+                      : 'bg-track'
+                }`}
+              />
+            ))}
+          </div>
+          <div className="mt-1.5 flex">
+            {REVIEW_STEPS.map((label, i) => (
+              <span
+                key={label}
+                className={`flex-1 text-[11px] font-bold ${
+                  i === 0 ? 'text-left' : i === REVIEW_STEPS.length - 1 ? 'text-right' : 'text-center'
+                } ${i < done ? 'text-accent' : 'font-medium text-label-alt'}`}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       <p className="mt-2.5 text-[12px] leading-normal font-medium text-label-alt">{statusNote(verification)}</p>
 
-      {canReapply(status) && (
+      {reapply && (
         <button
           type="button"
           onClick={() => navigate('/verify/priority/freshman')}
@@ -251,8 +268,14 @@ export default function MyVerificationPage() {
         <p className="pb-2.5 text-[13px] leading-[1.6] font-medium text-ink-3">
           꼭 필요한 이웃에게 먼저 돌아가도록, 아래에 해당하면 서류를 추가로 올릴 수 있어요. 안 해도 신청은 할 수 있습니다.
         </p>
-        {!loading && (freshman ? <FreshmanCard verification={freshman} /> : <FreshmanRow />)}
-        <LowIncomeCard verification={byType('LOW_INCOME')} />
+        {loading ? (
+          <p className="py-4 text-center text-[13px] font-medium text-label-alt">인증 상태를 불러오는 중이에요…</p>
+        ) : (
+          <>
+            {freshman ? <FreshmanCard verification={freshman} /> : <FreshmanRow />}
+            <LowIncomeCard verification={byType('LOW_INCOME')} />
+          </>
+        )}
 
         <div className="mt-4 flex gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3.5">
           <MaterialIcon name="help" size={18} className="mt-px flex-none text-label-alt" />
