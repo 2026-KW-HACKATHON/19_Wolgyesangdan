@@ -3,6 +3,7 @@ package com.Wolgyesangdan.backend.domain.reservation.service;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 
+import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReservationDetailResponse;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
@@ -22,13 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReservationService {
 
 	/** 재확인할 수 있는 상태 — 아직 전달·수령 전인 예약 (2026-10-05 결정, #65) */
-	static final EnumSet<ReservationStatus> RECONFIRMABLE_STATUSES = EnumSet.of(
+	public static final EnumSet<ReservationStatus> RECONFIRMABLE_STATUSES = EnumSet.of(
 			ReservationStatus.SCHEDULED,
 			ReservationStatus.HUB_DROP_SCHEDULED,
 			ReservationStatus.HUB_RECEIVED,
 			ReservationStatus.PICKUP_SCHEDULED);
 
 	private final ReservationRepository reservationRepository;
+	private final ItemRepository itemRepository;
 
 	/**
 	 * 신청에 딸린 예약 상세. 그 신청의 신청자와 물품 등록자만 볼 수 있고, 서로 상대방의 닉네임·연락 수단을 받는다.
@@ -59,6 +61,11 @@ public class ReservationService {
 	}
 
 	ReconfirmResponse reconfirm(Long userId, Long reservationId, LocalDateTime now) {
+		// 노쇼 승계 스케줄러와 겹치지 않도록 물품부터 잠근다 (SuccessionService와 같은 순서) —
+		// 기한 직전 재확인과 기한 직후 승계가 동시에 일어나도 한쪽만 반영된다
+		Long itemId = reservationRepository.findItemIdById(reservationId)
+				.orElseThrow(() -> new BusinessException(ReservationErrorCode.RESERVATION_NOT_FOUND));
+		itemRepository.findByIdForUpdate(itemId);
 		Reservation reservation = reservationRepository.findWithApplicationById(reservationId)
 				.orElseThrow(() -> new BusinessException(ReservationErrorCode.RESERVATION_NOT_FOUND));
 		if (!reservation.getApplication().getApplicant().getId().equals(userId)) {
