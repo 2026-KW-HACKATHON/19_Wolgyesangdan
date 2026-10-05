@@ -60,7 +60,10 @@ export default function Home() {
         )}
       </header>
 
-      {campaign !== undefined && <CampaignBanner campaign={campaign} />}
+      {campaign !== undefined && (
+        // 캠페인 상세 화면은 따로 없어서, 캠페인 기간·거래 현황을 보여주는 탄소 리포트 "이번 캠페인" 탭으로 보낸다
+        <CampaignBanner campaign={campaign} onDetail={() => navigate('/carbon-report?scope=CAMPAIGN')} />
+      )}
 
       <div className="px-5">
         <SearchBar onClick={() => navigate('/browse', { state: { focusSearch: true } })} />
