@@ -46,9 +46,9 @@ class CategoryCarbonReferenceInitializerTest {
 		assertThat(repository.findAll())
 				.extracting(CategoryCarbonReference::getCategoryGroup, CategoryCarbonReference::getCarbonReductionKg)
 				.containsExactlyInAnyOrder(
-						tuple(CategoryGroup.FURNITURE, 30),
-						tuple(CategoryGroup.APPLIANCE, 24),
-						tuple(CategoryGroup.KITCHEN, 10),
+						tuple(CategoryGroup.FURNITURE, 35),
+						tuple(CategoryGroup.APPLIANCE, 70),
+						tuple(CategoryGroup.KITCHEN, 8),
 						tuple(CategoryGroup.LIVING, 15),
 						tuple(CategoryGroup.ETC, 8));
 	}
@@ -72,13 +72,13 @@ class CategoryCarbonReferenceInitializerTest {
 		run();
 
 		CategoryCarbonReference furniture = repository.findByCategoryGroup(CategoryGroup.FURNITURE).orElseThrow();
-		assertThat(furniture.getCarbonReductionKg()).isEqualTo(30);
-		assertThat(furniture.getSource()).isEqualTo(CategoryCarbonReferenceInitializer.SOURCE);
+		assertThat(furniture.getCarbonReductionKg()).isEqualTo(35);
+		assertThat(furniture.getSource()).startsWith("WRAP(2012)");
 	}
 
 	@Test
 	void 모든_대분류에_참조값이_정의돼_있다() {
-		assertThat(CategoryCarbonReferenceInitializer.CARBON_REDUCTION_KG.keySet())
+		assertThat(CategoryCarbonReferenceInitializer.REFERENCES.keySet())
 				.containsExactlyInAnyOrder(CategoryGroup.values());
 	}
 
@@ -86,6 +86,29 @@ class CategoryCarbonReferenceInitializerTest {
 		initializer.run(new DefaultApplicationArguments());
 		entityManager.flush();
 		entityManager.clear();
+	}
+
+	@Test
+	void 모든_참조값에_출처가_있고_컬럼_길이_안이다() {
+		assertThat(CategoryCarbonReferenceInitializer.REFERENCES.values())
+				.allSatisfy(reference -> {
+					assertThat(reference.carbonReductionKg()).isPositive();
+					assertThat(reference.source()).isNotBlank().hasSizeLessThanOrEqualTo(255);
+				});
+	}
+
+	@Test
+	void 값은_같아도_출처가_바뀌면_갱신한다() {
+		repository.save(CategoryCarbonReference.builder()
+				.categoryGroup(CategoryGroup.LIVING)
+				.carbonReductionKg(15)
+				.source("임시값(placeholder)")
+				.build());
+
+		run();
+
+		assertThat(repository.findByCategoryGroup(CategoryGroup.LIVING).orElseThrow().getSource())
+				.startsWith("UK DESNZ 2024");
 	}
 
 }
