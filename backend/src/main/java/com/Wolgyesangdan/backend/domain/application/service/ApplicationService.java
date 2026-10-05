@@ -77,6 +77,28 @@ public class ApplicationService {
 		return ApplicationCreateResponse.from(application);
 	}
 
+	/**
+	 * 신청 취소. WAITING 상태일 때만 가능하고, 이미 SELECTED(이상)된 신청은 취소할 수 없다
+	 * (배정 취소는 예약 도메인의 별도 흐름 — #89). 물품 행을 잠그고 읽어서 apply()와의 동시 변경을 막는다.
+	 */
+	@Transactional
+	public void cancel(Long userId, Long applicationId) {
+		Application application = applicationRepository.findById(applicationId)
+				.orElseThrow(() -> new BusinessException(ApplicationErrorCode.APPLICATION_NOT_FOUND));
+		if (!application.getApplicant().getId().equals(userId)) {
+			throw new BusinessException(ApplicationErrorCode.APPLICATION_NOT_OWNER);
+		}
+		if (application.getStatus() != ApplicationStatus.WAITING) {
+			throw new BusinessException(ApplicationErrorCode.APPLICATION_ALREADY_SELECTED);
+		}
+
+		Item item = itemRepository.findByIdForUpdate(application.getItem().getId())
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		application.cancel();
+		item.decreaseApplicantCount();
+		recalculateWaitlistRanks(item);
+	}
+
 	private void recalculateWaitlistRanks(Item item) {
 		List<Application> waiting = applicationRepository
 				.findByItemAndStatusOrderByPriorityScoreDescCreatedAtAscIdAsc(item, ApplicationStatus.WAITING);

@@ -111,4 +111,9 @@ public class Item extends BaseTimeEntity {
 			this.status = ItemStatus.CLOSED;
 		}
 	}
+
+	/** 신청 취소 — 신청자 수를 줄인다 (상태 전환은 다루지 않는다 — #89) */
+	public void decreaseApplicantCount() {
+		this.applicantCount--;
+	}
 }

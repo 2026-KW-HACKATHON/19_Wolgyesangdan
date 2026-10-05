@@ -64,4 +64,9 @@ public class Application extends BaseTimeEntity {
 	public void assignWaitlistRank(int waitlistRank) {
 		this.waitlistRank = waitlistRank;
 	}
+
+	public void cancel() {
+		this.status = ApplicationStatus.CANCELED;
+		this.waitlistRank = null;
+	}
 }
