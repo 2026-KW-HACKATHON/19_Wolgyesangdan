@@ -1,55 +1,61 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { fetchCampaignReport, fetchDongReport } from '../api/carbonReport'
+import { fetchCarbonReport } from '../api/carbonReport'
 import CampaignSummaryCard from '../components/carbon/CampaignSummaryCard'
 import CategoryTreeList from '../components/carbon/CategoryTreeList'
 import DailyTradeChart from '../components/carbon/DailyTradeChart'
 import MyTreeCard from '../components/carbon/MyTreeCard'
 import TreeLevelCard from '../components/carbon/TreeLevelCard'
-import type { CampaignReport, CarbonReport, DongReport, ReportScope } from '../data/carbonReport'
+import type { CarbonReport, ReportScope } from '../data/carbonReport'
 
 const SCOPE_TABS: { value: ReportScope; label: string }[] = [
-  { value: 'dong', label: '월계1동 전체' },
-  { value: 'campaign', label: '이번 캠페인' },
+  { value: 'ALL', label: '월계1동 전체' },
+  { value: 'CAMPAIGN', label: '이번 캠페인' },
 ]
 
-/** 탄소절감 리포트 (탭 4, /carbon-report?scope=dong|campaign). 로그인 없이 볼 수 있다. */
+/** 탄소절감 리포트 (탭 4, /carbon-report?scope=ALL|CAMPAIGN). 로그인 없이 볼 수 있다. */
 export default function CarbonReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [dong, setDong] = useState<DongReport | null>(null)
-  /** undefined: 불러오는 중, null: 진행 중·예정 캠페인 없음 */
-  const [campaign, setCampaign] = useState<CampaignReport | null | undefined>(undefined)
-  const [failed, setFailed] = useState(false)
+  const [allReport, setAllReport] = useState<CarbonReport | null>(null)
+  /** undefined: 불러오는 중, null: 진행 중·예정 캠페인이 없거나 불러오지 못함 */
+  const [campaignReport, setCampaignReport] = useState<CarbonReport | null | undefined>(undefined)
+  const [campaignFailed, setCampaignFailed] = useState(false)
+  const [allFailed, setAllFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
-  // 두 탭을 처음에 함께 불러온다 — 탭 전환이 바로 되고, 캠페인이 없으면 탭을 미리 비활성화할 수 있다
+  // 두 탭을 처음에 함께 불러온다 — 탭 전환이 바로 되고, 캠페인이 없으면 탭을 미리 비활성화할 수 있다.
+  // 따로 받아서 캠페인 쪽만 실패해도 월계1동 전체는 보여준다.
   useEffect(() => {
     let cancelled = false
-    Promise.all([fetchDongReport(), fetchCampaignReport()])
-      .then(([dongReport, campaignReport]) => {
-        if (cancelled) return
-        setDong(dongReport)
-        setCampaign(campaignReport)
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true)
-      })
+    Promise.allSettled([fetchCarbonReport('ALL'), fetchCarbonReport('CAMPAIGN')]).then(([all, campaign]) => {
+      if (cancelled) return
+      if (all.status === 'fulfilled') setAllReport(all.value)
+      else setAllFailed(true)
+      if (campaign.status === 'fulfilled') {
+        setCampaignReport(campaign.value.campaign ? campaign.value : null)
+      } else {
+        setCampaignReport(null)
+        setCampaignFailed(true)
+      }
+    })
     return () => {
       cancelled = true
     }
   }, [attempt])
 
   const retry = () => {
-    setFailed(false)
-    setDong(null)
-    setCampaign(undefined)
+    setAllFailed(false)
+    setCampaignFailed(false)
+    setAllReport(null)
+    setCampaignReport(undefined)
     setAttempt((n) => n + 1)
   }
 
-  const campaignActive = campaign !== null
-  // 진행 중인 캠페인이 없으면 ?scope=campaign으로 들어와도 동 전체를 보여준다
-  const scope: ReportScope = searchParams.get('scope') === 'campaign' && campaignActive ? 'campaign' : 'dong'
-  const current: CarbonReport | null = scope === 'dong' ? dong : (campaign ?? null)
+  const campaignAvailable = campaignReport !== null
+  // 진행 중인 캠페인이 없으면 ?scope=CAMPAIGN으로 들어와도 월계1동 전체를 보여준다
+  const scope: ReportScope = searchParams.get('scope') === 'CAMPAIGN' && campaignAvailable ? 'CAMPAIGN' : 'ALL'
+  const current = scope === 'ALL' ? allReport : (campaignReport ?? null)
+  const failed = scope === 'ALL' && allFailed
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pb-[22px]">
@@ -61,7 +67,7 @@ export default function CarbonReportPage() {
       <div className="mx-5 mt-3.5 mb-1 flex gap-1 rounded-[14px] bg-sunken p-1" role="tablist">
         {SCOPE_TABS.map((tab) => {
           const selected = scope === tab.value
-          const disabled = tab.value === 'campaign' && !campaignActive
+          const disabled = tab.value === 'CAMPAIGN' && !campaignAvailable
           return (
             <button
               key={tab.value}
@@ -69,7 +75,7 @@ export default function CarbonReportPage() {
               role="tab"
               aria-selected={selected}
               disabled={disabled}
-              onClick={() => setSearchParams(tab.value === 'dong' ? {} : { scope: tab.value }, { replace: true })}
+              onClick={() => setSearchParams(tab.value === 'ALL' ? {} : { scope: tab.value }, { replace: true })}
               className={`flex-1 rounded-[11px] py-[9px] text-[14px] disabled:cursor-default disabled:text-ink-disabled ${
                 selected ? 'bg-surface font-bold text-label' : 'font-semibold text-label-alt'
               }`}
@@ -79,8 +85,10 @@ export default function CarbonReportPage() {
           )
         })}
       </div>
-      {!campaignActive && (
-        <p className="mx-5 mt-1 text-[12px] font-medium text-label-alt">진행 중인 캠페인이 없어요</p>
+      {!campaignAvailable && (
+        <p className="mx-5 mt-1 text-[12px] font-medium text-label-alt">
+          {campaignFailed ? '이번 캠페인 정보를 불러오지 못했어요' : '진행 중인 캠페인이 없어요'}
+        </p>
       )}
 
       {failed ? <ReportError onRetry={retry} /> : current ? <ReportBody report={current} /> : <ReportSkeleton />}
@@ -89,22 +97,23 @@ export default function CarbonReportPage() {
 }
 
 function ReportBody({ report }: { report: CarbonReport }) {
-  const isCampaign = report.scope === 'campaign'
+  const { campaign } = report
+  const isCampaign = report.scope === 'CAMPAIGN'
 
   return (
     <>
-      {report.scope === 'dong' ? (
-        <TreeLevelCard since={report.since} reusedCount={report.reusedCount} co2eTotalKg={report.co2eTotalKg} />
-      ) : (
+      {campaign ? (
         <>
           <CampaignSummaryCard
-            campaign={report.campaign}
+            campaign={campaign}
             reusedCount={report.reusedCount}
-            co2eTotalKg={report.co2eTotalKg}
+            carbonReductionKg={report.carbonReductionKg}
           />
           <SectionTitle title="날짜별 거래" caption="하루에 몇 개의 물건이 새 주인을 찾았을까요" className="px-5 pt-[22px] pb-1.5" />
-          <DailyTradeChart startAt={report.campaign.startAt} endAt={report.campaign.endAt} daily={report.daily} />
+          <DailyTradeChart startDate={campaign.startDate} endDate={campaign.endDate} dailyTrend={report.dailyTrend} />
         </>
+      ) : (
+        <TreeLevelCard since={report.since} reusedCount={report.reusedCount} carbonReductionKg={report.carbonReductionKg} />
       )}
 
       <div className="mt-5 h-2 flex-none bg-sunken" />
@@ -114,9 +123,12 @@ function ReportBody({ report }: { report: CarbonReport }) {
         caption={isCampaign ? '이번 캠페인 기준 (예상치)' : '누적 기준 (예상치)'}
         className="px-5 pt-5 pb-3"
       />
-      <CategoryTreeList byCategory={report.byCategory} />
+      <CategoryTreeList categoryBreakdown={report.categoryBreakdown} />
 
-      {report.me && <MyTreeCard co2eKg={report.me.co2eKg} campaign={isCampaign} />}
+      {/* 로그인 시에만 — 내가 등록해서(나눔) 거래 완료된 물품 기준 */}
+      {report.myCarbonReductionKg !== null && (
+        <MyTreeCard carbonReductionKg={report.myCarbonReductionKg} campaign={isCampaign} />
+      )}
     </>
   )
 }
