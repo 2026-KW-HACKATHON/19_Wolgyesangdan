@@ -1,6 +1,7 @@
 package com.Wolgyesangdan.backend.domain.carbonreport.service;
 
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.MyImpactResponse;
+import com.Wolgyesangdan.backend.domain.reservation.dto.TradeCounts;
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,8 @@ public class CarbonReportService {
 	private final ReservationRepository reservationRepository;
 
 	public MyImpactResponse getMyImpact(Long userId) {
-		return reservationRepository.summarizeMyImpact(userId);
+		TradeCounts counts = reservationRepository.summarizeTradesByUserId(userId);
+		return new MyImpactResponse(counts.givenCount(), counts.receivedCount(), counts.carbonReductionKg());
 	}
 
 }

@@ -88,6 +88,16 @@ class MyImpactQueryTest {
 	}
 
 	@Test
+	void 본인_물품에_본인이_신청한_거래는_전달_수령_어느_쪽에도_세지_않는다() {
+		User other = persist(user("이웃"));
+		reservation(item(me, 30), me, ReservationStatus.COMPLETED);
+		reservation(item(me, 24), other, ReservationStatus.COMPLETED);
+		flushAndClear();
+
+		assertThat(carbonReportService.getMyImpact(me.getId())).isEqualTo(new MyImpactResponse(1, 0, 24));
+	}
+
+	@Test
 	void 거래_내역이_없으면_전부_0() {
 		assertThat(carbonReportService.getMyImpact(me.getId())).isEqualTo(new MyImpactResponse(0, 0, 0));
 	}
