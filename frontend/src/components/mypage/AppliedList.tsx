@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getMyApplications, type ApplicationStatus, type MyApplicationSummary } from '../../api/applications'
 import { ApiError } from '../../api/client'
-import { getReservation, type ReservationDetail, type ReservationStatus } from '../../api/reservations'
+import {
+  RECONFIRMABLE_STATUSES,
+  getReservation,
+  reconfirmReservation,
+  type ReservationDetail,
+  type ReservationStatus,
+} from '../../api/reservations'
 import { isLoggedIn } from '../../lib/authStorage'
 import { TRADE_METHOD_LABEL } from '../../lib/item'
 import MaterialIcon from '../icons/MaterialIcon'
@@ -100,6 +106,8 @@ function ReservationSection({ application }: { application: MyApplicationSummary
   // undefined = 받는 중, null = 예약이 아직 없음(배정 직후 등)
   const [reservation, setReservation] = useState<ReservationDetail | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
+  const [reconfirming, setReconfirming] = useState(false)
+  const [reconfirmError, setReconfirmError] = useState<string | null>(null)
 
   useEffect(() => {
     let ignore = false
@@ -116,6 +124,24 @@ function ReservationSection({ application }: { application: MyApplicationSummary
       ignore = true
     }
   }, [application.id])
+
+  // 수령 재확인 (PATCH /reservations/{reservationId}/reconfirm) — 받으러 가겠다고 기한 안에 다시 확인한다
+  const canReconfirm =
+    reservation != null && RECONFIRMABLE_STATUSES.includes(reservation.status) && !reservation.reconfirmedAt
+
+  const handleReconfirm = async () => {
+    if (!reservation || reconfirming) return
+    setReconfirming(true)
+    setReconfirmError(null)
+    try {
+      const result = await reconfirmReservation(reservation.id)
+      setReservation({ ...reservation, status: result.status, reconfirmedAt: result.reconfirmedAt })
+    } catch (e) {
+      setReconfirmError(e instanceof ApiError ? e.message : '재확인하지 못했어요. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setReconfirming(false)
+    }
+  }
 
   // 노쇼·취소된 예약은 서버가 연락 수단을 내려주지 않는다
   const broken = reservation?.status === 'NO_SHOW' || reservation?.status === 'CANCELED'
@@ -156,6 +182,35 @@ function ReservationSection({ application }: { application: MyApplicationSummary
           {!hasContact && !broken && (
             <p className="mt-2 text-[12px] font-medium text-label-alt">
               {reservation.counterpart.nickname} 님이 아직 연락 수단을 등록하지 않았어요.
+            </p>
+          )}
+
+          {canReconfirm && (
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="text-[12px] leading-normal font-medium text-label-alt">
+                {reservation.reconfirmationDeadline
+                  ? `${formatDateTime(reservation.reconfirmationDeadline)}까지 수령을 재확인해 주세요. 기한이 지나면 다음 순번에게 넘어가요.`
+                  : '받으러 갈 수 있다면 수령을 재확인해 주세요.'}
+              </p>
+              <button
+                type="button"
+                onClick={handleReconfirm}
+                disabled={reconfirming}
+                className="mt-2 w-full cursor-pointer rounded-xl bg-primary py-2.5 text-[13px] font-bold text-screen disabled:opacity-60"
+              >
+                {reconfirming ? '재확인 중…' : '수령 재확인하기'}
+              </button>
+              {reconfirmError && (
+                <p role="alert" className="mt-2 text-[12px] font-semibold text-terracotta">
+                  {reconfirmError}
+                </p>
+              )}
+            </div>
+          )}
+          {reservation.reconfirmedAt && (
+            <p className="mt-3 flex items-center gap-1 border-t border-border pt-3 text-[12px] font-semibold text-accent">
+              <MaterialIcon name="check_circle" size={15} />
+              {formatDateTime(reservation.reconfirmedAt)}에 수령을 재확인했어요
             </p>
           )}
         </div>
