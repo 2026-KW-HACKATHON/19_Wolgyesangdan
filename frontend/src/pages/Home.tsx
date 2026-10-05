@@ -7,6 +7,7 @@ import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
 import type { ItemSummary } from '../types/item'
 import { useActiveCampaign } from '../hooks/useActiveCampaign'
+import { isLoggedIn } from '../lib/authStorage'
 
 const CATEGORIES = [
   { key: '가구', icon: 'chair' },
@@ -48,9 +49,15 @@ export default function Home() {
           월계1동
         </span>
         <span className="flex-1" />
-        <button type="button" className="text-[13px] font-bold text-[var(--color-accent)]">
-          로그인
-        </button>
+        {!isLoggedIn() && (
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="text-[13px] font-bold text-[var(--color-accent)]"
+          >
+            로그인
+          </button>
+        )}
       </header>
 
       {campaign !== undefined && (
@@ -59,7 +66,7 @@ export default function Home() {
       )}
 
       <div className="px-5">
-        <SearchBar onClick={() => navigate('/browse')} />
+        <SearchBar onClick={() => navigate('/browse', { state: { focusSearch: true } })} />
       </div>
 
       <div className="grid grid-cols-5 px-3">
@@ -67,7 +74,7 @@ export default function Home() {
           <button
             key={c.key}
             type="button"
-            onClick={() => navigate('/browse')}
+            onClick={() => navigate(`/browse?category=${encodeURIComponent(c.key)}`)}
             className="flex flex-col items-center gap-1.5 py-2"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E7EBD8] text-[var(--color-primary)]">

@@ -82,6 +82,8 @@ export interface ItemDetail {
 }
 
 export interface ItemSearchParams {
+  /** 물품명 부분 일치 (앞뒤 공백 무시) */
+  keyword?: string
   categoryGroup?: CategoryGroup
   tradeMethod?: TradeMethod
   sort?: ItemSort

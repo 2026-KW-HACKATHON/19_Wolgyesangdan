@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { getItems } from '../api/items'
 import SearchBar from '../components/SearchBar'
@@ -20,11 +20,23 @@ const SORT_LABEL: Record<ItemSort, string> = {
 const PAGE_SIZE = 20
 
 type CategoryFilter = CategoryGroup | '전체'
+
+/** 주소의 ?category= 값. 없거나 모르는 값이면 '전체' */
+function toCategoryFilter(value: string | null): CategoryFilter {
+  return CATEGORY_FILTERS.find((c) => c === value) ?? '전체'
+}
 type TradeMethodFilter = TradeMethod | '전체'
 
-// 필터·정렬은 서버가 처리한다 (GET /items). '전체'는 조건을 보내지 않는다
-function fetchItems(category: CategoryFilter, tradeMethod: TradeMethodFilter, sort: ItemSort, page: number) {
+// 검색·필터·정렬은 서버가 처리한다 (GET /items). 빈 검색어와 '전체'는 조건을 보내지 않는다
+function fetchItems(
+  keyword: string,
+  category: CategoryFilter,
+  tradeMethod: TradeMethodFilter,
+  sort: ItemSort,
+  page: number,
+) {
   return getItems({
+    keyword: keyword || undefined,
     categoryGroup: category === '전체' ? undefined : category,
     tradeMethod: tradeMethod === '전체' ? undefined : tradeMethod,
     sort,
@@ -50,7 +62,16 @@ interface Loaded {
 
 export default function ItemList() {
   const navigate = useNavigate()
-  const [category, setCategory] = useState<CategoryFilter>('전체')
+  // 검색어·카테고리는 주소(?keyword=&category=)에 둔다 — 홈 카테고리 아이콘에서 바로 들어오고,
+  // 상세에 갔다가 뒤로 와도 검색 결과·필터가 유지된다
+  const [searchParams, setSearchParams] = useSearchParams()
+  const keyword = searchParams.get('keyword')?.trim() ?? ''
+  const category = toCategoryFilter(searchParams.get('category'))
+  // 입력 중인 검색어. 뒤로가기 등으로 주소의 검색어가 바뀌면 그 값으로 다시 맞춘다
+  const [draft, setDraft] = useState({ keyword, text: keyword })
+  const draftText = draft.keyword === keyword ? draft.text : keyword
+  // 홈 검색창을 눌러 들어오면 바로 입력할 수 있게 포커스한다
+  const focusSearch = (useLocation().state as { focusSearch?: boolean } | null)?.focusSearch === true
   const [tradeMethod, setTradeMethod] = useState<TradeMethodFilter>('전체')
   const [sortBy, setSortBy] = useState<ItemSort>('LATEST')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
@@ -64,13 +85,39 @@ export default function ItemList() {
     ? ['전체', 'DIRECT', 'CAMPAIGN']
     : ['전체', 'DIRECT']
 
-  const query = `${category}|${tradeMethod}|${sortBy}`
+  const query = `${keyword}|${category}|${tradeMethod}|${sortBy}`
+
+  /** 주소의 조건 하나만 바꾼다. 빈 값이면 지운다 */
+  const changeParam = (key: 'keyword' | 'category', value: string) => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev)
+        if (value) params.set(key, value)
+        else params.delete(key)
+        return params
+      },
+      { replace: true },
+    )
+  }
+
+  const setCategory = (next: CategoryFilter) => changeParam('category', next === '전체' ? '' : next)
+
+  const handleSearch = () => {
+    const next = draftText.trim()
+    setDraft({ keyword: next, text: next })
+    changeParam('keyword', next)
+  }
+
+  const handleClear = () => {
+    setDraft({ keyword: '', text: '' })
+    changeParam('keyword', '')
+  }
 
   // 조건이 바뀔 때마다 첫 페이지를 다시 받는다
   useEffect(() => {
-    const query = `${category}|${tradeMethod}|${sortBy}`
+    const query = `${keyword}|${category}|${tradeMethod}|${sortBy}`
     let ignore = false
-    fetchItems(category, tradeMethod, sortBy, 0)
+    fetchItems(keyword, category, tradeMethod, sortBy, 0)
       .then((res) => {
         if (!ignore) setLoaded({ query, items: res.content, total: res.totalElements, page: res.number, last: res.last })
       })
@@ -80,7 +127,7 @@ export default function ItemList() {
     return () => {
       ignore = true
     }
-  }, [category, tradeMethod, sortBy])
+  }, [keyword, category, tradeMethod, sortBy])
 
   // 조건을 바꾼 직후에는 이전 조건의 결과·오류를 보여주지 않는다
   const current = loaded?.query === query ? loaded : null
@@ -92,7 +139,7 @@ export default function ItemList() {
     if (!current || current.last || loadingMore) return
     setLoadingMore(true)
     try {
-      const res = await fetchItems(category, tradeMethod, sortBy, current.page + 1)
+      const res = await fetchItems(keyword, category, tradeMethod, sortBy, current.page + 1)
       // 받는 사이 조건이 바뀌었으면 버린다
       setLoaded((prev) =>
         prev && prev.query === current.query
@@ -109,7 +156,13 @@ export default function ItemList() {
   return (
     <div className="flex flex-col gap-2.5 pt-3.5 pb-6">
       <div className="px-5">
-        <SearchBar />
+        <SearchBar
+          value={draftText}
+          onChange={(text) => setDraft({ keyword, text })}
+          onSubmit={handleSearch}
+          onClear={handleClear}
+          autoFocus={focusSearch}
+        />
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none]">
@@ -186,7 +239,7 @@ export default function ItemList() {
 
       {current && items.length === 0 && (
         <p className="px-5 py-8 text-center text-sm font-medium text-[var(--color-label-alt)]">
-          조건에 맞는 물품이 없어요
+          {keyword ? `'${keyword}' 검색 결과가 없어요` : '조건에 맞는 물품이 없어요'}
         </p>
       )}
 
