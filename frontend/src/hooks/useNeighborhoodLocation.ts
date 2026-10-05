@@ -20,14 +20,14 @@ function readMockStatus(): MockStatus | null {
   return mock && MOCK_STATUSES.includes(mock) ? mock : null
 }
 
-function getPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject({ code: 2 })
-      return
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
-  })
+// MVP에서는 실제 위치를 쓰지 않는다 (#108). GPS로 찾는 것처럼 잠깐 기다린 뒤 항상 월계1동 안의 좌표를 돌려준다.
+// 위치 권한도 요청하지 않는다. 실제 측위로 되돌리려면 이 함수에서 navigator.geolocation.getCurrentPosition을 쓰면 된다.
+const PRETEND_LOCATING_MS = 1200
+const PRETEND_COORDS: Coords = MOCK_COORDS.inside
+
+async function getPosition(): Promise<Coords> {
+  await new Promise((resolve) => setTimeout(resolve, PRETEND_LOCATING_MS))
+  return PRETEND_COORDS
 }
 
 export interface NeighborhoodLocation {
@@ -38,7 +38,10 @@ export interface NeighborhoodLocation {
   locate: () => void
 }
 
-/** GPS로 현재 위치를 찾고, 월계1동 안인지 판정한다. 화면에 들어오자마자 한 번 측위한다. */
+/**
+ * 현재 위치를 찾고 월계1동 안인지 판정한다. 화면에 들어오자마자 한 번 측위한다.
+ * MVP에서는 실제 GPS를 쓰지 않아서 항상 월계1동 안으로 나온다 (getPosition 참고).
+ */
 export function useNeighborhoodLocation(): NeighborhoodLocation {
   const [status, setStatus] = useState<LocationStatus>('locating')
   const [coords, setCoords] = useState<Coords | null>(null)
@@ -59,8 +62,7 @@ export function useNeighborhoodLocation(): NeighborhoodLocation {
         if (mock === 'denied' || mock === 'unavailable') throw { code: mock === 'denied' ? 1 : 3 }
         next = MOCK_COORDS[mock]
       } else {
-        const { coords: c } = await getPosition()
-        next = { lat: c.latitude, lng: c.longitude, accuracy: c.accuracy }
+        next = await getPosition()
       }
       if (!isLatest()) return
       setCoords(next)
