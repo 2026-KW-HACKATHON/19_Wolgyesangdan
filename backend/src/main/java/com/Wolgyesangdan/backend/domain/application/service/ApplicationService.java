@@ -1,5 +1,6 @@
 package com.Wolgyesangdan.backend.domain.application.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.application.dto.ApplicationCreateResponse;
@@ -32,15 +33,23 @@ public class ApplicationService {
 	private final VerificationService verificationService;
 
 	/**
-	 * 물품 신청. 검증 순서: (1) 물품 존재 + OPEN 여부 (2) 동네 인증 승인 여부 (3) 연락 수단 설정 여부 (4) 중복 신청 여부.
+	 * 물품 신청. 검증 순서: (1) 물품 존재 + OPEN 여부 + 신청 마감 전인지 (2) 본인 물품이 아닌지
+	 * (3) 동네 인증 승인 여부 (4) 연락 수단 설정 여부 (5) 중복 신청 여부.
 	 * 통과하면 priority_score를 스냅샷으로 저장하고, 이 물품의 대기 신청 전체의 waitlist_rank를 다시 매긴다.
+	 *
+	 * 물품 행을 잠그고 읽어서(findByIdForUpdate), 같은 물품에 동시에 신청해도 한 줄씩 순서대로 처리된다 —
+	 * 정원을 넘겨 저장되거나 applicantCount가 누락되는 일이 없다.
 	 */
 	@Transactional
 	public ApplicationCreateResponse apply(Long userId, Long itemId) {
-		Item item = itemRepository.findById(itemId)
+		Item item = itemRepository.findByIdForUpdate(itemId)
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
-		if (item.getStatus() != ItemStatus.OPEN) {
+		boolean deadlinePassed = item.getApplicationDeadline().isBefore(LocalDateTime.now());
+		if (item.getStatus() != ItemStatus.OPEN || deadlinePassed) {
 			throw new BusinessException(ApplicationErrorCode.APPLICATION_ITEM_NOT_OPEN);
+		}
+		if (item.getOwner().getId().equals(userId)) {
+			throw new BusinessException(ApplicationErrorCode.APPLICATION_OWN_ITEM);
 		}
 
 		User applicant = userRepository.findById(userId)

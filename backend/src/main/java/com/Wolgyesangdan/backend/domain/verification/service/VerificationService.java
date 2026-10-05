@@ -93,7 +93,7 @@ public class VerificationService {
 	}
 
 	/**
-	 * 내 인증 상태. 한 번이라도 신청한 유형만, 유형마다 가장 최근 제출 건 기준으로 내려준다 (RESIDENT → FRESHMAN → LOW_INCOME 순).
+	 * 내 인증 상태. 한 번이라도 신청한 유형만, 유형마다 가장 최근 제출 건 기준으로 내려준다 (NEIGHBORHOOD → FRESHMAN → LOW_INCOME 순).
 	 * 상태는 조회 시점 기준이라 만료일이 지난 승인은 EXPIRED로 나간다 (PriorityVerification.statusAt).
 	 * 신청한 적 없는 유형은 아예 빠진다 (프론트가 "미신청"으로 처리).
 	 */

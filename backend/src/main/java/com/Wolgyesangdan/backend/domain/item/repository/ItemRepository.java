@@ -5,11 +5,13 @@ import java.util.Optional;
 import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -30,5 +32,10 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 
 	/** 내가 등록한 물품 — 상태와 관계없이 전부 */
 	Page<Item> findByOwnerId(Long ownerId, Pageable pageable);
+
+	/** 물품 신청용 — 같은 물품에 동시에 신청해도 한 줄씩 처리되도록 행을 잠그고 읽는다 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select i from Item i where i.id = :id")
+	Optional<Item> findByIdForUpdate(@Param("id") Long id);
 
 }

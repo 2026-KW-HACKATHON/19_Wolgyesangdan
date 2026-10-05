@@ -20,7 +20,7 @@ public class ApplicationController {
 	private final ApplicationService applicationService;
 
 	/** 물품 신청 (로그인 필요) */
-	@PostMapping("/{itemId}/apply")
+	@PostMapping("/{itemId}/applications")
 	public ResponseEntity<ApplicationCreateResponse> apply(@AuthenticationPrincipal Long userId,
 			@PathVariable Long itemId) {
 		ApplicationCreateResponse response = applicationService.apply(userId, itemId);

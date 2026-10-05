@@ -336,7 +336,7 @@ export default function MyPage() {
   }
 
   const handleCancel = (id: string) => {
-    // TODO: DELETE /items/:id/apply 연동. 취소하면 뒤 순번이 자동으로 당겨진다.
+    // TODO: DELETE /applications/:id 연동. 취소하면 뒤 순번이 자동으로 당겨진다.
     if (!window.confirm('신청을 취소할까요?')) return
     setApplied((prev) => prev.filter((item) => item.id !== id))
   }
