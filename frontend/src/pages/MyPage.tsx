@@ -6,29 +6,28 @@ import {
   MY_RECORD,
   PROFILE,
   REGISTERED_ITEMS,
-  VERIFICATION,
   type AppliedItem,
   type RegisteredItem,
-  type VerificationStatus,
 } from '../data/mypage'
+import { useMyVerifications } from '../hooks/useMyVerifications'
+import type { MyVerification } from '../types/verification'
 
 type TabKey = 'registered' | 'applied'
 
-/** 학생·주민·저소득층 인증 중 하나라도 상태가 있으면 대표 상태로 보여준다. */
-function summarizeVerification(): { label: string; className: string } {
-  const statuses: VerificationStatus[] = [
-    VERIFICATION.student.status,
-    VERIFICATION.resident.status,
-    VERIFICATION.lowIncome.status,
-  ]
-  if (statuses.includes('approved')) return { label: '인증 완료', className: 'bg-primary-tint text-primary-tint-ink' }
-  if (statuses.includes('submitted') || statuses.includes('reviewing'))
-    return { label: '검토 중', className: 'bg-amber-badge text-amber-badge-ink' }
+interface VerificationSummary {
+  label: string
+  className: string
+}
+
+/** 우선배정 인증(신입생·기초수급자) 중 하나라도 상태가 있으면 대표 상태로 보여준다. 동네 인증은 세지 않는다. */
+function summarizeVerification(verifications: MyVerification[]): VerificationSummary {
+  const statuses = verifications.filter((v) => v.verificationType !== 'NEIGHBORHOOD').map((v) => v.status)
+  if (statuses.includes('APPROVED')) return { label: '인증 완료', className: 'bg-primary-tint text-primary-tint-ink' }
+  if (statuses.includes('PENDING')) return { label: '검토 중', className: 'bg-amber-badge text-amber-badge-ink' }
   return { label: '미인증', className: 'bg-sunken text-ink-2' }
 }
 
-function ProfileRow() {
-  const verification = summarizeVerification()
+function ProfileRow({ verification }: { verification: VerificationSummary }) {
   const reviewing = verification.label === '검토 중'
   return (
     <div className="flex items-center gap-3.5 px-5 pt-1 pb-5">
@@ -90,8 +89,7 @@ function RecordCard() {
   )
 }
 
-function VerificationCard() {
-  const verification = summarizeVerification()
+function VerificationCard({ verification }: { verification: VerificationSummary }) {
   return (
     <div className="mx-5 mt-3 flex items-center gap-3 rounded-[18px] border border-border bg-surface px-[18px] py-4">
       <span className="flex size-[38px] flex-none items-center justify-center rounded-xl bg-sunken text-ink-2">
@@ -331,6 +329,7 @@ export default function MyPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: TabKey = searchParams.get('tab') === 'applied' ? 'applied' : 'registered'
   const [applied, setApplied] = useState<AppliedItem[]>(APPLIED_ITEMS)
+  const verification = summarizeVerification(useMyVerifications().verifications)
 
   const changeTab = (next: TabKey) => {
     setSearchParams(next === 'applied' ? { tab: 'applied' } : {}, { replace: true })
@@ -354,9 +353,9 @@ export default function MyPage() {
         <MaterialIcon name="settings" size={22} className="text-ink-2" />
       </header>
 
-      <ProfileRow />
+      <ProfileRow verification={verification} />
       <RecordCard />
-      <VerificationCard />
+      <VerificationCard verification={verification} />
 
       <div role="tablist" className="mt-5 flex border-b border-border">
         {tabs.map((t) => {

@@ -1,50 +1,73 @@
 import { useNavigate } from 'react-router-dom'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import TopBar from '../components/TopBar'
-import { PROFILE, VERIFICATION, type VerificationStatus } from '../data/mypage'
+import { PROFILE } from '../data/mypage'
+import { DOCUMENT_TYPE_LABEL, PRIORITY_OPTIONS } from '../data/priorityVerification'
+import { useMyVerifications } from '../hooks/useMyVerifications'
+import type { MyVerification, VerificationStatus } from '../types/verification'
 
-const STUDENT_STEPS = ['서류 접수', '검토 중', '완료'] as const
+const REVIEW_STEPS = ['서류 접수', '검토 중', '완료'] as const
 
-/** 상태별로 3단계 진행 바에서 어디까지 채울지 정한다. */
-function stepIndex(status: VerificationStatus) {
-  if (status === 'approved') return 3
-  if (status === 'reviewing' || status === 'rejected') return 2
-  if (status === 'submitted') return 1
-  return 0
+const STATUS_LABEL: Record<VerificationStatus, string> = {
+  PENDING: '검토 중',
+  APPROVED: '인증 완료',
+  REJECTED: '다시 제출 필요',
+  EXPIRED: '기간 만료',
 }
 
-function StudentCard() {
-  const { status, submittedAt, school, fileCount } = VERIFICATION.student
-  const reviewing = status === 'reviewing' || status === 'submitted'
-  const done = stepIndex(status)
+function formatMonthDay(isoDateTime: string) {
+  const date = new Date(isoDateTime)
+  return `${date.getMonth() + 1}.${date.getDate()}`
+}
+
+// 반려·만료된 뒤에는 같은 유형으로 다시 신청할 수 있다 (심사 중·승인 상태면 서버가 409로 거절)
+function canReapply(status: VerificationStatus) {
+  return status === 'REJECTED' || status === 'EXPIRED'
+}
+
+/** 상태별 안내 문구. 반려 사유·만료일은 서버가 해당 상태일 때만 내려준다. */
+function statusNote({ status, rejectionReason, expiresAt }: MyVerification) {
+  if (status === 'PENDING') return '보통 1~2일(평일 기준) 안에 끝나요. 결과는 알림으로 알려드려요.'
+  if (status === 'APPROVED') return expiresAt ? `${formatMonthDay(expiresAt)}까지 유효해요.` : '인증이 완료됐어요.'
+  if (status === 'REJECTED') return rejectionReason ?? '서류를 확인하지 못했어요. 다시 신청해 주세요.'
+  return '인증 기간이 끝났어요. 다시 신청해 주세요.'
+}
+
+/** 신입생 인증(API의 FRESHMAN) 신청 건의 진행 상태 */
+function FreshmanCard({ verification }: { verification: MyVerification }) {
+  const navigate = useNavigate()
+  const { status, submittedAt, documentType } = verification
+  const approved = status === 'APPROVED'
+  // 3단계 진행 바에서 어디까지 채울지 — 승인이면 끝까지, 아니면 '검토 중'까지
+  const done = approved ? 3 : 2
 
   return (
-    <div className="rounded-[18px] border border-border bg-surface px-4 py-4">
+    <div className="mb-2.5 rounded-[18px] border border-border bg-surface px-4 py-4">
       <div className="flex items-center gap-2.5">
         <span className="flex size-[38px] flex-none items-center justify-center rounded-xl bg-amber-tint text-amber-ink">
-          <MaterialIcon name="hourglass_top" size={20} />
+          <MaterialIcon name={approved ? 'verified' : 'hourglass_top'} size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-bold text-label">학생 인증</div>
+          <div className="text-[15px] font-bold text-label">{PRIORITY_OPTIONS.freshman.title}</div>
           <div className="mt-0.5 text-[12px] font-medium text-label-alt">
-            {submittedAt} 신청 · {school} · 서류 {fileCount}장
+            {formatMonthDay(submittedAt)} 신청{documentType && ` · ${DOCUMENT_TYPE_LABEL[documentType]}`}
           </div>
         </div>
         <span
           className={`flex-none rounded-[7px] px-2 py-1 text-[11px] font-bold ${
-            reviewing ? 'bg-amber-badge text-amber-badge-ink' : 'bg-primary-tint text-primary-tint-ink'
+            status === 'PENDING' ? 'bg-amber-badge text-amber-badge-ink' : 'bg-primary-tint text-primary-tint-ink'
           }`}
         >
-          {reviewing ? '검토 중' : status === 'approved' ? '인증 완료' : '다시 제출 필요'}
+          {STATUS_LABEL[status]}
         </span>
       </div>
 
       <div className="mt-3.5 flex gap-1.5">
-        {STUDENT_STEPS.map((_, i) => (
+        {REVIEW_STEPS.map((_, i) => (
           <span
             key={i}
             className={`h-[5px] flex-1 rounded-[3px] ${
-              i < done - 1 || (i === done - 1 && status === 'approved')
+              i < done - 1 || (i === done - 1 && approved)
                 ? 'bg-primary'
                 : i === done - 1
                   ? 'bg-amber-step'
@@ -54,11 +77,11 @@ function StudentCard() {
         ))}
       </div>
       <div className="mt-1.5 flex">
-        {STUDENT_STEPS.map((label, i) => (
+        {REVIEW_STEPS.map((label, i) => (
           <span
             key={label}
             className={`flex-1 text-[11px] font-bold ${
-              i === 0 ? 'text-left' : i === STUDENT_STEPS.length - 1 ? 'text-right' : 'text-center'
+              i === 0 ? 'text-left' : i === REVIEW_STEPS.length - 1 ? 'text-right' : 'text-center'
             } ${i < done ? 'text-accent' : 'font-medium text-label-alt'}`}
           >
             {label}
@@ -66,37 +89,37 @@ function StudentCard() {
         ))}
       </div>
 
-      <p className="mt-2.5 text-[12px] leading-normal font-medium text-label-alt">
-        보통 1~2일(평일 기준) 안에 끝나요. 결과는 알림으로 알려드려요.
-      </p>
+      <p className="mt-2.5 text-[12px] leading-normal font-medium text-label-alt">{statusNote(verification)}</p>
 
-      <div className="mt-3 flex gap-2">
-        {/* TODO: 제출 서류 조회 / 재업로드 화면 연결 */}
-        <button type="button" className="flex-1 cursor-pointer rounded-xl border border-border bg-surface py-2.5 text-[13px] font-bold text-ink-2">
-          제출 서류 보기
+      {canReapply(status) && (
+        <button
+          type="button"
+          onClick={() => navigate('/verify/priority/freshman')}
+          className="mt-3 w-full cursor-pointer rounded-xl border border-border bg-surface py-2.5 text-[13px] font-bold text-ink-2"
+        >
+          다시 신청하기
         </button>
-        <button type="button" className="flex-1 cursor-pointer rounded-xl border border-border bg-surface py-2.5 text-[13px] font-bold text-ink-2">
-          서류 다시 올리기
-        </button>
-      </div>
+      )}
     </div>
   )
 }
 
-function ResidentRow() {
+/** 신입생 인증을 신청한 적이 없을 때 */
+function FreshmanRow() {
   const navigate = useNavigate()
+  const { title, description, icon } = PRIORITY_OPTIONS.freshman
   return (
-    <div className="flex items-center gap-2.5 rounded-[18px] border border-border bg-surface px-4 py-4">
+    <div className="mb-2.5 flex items-center gap-2.5 rounded-[18px] border border-border bg-surface px-4 py-4">
       <span className="flex size-[38px] flex-none items-center justify-center rounded-xl bg-sunken text-label-alt">
-        <MaterialIcon name="home_work" size={20} />
+        <MaterialIcon name={icon} size={20} />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="text-[15px] font-bold text-label">월계 주민 인증</div>
-        <div className="mt-0.5 text-[12px] font-medium text-label-alt">둘 중 하나만 인증하면 참여할 수 있어요</div>
+        <div className="text-[15px] font-bold text-label">{title}</div>
+        <div className="mt-0.5 text-[12px] font-medium text-label-alt">{description}</div>
       </div>
       <button
         type="button"
-        onClick={() => navigate('/verify/location')}
+        onClick={() => navigate('/verify/priority/freshman')}
         className="flex-none cursor-pointer text-[13px] font-bold text-accent"
       >
         추가
@@ -105,7 +128,46 @@ function ResidentRow() {
   )
 }
 
-function LowIncomeCard() {
+/** GPS 동네 인증(API의 NEIGHBORHOOD). 유효하게 승인돼 있으면 완료, 아니면 인증하러 가는 행 */
+function NeighborhoodRow({ verification }: { verification?: MyVerification }) {
+  const navigate = useNavigate()
+  const verified = verification?.status === 'APPROVED'
+  return (
+    <div className="flex items-center gap-2.5 rounded-[18px] border border-border bg-surface px-4 py-4">
+      <span
+        className={`flex size-[38px] flex-none items-center justify-center rounded-xl ${
+          verified ? 'bg-primary-tint text-accent' : 'bg-sunken text-label-alt'
+        }`}
+      >
+        <MaterialIcon name="location_on" size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-bold text-label">동네 인증 · 월계1동</div>
+        <div className="mt-0.5 text-[12px] font-medium text-label-alt">
+          {verified && verification
+            ? `${formatMonthDay(verification.submittedAt)} GPS 인증`
+            : '나눔을 신청하려면 동네 인증이 필요해요'}
+        </div>
+      </div>
+      {verified ? (
+        <span className="flex-none rounded-[7px] bg-primary px-2 py-1 text-[11px] font-bold text-screen">완료</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => navigate('/verify/location')}
+          className="flex-none cursor-pointer text-[13px] font-bold text-accent"
+        >
+          {verification ? '다시 인증' : '인증하기'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** 기초수급자 인증(API의 LOW_INCOME). 본인 화면에만 보이는 상태다. */
+function LowIncomeCard({ verification }: { verification?: MyVerification }) {
+  const navigate = useNavigate()
+  const status = verification?.status
   return (
     <div className="rounded-[18px] bg-primary-tint px-4 py-4">
       <div className="flex items-center gap-2.5">
@@ -113,27 +175,33 @@ function LowIncomeCard() {
           <MaterialIcon name="volunteer_activism" size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-bold text-primary-tint-ink">저소득층 인증</div>
+          <div className="text-[15px] font-bold text-primary-tint-ink">{PRIORITY_OPTIONS.basic.title}</div>
           <div className="mt-0.5 text-[12px] font-medium text-primary-tint-ink opacity-80">대기열 가산점이 적용돼요</div>
         </div>
-        <span className="flex-none rounded-[7px] bg-surface px-2 py-1 text-[11px] font-bold text-body">선택</span>
+        <span className="flex-none rounded-[7px] bg-surface px-2 py-1 text-[11px] font-bold text-body">
+          {status ? STATUS_LABEL[status] : '선택'}
+        </span>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {['수급자 증명서', '차상위 확인서', '한부모가족 증명서'].map((doc) => (
+        {PRIORITY_OPTIONS.basic.docTypes.map((doc) => (
           <span key={doc} className="rounded-[7px] bg-surface px-2 py-1 text-[11px] font-semibold text-primary-tint-ink">
             {doc}
           </span>
         ))}
       </div>
-      {/* TODO: 저소득층 서류 첨부 화면(type=lowIncome) 연결. 지금은 서류 종류만 다른 주민 폼과 같은 구조라 아직 연결하지 않았다. */}
-      <button
-        type="button"
-        disabled
-        className="mt-3.5 flex h-[46px] w-full cursor-default items-center justify-center gap-1.5 rounded-xl bg-primary text-[14px] font-bold text-screen opacity-60"
-      >
-        <MaterialIcon name="upload_file" size={18} />
-        서류 올리고 신청하기
-      </button>
+      {verification && (
+        <p className="mt-3 text-[12px] leading-normal font-medium text-primary-tint-ink">{statusNote(verification)}</p>
+      )}
+      {(!status || canReapply(status)) && (
+        <button
+          type="button"
+          onClick={() => navigate('/verify/priority/basic')}
+          className="mt-3.5 flex h-[46px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-primary text-[14px] font-bold text-screen"
+        >
+          <MaterialIcon name="upload_file" size={18} />
+          {status ? '서류 올리고 다시 신청하기' : '서류 올리고 신청하기'}
+        </button>
+      )}
       <p className="mt-2.5 text-[11px] leading-normal font-medium text-primary-tint-ink opacity-80">
         서류는 담당자 1명만 확인하고, 검토가 끝나면 30일 안에 지웁니다.
       </p>
@@ -144,7 +212,9 @@ function LowIncomeCard() {
 /** 인증 상태·우선배정 (6b, /mypage/verification). */
 export default function MyVerificationPage() {
   const navigate = useNavigate()
-  const hasStudent = VERIFICATION.student.status !== 'none'
+  const { verifications, loading, error } = useMyVerifications()
+  const byType = (type: MyVerification['verificationType']) => verifications.find((v) => v.verificationType === type)
+  const freshman = byType('FRESHMAN')
 
   return (
     <div className="flex flex-col pb-6">
@@ -165,15 +235,24 @@ export default function MyVerificationPage() {
       <div className="px-5">
         <h2 className="pb-2.5 font-hand text-[22px] font-bold text-label">인증 상태</h2>
         <div className="flex flex-col gap-2.5">
-          {hasStudent && <StudentCard />}
-          <ResidentRow />
+          {loading ? (
+            <p className="py-4 text-center text-[13px] font-medium text-label-alt">인증 상태를 불러오는 중이에요…</p>
+          ) : (
+            <NeighborhoodRow verification={byType('NEIGHBORHOOD')} />
+          )}
+          {error && (
+            <p role="alert" className="text-[13px] font-semibold text-terracotta">
+              {error}
+            </p>
+          )}
         </div>
 
         <h2 className="pt-6 pb-1.5 font-hand text-[22px] font-bold text-label">우선배정 신청</h2>
         <p className="pb-2.5 text-[13px] leading-[1.6] font-medium text-ink-3">
           꼭 필요한 이웃에게 먼저 돌아가도록, 아래에 해당하면 서류를 추가로 올릴 수 있어요. 안 해도 신청은 할 수 있습니다.
         </p>
-        <LowIncomeCard />
+        {!loading && (freshman ? <FreshmanCard verification={freshman} /> : <FreshmanRow />)}
+        <LowIncomeCard verification={byType('LOW_INCOME')} />
 
         <div className="mt-4 flex gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3.5">
           <MaterialIcon name="help" size={18} className="mt-px flex-none text-label-alt" />

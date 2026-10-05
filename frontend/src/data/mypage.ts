@@ -1,5 +1,4 @@
-// TODO: 백엔드 연결 후 GET /me, /me/verification, /me/items 응답으로 대체
-export type VerificationStatus = 'none' | 'submitted' | 'reviewing' | 'approved' | 'rejected'
+// TODO: 백엔드 연결 후 GET /me, /me/items 응답으로 대체
 
 export const PROFILE = {
   name: '정하늘',
@@ -17,17 +16,6 @@ export const MY_RECORD = {
     { title: '책상', kg: 41 },
     { title: '의자', kg: 18 },
   ],
-}
-
-export const VERIFICATION = {
-  student: {
-    status: 'reviewing' as VerificationStatus,
-    submittedAt: '9.21',
-    school: '광운대학교',
-    fileCount: 1,
-  },
-  resident: { status: 'none' as VerificationStatus },
-  lowIncome: { status: 'none' as VerificationStatus },
 }
 
 export interface RegisteredItem {
