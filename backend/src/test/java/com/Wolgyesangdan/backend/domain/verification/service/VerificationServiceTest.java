@@ -1,18 +1,33 @@
 package com.Wolgyesangdan.backend.domain.verification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
+import com.Wolgyesangdan.backend.domain.user.entity.User;
+import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
+import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
+import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
 import com.Wolgyesangdan.backend.domain.verification.entity.PriorityVerification;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
+import com.Wolgyesangdan.backend.domain.verification.exception.VerificationErrorCode;
 import com.Wolgyesangdan.backend.domain.verification.repository.PriorityVerificationRepository;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
+import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -24,7 +39,181 @@ class VerificationServiceTest {
 
 	private final PriorityVerificationRepository priorityVerificationRepository = Mockito
 			.mock(PriorityVerificationRepository.class);
-	private final VerificationService verificationService = new VerificationService(priorityVerificationRepository);
+	private final UserRepository userRepository = Mockito.mock(UserRepository.class);
+	private final VerificationService verificationService = new VerificationService(priorityVerificationRepository,
+			userRepository);
+
+	@Test
+	void 학생_인증을_신청하면_학번에서_입학연도를_계산해_PENDING으로_저장한다() {
+		givenUserExists();
+
+		VerificationCreateResponse response = verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, " 202312345 ", " 산업디자인 ", null, null), NOW);
+
+		PriorityVerification saved = savedVerification();
+		assertThat(saved.getUser().getId()).isEqualTo(USER_ID);
+		assertThat(saved.getVerificationType()).isEqualTo(VerificationType.STUDENT);
+		assertThat(saved.getStatus()).isEqualTo(VerificationStatus.PENDING);
+		assertThat(saved.getStudentId()).isEqualTo("202312345");
+		assertThat(saved.getDepartment()).isEqualTo("산업디자인");
+		assertThat(saved.getAdmissionYear()).isEqualTo(2023);
+		assertThat(saved.getSubmittedAt()).isEqualTo(NOW);
+		assertThat(response.id()).isEqualTo(10L);
+		assertThat(response.verificationType()).isEqualTo(VerificationType.STUDENT);
+		assertThat(response.status()).isEqualTo(VerificationStatus.PENDING);
+		assertThat(response.submittedAt()).isEqualTo(NOW);
+	}
+
+	@Test
+	void 주민_인증을_신청하면_이름과_주소를_저장한다() {
+		givenUserExists();
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.RESIDENT, null, null, "정하늘", "서울 노원구 월계로 1"), NOW);
+
+		PriorityVerification saved = savedVerification();
+		assertThat(saved.getStatus()).isEqualTo(VerificationStatus.PENDING);
+		assertThat(saved.getName()).isEqualTo("정하늘");
+		assertThat(saved.getAddress()).isEqualTo("서울 노원구 월계로 1");
+		assertThat(saved.getStudentId()).isNull();
+		assertThat(saved.getAdmissionYear()).isNull();
+	}
+
+	@Test
+	void 저소득층_인증은_유형만_저장하고_다른_유형의_값은_무시한다() {
+		givenUserExists();
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, "202312345", "산업디자인", "정하늘", "주소"), NOW);
+
+		PriorityVerification saved = savedVerification();
+		assertThat(saved.getVerificationType()).isEqualTo(VerificationType.LOW_INCOME);
+		assertThat(saved.getStatus()).isEqualTo(VerificationStatus.PENDING);
+		assertThat(saved.getStudentId()).isNull();
+		assertThat(saved.getDepartment()).isNull();
+		assertThat(saved.getAdmissionYear()).isNull();
+		assertThat(saved.getName()).isNull();
+		assertThat(saved.getAddress()).isNull();
+	}
+
+	@Test
+	void 같은_유형에_심사_중인_신청이_있으면_거절한다() {
+		givenUserExists();
+		given(priorityVerificationRepository.existsByUserIdAndVerificationTypeAndStatus(USER_ID,
+				VerificationType.LOW_INCOME, VerificationStatus.PENDING)).willReturn(true);
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_PENDING);
+		then(priorityVerificationRepository).should(never()).save(any());
+	}
+
+	@Test
+	void 같은_유형에_유효한_승인이_있으면_거절한다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.plusSeconds(1))));
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "202312345", "산업디자인", null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+		then(priorityVerificationRepository).should(never()).save(any());
+	}
+
+	@Test
+	void 만료일이_없는_승인이_있어도_거절한다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.LOW_INCOME, null)));
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+	}
+
+	@Test
+	void 승인이_만료됐으면_다시_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.minusSeconds(1))));
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "202312345", "산업디자인", null, null), NOW);
+
+		assertThat(savedVerification().getStatus()).isEqualTo(VerificationStatus.PENDING);
+	}
+
+	@Test
+	void 승인_뒤에_낸_재신청이_반려됐으면_다시_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.minusDays(1)),  // 만료된 예전 승인
+				verification(2L, VerificationType.STUDENT, VerificationStatus.REJECTED, SUBMITTED_AT.plusDays(5))));
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "202312345", "산업디자인", null, null), NOW);
+
+		assertThat(savedVerification().getStatus()).isEqualTo(VerificationStatus.PENDING);
+	}
+
+	@Test
+	void 다른_유형이_승인돼_있어도_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.RESIDENT, NOW.plusDays(30))));
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW);
+
+		assertThat(savedVerification().getVerificationType()).isEqualTo(VerificationType.LOW_INCOME);
+	}
+
+	@Test
+	void 다른_유형이_심사_중이어도_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.existsByUserIdAndVerificationTypeAndStatus(USER_ID,
+				VerificationType.STUDENT, VerificationStatus.PENDING)).willReturn(true);
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW);
+
+		assertThat(savedVerification().getVerificationType()).isEqualTo(VerificationType.LOW_INCOME);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"abc12345", "2023-1234", "202", "2023123456789", "1933123456", "2027123456", "0000123456"})
+	void 학번에서_입학연도를_계산할_수_없으면_거절한다(String studentId) {
+		givenUserExists();
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, studentId, "산업디자인", null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_INVALID_STUDENT_ID);
+		then(priorityVerificationRepository).should(never()).save(any());
+	}
+
+	@Test
+	void 올해_입학한_학번은_신청할_수_있다() {
+		givenUserExists();
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "2026123456", "산업디자인", null, null), NOW);
+
+		assertThat(savedVerification().getAdmissionYear()).isEqualTo(2026);
+	}
+
+	@Test
+	void 회원이_없으면_NOT_FOUND() {
+		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(CommonErrorCode.NOT_FOUND);
+	}
 
 	@Test
 	void 신청한_적_없으면_빈_목록() {
@@ -138,6 +327,24 @@ class VerificationServiceTest {
 				.build();
 		ReflectionTestUtils.setField(verification, "id", id);
 		return verification;
+	}
+
+	private void givenUserExists() {
+		User user = User.builder().kakaoId("kakao-1").nickname("월계1동 이웃").build();
+		ReflectionTestUtils.setField(user, "id", USER_ID);
+		given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+		// DB가 id를 채워주는 것을 흉내낸다
+		given(priorityVerificationRepository.save(any())).willAnswer(invocation -> {
+			PriorityVerification verification = invocation.getArgument(0);
+			ReflectionTestUtils.setField(verification, "id", 10L);
+			return verification;
+		});
+	}
+
+	private PriorityVerification savedVerification() {
+		ArgumentCaptor<PriorityVerification> captor = ArgumentCaptor.forClass(PriorityVerification.class);
+		then(priorityVerificationRepository).should().save(captor.capture());
+		return captor.getValue();
 	}
 
 	private static PriorityVerification verification(Long id, VerificationType type, VerificationStatus status,
