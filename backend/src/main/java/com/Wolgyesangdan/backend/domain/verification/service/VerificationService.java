@@ -45,7 +45,7 @@ public class VerificationService {
 
 	/**
 	 * 이웃 인증 신청. 항상 PENDING으로 접수하고, 실제 확인·승인은 운영진이 앱 밖에서 한다.
-	 * 같은 유형에 심사 중인 신청이 있으면 거절한다 (반려된 뒤에는 다시 신청 가능).
+	 * 같은 유형에 심사 중인 신청이나 유효한 승인이 있으면 거절한다 (반려·만료된 뒤에는 다시 신청 가능).
 	 */
 	@Transactional
 	public VerificationCreateResponse createVerification(Long userId, VerificationCreateRequest request) {
@@ -73,6 +73,13 @@ public class VerificationService {
 		if (priorityVerificationRepository.existsByUserIdAndVerificationTypeAndStatus(userId, type,
 				VerificationStatus.PENDING)) {
 			throw new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_PENDING);
+		}
+		// 유효한 승인이 있는데 다시 신청하면 새 PENDING 건이 최근 건이 돼서 신청 자격을 잃는다
+		boolean alreadyApproved = findLatestByType(userId).stream()
+				.anyMatch(latest -> latest.getVerificationType() == type
+						&& latest.statusAt(now) == VerificationStatus.APPROVED);
+		if (alreadyApproved) {
+			throw new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
 		}
 		return VerificationCreateResponse.from(
 				priorityVerificationRepository.save(verification.user(findUser(userId)).build()));

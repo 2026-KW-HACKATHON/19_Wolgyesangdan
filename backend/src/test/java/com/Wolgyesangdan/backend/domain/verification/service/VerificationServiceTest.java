@@ -110,6 +110,68 @@ class VerificationServiceTest {
 	}
 
 	@Test
+	void 같은_유형에_유효한_승인이_있으면_거절한다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.plusSeconds(1))));
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "202312345", "산업디자인", null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+		then(priorityVerificationRepository).should(never()).save(any());
+	}
+
+	@Test
+	void 만료일이_없는_승인이_있어도_거절한다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.LOW_INCOME, null)));
+
+		assertThatThrownBy(() -> verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+	}
+
+	@Test
+	void 승인이_만료됐으면_다시_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.minusSeconds(1))));
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "202312345", "산업디자인", null, null), NOW);
+
+		assertThat(savedVerification().getStatus()).isEqualTo(VerificationStatus.PENDING);
+	}
+
+	@Test
+	void 승인_뒤에_낸_재신청이_반려됐으면_다시_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.STUDENT, NOW.minusDays(1)),  // 만료된 예전 승인
+				verification(2L, VerificationType.STUDENT, VerificationStatus.REJECTED, SUBMITTED_AT.plusDays(5))));
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.STUDENT, "202312345", "산업디자인", null, null), NOW);
+
+		assertThat(savedVerification().getStatus()).isEqualTo(VerificationStatus.PENDING);
+	}
+
+	@Test
+	void 다른_유형이_승인돼_있어도_신청할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.RESIDENT, NOW.plusDays(30))));
+
+		verificationService.createVerification(USER_ID,
+				new VerificationCreateRequest(VerificationType.LOW_INCOME, null, null, null, null), NOW);
+
+		assertThat(savedVerification().getVerificationType()).isEqualTo(VerificationType.LOW_INCOME);
+	}
+
+	@Test
 	void 다른_유형이_심사_중이어도_신청할_수_있다() {
 		givenUserExists();
 		given(priorityVerificationRepository.existsByUserIdAndVerificationTypeAndStatus(USER_ID,

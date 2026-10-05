@@ -187,6 +187,17 @@ class VerificationControllerTest {
 	}
 
 	@Test
+	void 이미_승인된_인증이_있으면_409() throws Exception {
+		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class)))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED));
+
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\"}")
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("VERIFICATION_ALREADY_APPROVED"))
+				.andExpect(jsonPath("$.message").value("이미 승인된 인증이 있습니다."));
+	}
+
+	@Test
 	void 토큰_없이_신청하면_401() throws Exception {
 		mockMvc.perform(post("/verifications")
 						.contentType(MediaType.APPLICATION_JSON)
