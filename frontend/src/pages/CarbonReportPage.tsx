@@ -6,7 +6,7 @@ import CategoryTreeList from '../components/carbon/CategoryTreeList'
 import DailyTradeChart from '../components/carbon/DailyTradeChart'
 import MyTreeCard from '../components/carbon/MyTreeCard'
 import TreeLevelCard from '../components/carbon/TreeLevelCard'
-import { CAMPAIGN } from '../data/campaign'
+import { useActiveCampaign } from '../hooks/useActiveCampaign'
 import type { CarbonReport, ReportScope } from '../data/carbonReport'
 
 const SCOPE_TABS: { value: ReportScope; label: string }[] = [
@@ -17,7 +17,9 @@ const SCOPE_TABS: { value: ReportScope; label: string }[] = [
 /** 탄소절감 리포트 (탭 4, /carbon-report?scope=dong|campaign). 로그인 없이 볼 수 있다. */
 export default function CarbonReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const campaignActive = CAMPAIGN.active
+  // 진행 중·예정 캠페인이 있을 때만 "이번 캠페인" 탭을 연다 (GET /campaigns/active)
+  const { campaign } = useActiveCampaign()
+  const campaignActive = Boolean(campaign)
   // 진행 중인 캠페인이 없으면 ?scope=campaign으로 들어와도 동 전체를 보여준다
   const scope: ReportScope = searchParams.get('scope') === 'campaign' && campaignActive ? 'campaign' : 'dong'
 
