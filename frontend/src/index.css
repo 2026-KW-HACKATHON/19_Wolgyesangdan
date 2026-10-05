@@ -260,6 +260,22 @@
       transform: translate(var(--x4), 0);
     }
   }
+
+  /* 그래프 막대가 0에서 제 값까지 자란다. 끝 값은 막대의 원래 width / height 그대로다 */
+  --animate-bar-grow-x: bar-grow-x 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-bar-grow-y: bar-grow-y 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes bar-grow-x {
+    from {
+      width: 0;
+    }
+  }
+
+  @keyframes bar-grow-y {
+    from {
+      height: 0;
+    }
+  }
 }
 
 .ms {

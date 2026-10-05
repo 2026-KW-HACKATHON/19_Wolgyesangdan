@@ -72,13 +72,14 @@ function RecordCard() {
         지금까지 줄인 것으로 예상되는 양이에요
       </div>
       <div className="mt-3.5 flex flex-col gap-[9px]">
-        {MY_RECORD.byItem.map((item) => (
+        {MY_RECORD.byItem.map((item, i) => (
           <div key={item.title} className="flex items-center gap-2.5">
             <span className="w-18 flex-none text-[13px] font-semibold text-body">{item.title}</span>
             <span className="h-[7px] flex-1 overflow-hidden rounded-full bg-surface">
               <span
-                className="block h-full rounded-full bg-primary"
-                style={{ width: `${(item.kg / maxKg) * 100}%` }}
+                // 0에서 제 값까지 자라고, 아래 행일수록 조금씩 늦게 시작한다
+                className="block h-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
+                style={{ width: `${(item.kg / maxKg) * 100}%`, animationDelay: `${i * 0.08}s` }}
               />
             </span>
             <span className="w-11 text-right text-[13px] font-bold text-primary-dark">{item.kg}kg</span>

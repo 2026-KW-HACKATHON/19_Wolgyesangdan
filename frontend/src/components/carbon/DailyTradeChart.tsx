@@ -75,8 +75,9 @@ export default function DailyTradeChart({ startAt, endAt, daily }: DailyTradeCha
                   <span className="box-border h-2 w-full max-w-3.5 rounded-[5px] border-[1.5px] border-dashed border-border-deep" />
                 ) : (
                   <span
-                    className={`w-full max-w-3.5 rounded-[5px] ${barColor}`}
-                    style={{ height: ((cell.count ?? 0) / maxCount) * MAX_BAR_PX }}
+                    // 0에서 제 높이까지 자라고, 왼쪽 날짜부터 차례로 올라온다
+                    className={`w-full max-w-3.5 animate-bar-grow-y rounded-[5px] motion-reduce:animate-none ${barColor}`}
+                    style={{ height: ((cell.count ?? 0) / maxCount) * MAX_BAR_PX, animationDelay: `${i * 0.03}s` }}
                   />
                 )}
                 <span
