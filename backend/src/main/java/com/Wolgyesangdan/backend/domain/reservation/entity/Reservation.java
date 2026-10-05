@@ -58,4 +58,10 @@ public class Reservation extends BaseTimeEntity {
 	private LocalDateTime reconfirmedAt;
 
 	private LocalDateTime completedAt;
+
+	/** 수령 재확인 — 가능 여부(상태·기한·본인)는 ReservationService에서 확인한다 */
+	public void reconfirm(LocalDateTime now) {
+		this.status = ReservationStatus.RECONFIRMED;
+		this.reconfirmedAt = now;
+	}
 }
