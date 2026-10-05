@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryCarbonReference;
@@ -14,11 +15,15 @@ import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemTradeMethod;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.item.repository.CategoryCarbonReferenceRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemImageRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemSpecifications;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemTradeMethodRepository;
+
+import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,6 +44,7 @@ public class ItemService {
 	private final ItemImageRepository itemImageRepository;
 	private final ItemTradeMethodRepository itemTradeMethodRepository;
 	private final CategoryCarbonReferenceRepository categoryCarbonReferenceRepository;
+	private final ReservationRepository reservationRepository;
 
 	/**
 	 * 물품 목록. 검색·필터·정렬은 ItemSpecifications에서 처리한다.
@@ -66,6 +72,22 @@ public class ItemService {
 		return items.map(item -> ItemSummaryResponse.of(item,
 				thumbnails.get(item.getId()),
 				tradeMethods.getOrDefault(item.getId(), List.of())));
+	}
+
+	/**
+	 * 물품 상세 (비회원 허용). 상태와 관계없이 조회된다 — 상태는 응답의 status로 프론트가 표시.
+	 * 쿼리: 물품+등록자+캠페인 1번, 사진 1번, 거래 방식 1번, 등록자 전달 완료 횟수 1번.
+	 */
+	public ItemDetailResponse getItem(Long itemId) {
+		Item item = itemRepository.findWithOwnerAndCampaignById(itemId)
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		List<TradeMethod> tradeMethods = itemTradeMethodRepository.findByItemId(itemId).stream()
+				.map(ItemTradeMethod::getTradeMethod)
+				.sorted()
+				.toList();
+		List<ItemImage> images = itemImageRepository.findByItemIdOrderByDisplayOrderAsc(itemId);
+		long givenCount = reservationRepository.countCompletedByItemOwnerId(item.getOwner().getId());
+		return ItemDetailResponse.of(item, tradeMethods, images, givenCount);
 	}
 
 	/**

@@ -6,16 +6,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
 import com.Wolgyesangdan.backend.domain.item.service.ItemService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
 import com.Wolgyesangdan.backend.global.config.WebConfig;
@@ -123,6 +127,48 @@ class ItemControllerTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
 				.andExpect(jsonPath("$.errors[0].field").value("sort"));
+	}
+
+	@Test
+	void 비로그인으로_물품_상세를_조회한다() throws Exception {
+		given(itemService.getItem(1L)).willReturn(new ItemDetailResponse(1L, "전자레인지", "생활가전",
+				CategoryGroup.APPLIANCE, "설명", "상태 좋음", "2년 사용", false, null, "정상 작동", "48cm", "보통", 24,
+				LocalDate.of(2026, 9, 20), LocalDate.of(2026, 10, 4), null, LocalDateTime.of(2026, 10, 2, 23, 59, 59),
+				ItemStatus.OPEN, 3, 5, List.of(TradeMethod.DIRECT),
+				List.of(new ItemDetailResponse.ImageResponse("https://example.com/a.jpg", 0)),
+				null, new ItemDetailResponse.OwnerInfo("월계1동 이웃", 3)));
+
+		mockMvc.perform(get("/items/1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(1))
+				.andExpect(jsonPath("$.categoryGroup").value("가전"))
+				.andExpect(jsonPath("$.defectYn").value(false))
+				.andExpect(jsonPath("$.availableFrom").value("2026-09-20"))
+				.andExpect(jsonPath("$.disposalDeadline").isEmpty())
+				.andExpect(jsonPath("$.images[0].imageUrl").value("https://example.com/a.jpg"))
+				.andExpect(jsonPath("$.campaign").isEmpty())
+				.andExpect(jsonPath("$.owner.nickname").value("월계1동 이웃"))
+				.andExpect(jsonPath("$.owner.givenCount").value(3))
+				// 연락처는 노출하지 않는다
+				.andExpect(jsonPath("$.owner.phone").doesNotExist())
+				.andExpect(jsonPath("$.owner.openchatLink").doesNotExist());
+	}
+
+	@Test
+	void 없는_물품이면_404_ITEM_NOT_FOUND() throws Exception {
+		given(itemService.getItem(999L)).willThrow(new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+
+		mockMvc.perform(get("/items/999"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("ITEM_NOT_FOUND"));
+	}
+
+	@Test
+	void 물품_id가_숫자가_아니면_400_INVALID_INPUT() throws Exception {
+		mockMvc.perform(get("/items/abc"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("itemId"));
 	}
 
 }
