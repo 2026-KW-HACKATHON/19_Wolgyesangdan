@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
@@ -25,6 +26,7 @@ import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
+import com.Wolgyesangdan.backend.domain.item.service.ItemImageUploadService;
 import com.Wolgyesangdan.backend.domain.item.service.ItemService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
 import com.Wolgyesangdan.backend.global.config.WebConfig;
@@ -52,6 +54,9 @@ class ItemControllerTest {
 
 	@MockitoBean
 	private ItemService itemService;
+
+	@MockitoBean
+	private ItemImageUploadService itemImageUploadService;
 
 	@Autowired
 	private JwtProvider jwtProvider;
@@ -239,6 +244,51 @@ class ItemControllerTest {
 	void 비로그인으로_물품을_등록하면_401() throws Exception {
 		mockMvc.perform(post("/items").contentType(MediaType.APPLICATION_JSON).content(VALID_CREATE_BODY))
 				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 업로드_URL을_발급받는다() throws Exception {
+		given(itemImageUploadService.issueUploadUrl(any()))
+				.willReturn(new ImageUploadUrlResponse("https://s3.example.com/items/2026/10/05/x.jpg?sig=1",
+						"https://s3.example.com/items/2026/10/05/x.jpg"));
+
+		uploadUrl("{\"fileName\":\"photo1.jpg\",\"contentType\":\"image/jpeg\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.uploadUrl").value("https://s3.example.com/items/2026/10/05/x.jpg?sig=1"))
+				.andExpect(jsonPath("$.imageUrl").value("https://s3.example.com/items/2026/10/05/x.jpg"));
+	}
+
+	@Test
+	void 지원하지_않는_파일_형식이면_400() throws Exception {
+		uploadUrl("{\"fileName\":\"photo1.gif\",\"contentType\":\"image/gif\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("contentType"));
+	}
+
+	@Test
+	void S3가_설정되지_않았으면_503() throws Exception {
+		given(itemImageUploadService.issueUploadUrl(any()))
+				.willThrow(new BusinessException(ItemErrorCode.ITEM_IMAGE_UPLOAD_UNAVAILABLE));
+
+		uploadUrl("{\"fileName\":\"photo1.jpg\",\"contentType\":\"image/jpeg\"}")
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.code").value("ITEM_IMAGE_UPLOAD_UNAVAILABLE"));
+	}
+
+	@Test
+	void 비로그인으로_업로드_URL을_발급받으면_401() throws Exception {
+		mockMvc.perform(post("/items/images/upload-url")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"fileName\":\"photo1.jpg\",\"contentType\":\"image/jpeg\"}"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	private org.springframework.test.web.servlet.ResultActions uploadUrl(String body) throws Exception {
+		return mockMvc.perform(post("/items/images/upload-url")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body));
 	}
 
 	private org.springframework.test.web.servlet.ResultActions createItem(String body) throws Exception {
