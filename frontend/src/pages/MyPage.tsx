@@ -3,8 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchMyImpact, type MyImpact } from '../api/carbonReport'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import AppliedList from '../components/mypage/AppliedList'
+import RegisteredList from '../components/mypage/RegisteredList'
 import { useContact } from '../contexts/ContactContext'
-import { PROFILE, REGISTERED_ITEMS, type RegisteredItem } from '../data/mypage'
+import { PROFILE } from '../data/mypage'
 import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
 import { isLoggedIn } from '../lib/authStorage'
@@ -152,40 +153,6 @@ function VerificationCard({ verification }: { verification: VerificationSummary 
   )
 }
 
-function RegisteredList({ items }: { items: RegisteredItem[] }) {
-  const navigate = useNavigate()
-  return (
-    <div className="px-5">
-      {items.map((item, i) => (
-        <div key={item.id}>
-          <button
-            type="button"
-            onClick={() => navigate(`/items/${item.id}`)}
-            className="flex w-full cursor-pointer items-center gap-3 py-3.5 text-left"
-          >
-            <span className={`flex size-16 flex-none items-center justify-center rounded-[14px] ${item.iconClassName}`}>
-              <MaterialIcon name={item.icon} size={26} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span
-                className={`inline-block rounded-[7px] px-[7px] py-[3px] text-[11px] font-bold ${
-                  item.status === 'OPEN' ? 'bg-primary-tint text-primary-dark' : 'bg-sunken text-ink-2'
-                }`}
-              >
-                {item.status === 'OPEN' ? '신청자 모집 중' : '전달 완료'}
-              </span>
-              <span className="mt-[5px] block text-[15px] font-bold text-label">{item.title}</span>
-              <span className="mt-px block text-[13px] font-medium text-label-alt">{item.meta}</span>
-            </span>
-            <MaterialIcon name="chevron_right" size={18} className="text-label-alt" />
-          </button>
-          {i < items.length - 1 && <div className="h-px bg-border" />}
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function MenuRows() {
   const navigate = useNavigate()
   const { contact } = useContact()
@@ -263,7 +230,7 @@ export default function MyPage() {
       <div className="pt-3.5">
         {tab === 'registered' ? (
           <>
-            <RegisteredList items={REGISTERED_ITEMS} />
+            <RegisteredList />
             <div className="mt-2 h-2 bg-sunken" />
             <MenuRows />
           </>
