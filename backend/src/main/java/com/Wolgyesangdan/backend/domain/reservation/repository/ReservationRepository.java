@@ -2,10 +2,12 @@ package com.Wolgyesangdan.backend.domain.reservation.repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -37,5 +39,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 			order by r.id
 			""")
 	List<ItemSchedule> findActiveSchedulesByItemIdIn(@Param("itemIds") Collection<Long> itemIds);
+
+	/** 상세 조회용 — 신청·신청자·물품·등록자를 한 번에 가져온다 */
+	@EntityGraph(attributePaths = {"application.applicant", "application.item.owner"})
+	Optional<Reservation> findWithParticipantsByApplicationId(Long applicationId);
 
 }
