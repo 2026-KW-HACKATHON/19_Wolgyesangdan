@@ -27,6 +27,8 @@ import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -101,6 +103,31 @@ class ReservationDetailQueryTest {
 				.isNull();
 		assertThat(reservationService.getReservation(owner.getId(), application.getId()).counterpart()
 				.openchatLink()).isNull();
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ReservationStatus.class, names = {"NO_SHOW", "CANCELED"})
+	void 노쇼_취소된_예약은_닉네임과_상태만_내려주고_연락처는_숨긴다(ReservationStatus status) {
+		// 노쇼 승계로 밀려난 이전 배정자의 예약
+		User previous = persist(user("이전 배정자", ContactType.PHONE));
+		Application broken = persist(Application.builder()
+				.item(entityManager.getReference(Item.class, application.getItem().getId())).applicant(previous)
+				.priorityScore(0).status(ApplicationStatus.SELECTED).build());
+		persist(Reservation.builder().application(broken).tradeMethod(TradeMethod.CAMPAIGN).status(status).build());
+		flushAndClear();
+
+		ReservationDetailResponse forApplicant = reservationService.getReservation(previous.getId(), broken.getId());
+		ReservationDetailResponse forOwner = reservationService.getReservation(owner.getId(), broken.getId());
+
+		assertThat(forApplicant.status()).isEqualTo(status);
+		assertThat(forApplicant.counterpart().nickname()).isEqualTo("등록자");
+		assertThat(forApplicant.counterpart().contactType()).isEqualTo(ContactType.OPENCHAT);
+		assertThat(forApplicant.counterpart().phone()).isNull();
+		assertThat(forApplicant.counterpart().openchatLink()).isNull();
+		assertThat(forOwner.counterpart().nickname()).isEqualTo("이전 배정자");
+		assertThat(forOwner.counterpart().contactType()).isEqualTo(ContactType.PHONE);
+		assertThat(forOwner.counterpart().phone()).isNull();
+		assertThat(forOwner.counterpart().openchatLink()).isNull();
 	}
 
 	@Test
