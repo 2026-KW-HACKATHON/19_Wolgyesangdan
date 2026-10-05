@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.stream.IntStream;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.MyItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryCarbonReference;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
@@ -30,6 +32,7 @@ import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemSpecifications;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemTradeMethodRepository;
 
+import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
@@ -39,6 +42,7 @@ import com.Wolgyesangdan.backend.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +63,9 @@ public class ItemService {
 	private final UserRepository userRepository;
 	private final CampaignRepository campaignRepository;
 
+	/** 전달 예정 일시를 보여주는 상태 — 배정 확정 이후 */
+	private static final EnumSet<ItemStatus> SCHEDULED_STATUSES = EnumSet.of(ItemStatus.ASSIGNED, ItemStatus.COMPLETED);
+
 	/** 직거래만 하는 물품의 신청 기간 (등록일 + N일 23:59:59 마감) */
 	static final int DIRECT_APPLICATION_DAYS = 3;
 	private static final LocalTime END_OF_DAY = LocalTime.of(23, 59, 59);
@@ -75,11 +82,7 @@ public class ItemService {
 			return items.map(item -> ItemSummaryResponse.of(item, null, List.of()));
 		}
 
-		Map<Long, String> thumbnails = itemImageRepository.findByItemIdIn(itemIds).stream()
-				.collect(Collectors.groupingBy(image -> image.getItem().getId(),
-						Collectors.collectingAndThen(
-								Collectors.minBy(Comparator.comparingInt(ItemImage::getDisplayOrder)),
-								image -> image.map(ItemImage::getImageUrl).orElse(null))));
+		Map<Long, String> thumbnails = findThumbnails(itemIds);
 		Map<Long, List<TradeMethod>> tradeMethods = itemTradeMethodRepository.findByItemIdIn(itemIds).stream()
 				.collect(Collectors.groupingBy(tradeMethod -> tradeMethod.getItem().getId(),
 						Collectors.mapping(ItemTradeMethod::getTradeMethod,
@@ -89,6 +92,29 @@ public class ItemService {
 		return items.map(item -> ItemSummaryResponse.of(item,
 				thumbnails.get(item.getId()),
 				tradeMethods.getOrDefault(item.getId(), List.of())));
+	}
+
+	/**
+	 * 내가 등록한 물품 (마이페이지). 본인 목록이라 취소된 물품까지 상태와 관계없이 전부, 최근 등록순.
+	 * 대표 사진과 전달 예정 일시는 페이지에 담긴 물품 id로 한 번씩만 조회해서 붙인다 (N+1 방지).
+	 */
+	public Page<MyItemSummaryResponse> getMyItems(Long userId, int page, int size) {
+		Page<Item> items = itemRepository.findByOwnerId(userId,
+				PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+		List<Long> itemIds = items.map(Item::getId).getContent();
+		if (itemIds.isEmpty()) {
+			return items.map(item -> MyItemSummaryResponse.of(item, null, null));
+		}
+
+		Map<Long, String> thumbnails = findThumbnails(itemIds);
+		// 노쇼 승계로 진행 중인 예약이 여러 건이면 나중 건(id 순으로 뒤)을 쓴다
+		Map<Long, LocalDateTime> schedules = new HashMap<>();
+		reservationRepository.findActiveSchedulesByItemIdIn(itemIds)
+				.forEach(schedule -> schedules.put(schedule.itemId(), schedule.scheduledAt()));
+
+		return items.map(item -> MyItemSummaryResponse.of(item,
+				thumbnails.get(item.getId()),
+				SCHEDULED_STATUSES.contains(item.getStatus()) ? schedules.get(item.getId()) : null));
 	}
 
 	/**
@@ -169,6 +195,15 @@ public class ItemService {
 
 		long givenCount = reservationRepository.countCompletedByItemOwnerId(owner.getId());
 		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount);
+	}
+
+	// 물품별 대표 사진 = 순서가 가장 앞인 사진
+	private Map<Long, String> findThumbnails(List<Long> itemIds) {
+		return itemImageRepository.findByItemIdIn(itemIds).stream()
+				.collect(Collectors.groupingBy(image -> image.getItem().getId(),
+						Collectors.collectingAndThen(
+								Collectors.minBy(Comparator.comparingInt(ItemImage::getDisplayOrder)),
+								image -> image.map(ItemImage::getImageUrl).orElse(null))));
 	}
 
 	// 거점 거래는 캠페인 물품 등록 기간(registration_start_date ~ registration_end_date) 안에만 고를 수 있다

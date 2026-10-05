@@ -5,6 +5,8 @@ import java.util.Optional;
 import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -25,5 +27,8 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 	/** 상세 조회용 — 등록자·캠페인을 한 번에 가져온다 */
 	@EntityGraph(attributePaths = {"owner", "campaign"})
 	Optional<Item> findWithOwnerAndCampaignById(Long id);
+
+	/** 내가 등록한 물품 — 상태와 관계없이 전부 */
+	Page<Item> findByOwnerId(Long ownerId, Pageable pageable);
 
 }
