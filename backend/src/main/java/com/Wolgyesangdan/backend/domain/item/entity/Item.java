@@ -33,6 +33,9 @@ import lombok.NoArgsConstructor;
 @Builder
 public class Item extends BaseTimeEntity {
 
+	/** 물품당 신청 정원 (고정값) */
+	public static final int MAX_APPLICANTS = 5;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
