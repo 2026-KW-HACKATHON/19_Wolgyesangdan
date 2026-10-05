@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { submitPriorityVerification } from '../api/verification'
+import { ApiError } from '../api/client'
+import { createVerification } from '../api/verification'
 import BottomActionBar from '../components/BottomActionBar'
 import ChoiceChips from '../components/ChoiceChips'
 import MaterialIcon from '../components/icons/MaterialIcon'
@@ -9,7 +10,7 @@ import PrimaryButton from '../components/PrimaryButton'
 import ProgressSteps from '../components/ProgressSteps'
 import Screen from '../components/Screen'
 import TopBar from '../components/TopBar'
-import { PRIORITY_OPTIONS } from '../data/priorityVerification'
+import { PRIORITY_OPTIONS, toDocumentType } from '../data/priorityVerification'
 import type { PrioritySubmitMeta, PriorityType, UploadedFile } from '../types/verification'
 
 const MAX_FILES = 3
@@ -68,15 +69,21 @@ export default function PriorityDocumentPage({ type, onBack, onSubmitSuccess }: 
   const canSubmit = Boolean(docType) && uploads.length > 0
 
   const handleSubmit = async () => {
-    if (!canSubmit || !docType || submitting) return
+    const documentType = docType ? toDocumentType(docType) : null
+    if (!canSubmit || !documentType || submitting) return
     setSubmitting(true)
     setError(null)
     try {
-      const result = await submitPriorityVerification({ type, docType, files: uploads.map((u) => u.file) })
-      onSubmitSuccess({ type, submittedAt: new Date(), docCount: result.docCount })
-    } catch {
+      // 서류 사진은 서버로 보내지 않고 종류만 보낸다 (운영진이 앱 밖에서 확인)
+      const response = await createVerification({ verificationType: option.verificationType, documentType })
+      onSubmitSuccess({ type, submittedAt: new Date(response.submittedAt), docCount: uploads.length })
+    } catch (e) {
       // 실패해도 입력은 유지한다
-      setError('신청에 실패했어요. 잠시 후 다시 시도해 주세요.')
+      setError(
+        e instanceof ApiError
+          ? (e.errors[0]?.message ?? e.message)
+          : '신청에 실패했어요. 잠시 후 다시 시도해 주세요.',
+      )
       setSubmitting(false)
     }
   }
