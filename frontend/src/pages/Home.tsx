@@ -63,7 +63,7 @@ export default function Home() {
       {campaign !== undefined && <CampaignBanner campaign={campaign} />}
 
       <div className="px-5">
-        <SearchBar onClick={() => navigate('/browse')} />
+        <SearchBar onClick={() => navigate('/browse', { state: { focusSearch: true } })} />
       </div>
 
       <div className="grid grid-cols-5 px-3">
