@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { TreeLevelNo } from '../../lib/carbonTree'
 import MaterialIcon from '../icons/MaterialIcon'
+import { Bird, Deer, Rabbit, Squirrel, StagBeetle, Sun } from './TreeCritters'
 
 // 시안 5d의 CSS 도형을 그대로 옮긴 장면. 좌표는 카드 안쪽 폭 348 × 높이 236 기준이고,
 // 카드 폭이 달라도 가운데 정렬된 348px 무대 위에 그려서 비율이 깨지지 않게 한다.
@@ -17,10 +18,27 @@ const FRUIT_A = '#E4A574'
 const FRUIT_B = '#B9603A'
 
 type Shape =
-  | { kind: 'box'; style: CSSProperties }
+  | { kind: 'box'; style: CSSProperties; className?: string }
   | { kind: 'icon'; name: string; size: number; color: string; style: CSSProperties }
 
-const box = (style: CSSProperties): Shape => ({ kind: 'box', style })
+const box = (style: CSSProperties, className?: string): Shape => ({ kind: 'box', style, className })
+
+/**
+ * 새싹 잎. 줄기에 붙은 모서리(origin)를 축으로 from ↔ to 각도 사이를 천천히 오르내린다.
+ * "동작 줄이기" 설정이면 from 각도로 멈춰 있다.
+ */
+const sproutLeaf = (style: CSSProperties, origin: string, from: number, to: number, duration: number): Shape =>
+  box(
+    {
+      ...style,
+      transformOrigin: origin,
+      transform: `rotate(${from}deg)`,
+      animationDuration: `${duration}s`,
+      '--sway-from': `${from}deg`,
+      '--sway-to': `${to}deg`,
+    } as CSSProperties,
+    'animate-sprout-sway motion-reduce:animate-none',
+  )
 const round = (left: number, top: number, width: number, height: number, background: string) =>
   box({ left, top, width, height, background, borderRadius: 999 })
 const trunk = (left: number, width: number, height: number, radius: string, background = TRUNK, bottom = 34) =>
@@ -63,25 +81,23 @@ const SCENES: Record<TreeLevelNo, Scene> = {
   1: {
     far: [],
     near: [
-      box({ left: 173, bottom: 36, width: 4, height: 34, borderRadius: 2, background: LEAF_1 }),
-      box({
-        left: 149,
-        bottom: 62,
-        width: 28,
-        height: 16,
-        borderRadius: '16px 0 16px 0',
-        background: LEAF_1,
-        transform: 'rotate(-14deg)',
-      }),
-      box({
-        left: 177,
-        bottom: 68,
-        width: 30,
-        height: 17,
-        borderRadius: '0 17px 0 17px',
-        background: LEAF_3,
-        transform: 'rotate(12deg)',
-      }),
+      // 줄기는 두 잎의 뾰족한 끝이 닿는 높이까지 올라온다
+      box({ left: 173, bottom: 36, width: 4, height: 54, borderRadius: 2, background: LEAF_1 }),
+      // 왼쪽 잎은 오른쪽 위 모서리, 오른쪽 잎은 왼쪽 위 모서리가 줄기에 붙어 있다
+      sproutLeaf(
+        { left: 148, bottom: 62, width: 28, height: 16, borderRadius: '16px 0 16px 0', background: LEAF_1 },
+        '100% 0%',
+        -8,
+        -20,
+        2.8,
+      ),
+      sproutLeaf(
+        { left: 174, bottom: 68, width: 30, height: 17, borderRadius: '0 17px 0 17px', background: LEAF_3 },
+        '0% 0%',
+        6,
+        18,
+        3.3,
+      ),
       box({ left: 150, bottom: 34, width: 52, height: 8, borderRadius: 999, background: MOUND }),
     ],
     fruits: [],
@@ -130,9 +146,9 @@ const SCENES: Record<TreeLevelNo, Scene> = {
   5: {
     far: [
       // 뒷줄 연한 나무 2
-      trunk(96, 10, 44, '4px', TRUNK_FAR, 40),
+      trunk(96, 10, 56, '4px', TRUNK_FAR, 40),
       round(70, 88, 62, 58, LEAF_FAR),
-      trunk(252, 10, 44, '4px', TRUNK_FAR, 40),
+      trunk(252, 10, 56, '4px', TRUNK_FAR, 40),
       round(226, 88, 62, 58, LEAF_FAR),
       // 가장자리 나무 2
       trunk(14, 9, 34, '4px', TRUNK, 38),
@@ -162,11 +178,87 @@ const SCENES: Record<TreeLevelNo, Scene> = {
       { left: 40, top: 104, color: FRUIT_A },
       { left: 296, top: 108, color: FRUIT_B },
     ],
-    after: [
-      icon('eco', 22, LEAF_PALE, { left: 100, bottom: 36 }),
-      icon('eco', 22, LEAF_PALE, { right: 104, bottom: 36 }),
-    ],
+    after: [],
   },
+}
+
+/** 레벨마다 놓는 작은 그림. 해는 레벨 칩 아래, 사슴벌레는 땅 위, 새는 나무 꼭대기, 사슴은 큰 나무 아래. 숲에는 여럿이 모인다 */
+const CRITTERS: Partial<Record<TreeLevelNo, ReactNode>> = {
+  1: <Sun style={{ left: 30, top: 50 }} />,
+  2: <StagBeetle style={{ left: 232, bottom: 16, transform: 'rotate(-24deg)' }} />,
+  3: <Bird style={{ left: 184, top: 9 }} />,
+  4: <Deer style={{ left: 98, bottom: 32 }} />,
+  5: (
+    <>
+      {/* 큰 나무 꼭대기와 왼쪽 앞줄 나무 위의 새 (왼쪽 새는 바깥쪽을 보게 뒤집는다) */}
+      <Bird style={{ left: 186, top: 1 }} />
+      <Bird style={{ left: 37, top: 55, transform: 'scaleX(-1)' }} />
+      {/* 큰 나무 아래 왼쪽에 사슴, 오른쪽에 토끼, 오른쪽 앞줄 나무 옆에 다람쥐 */}
+      <Deer style={{ left: 112, bottom: 32 }} />
+      <Rabbit style={{ left: 208, bottom: 34 }} />
+      <Squirrel style={{ left: 312, bottom: 34 }} />
+    </>
+  ),
+}
+
+/** 흩날리는 잎. 나무 잎 원 안에서 출발해 dx·dy만큼 떨어지며 땅 근처에서 사라진다. duration·delay는 초 */
+interface DriftingLeaf {
+  left: number
+  top: number
+  dx: number
+  dy: number
+  duration: number
+  delay: number
+  color: string
+}
+
+// 큰 나무 + 양옆 작은 나무 (Lv.4·5 공통 — 두 레벨의 작은 나무 잎 원이 겹치는 자리)
+const BIG_TREE_LEAVES: DriftingLeaf[] = [
+  { left: 112, top: 70, dx: -46, dy: 112, duration: 6.5, delay: 0, color: LEAF_1 },
+  { left: 150, top: 40, dx: 38, dy: 146, duration: 7.5, delay: 1.2, color: LEAF_3 },
+  { left: 200, top: 56, dx: 56, dy: 128, duration: 6, delay: 2.6, color: LEAF_PALE },
+  { left: 236, top: 96, dx: 44, dy: 90, duration: 5.5, delay: 0.8, color: LEAF_2 },
+  { left: 176, top: 30, dx: -60, dy: 154, duration: 8, delay: 3.4, color: LEAF_PALE },
+  { left: 96, top: 104, dx: -34, dy: 82, duration: 5.8, delay: 4.1, color: LEAF_3 },
+  { left: 44, top: 100, dx: -22, dy: 86, duration: 6.8, delay: 2, color: LEAF_1 },
+  { left: 300, top: 104, dx: 26, dy: 82, duration: 6.2, delay: 4.8, color: LEAF_2 },
+]
+
+// 숲에서만 — 뒷줄 연한 나무, 가장자리 나무, 앞줄 작은 나무에서 한 장씩 더
+const FOREST_LEAVES: DriftingLeaf[] = [
+  { left: 92, top: 104, dx: -28, dy: 72, duration: 6.4, delay: 1.6, color: LEAF_FAR },
+  { left: 262, top: 100, dx: 30, dy: 76, duration: 7, delay: 3, color: LEAF_FAR },
+  { left: 16, top: 130, dx: 20, dy: 54, duration: 5.6, delay: 0.5, color: LEAF_PALE },
+  { left: 326, top: 132, dx: -22, dy: 52, duration: 6, delay: 3.8, color: LEAF_PALE },
+  { left: 66, top: 118, dx: 24, dy: 66, duration: 6.6, delay: 5.2, color: LEAF_2 },
+  { left: 276, top: 116, dx: -26, dy: 68, duration: 5.9, delay: 1, color: LEAF_1 },
+]
+
+/** 큰나무(Lv.4)부터 잎이 흩날리고, 숲(Lv.5)은 모든 나무에서 흩날린다 */
+const DRIFTING_LEAVES: Partial<Record<TreeLevelNo, DriftingLeaf[]>> = {
+  4: BIG_TREE_LEAVES,
+  5: [...BIG_TREE_LEAVES, ...FOREST_LEAVES],
+}
+
+function DriftingLeaves({ leaves }: { leaves: DriftingLeaf[] }) {
+  return leaves.map((leaf, i) => (
+    <span
+      key={`leaf-${i}`}
+      // 시작 전(delay 동안)에는 안 보이게 opacity-0, 움직임 줄이기 설정이면 아예 그리지 않는다
+      className="absolute h-[7px] w-3 animate-leaf-drift rounded-[7px_0_7px_0] opacity-0 motion-reduce:hidden"
+      style={
+        {
+          left: leaf.left,
+          top: leaf.top,
+          background: leaf.color,
+          animationDuration: `${leaf.duration}s`,
+          animationDelay: `${leaf.delay}s`,
+          '--leaf-dx': `${leaf.dx}px`,
+          '--leaf-dy': `${leaf.dy}px`,
+        } as CSSProperties
+      }
+    />
+  ))
 }
 
 function renderShape(shape: Shape, key: number) {
@@ -181,7 +273,7 @@ function renderShape(shape: Shape, key: number) {
       />
     )
   }
-  return <div key={key} className="absolute" style={shape.style} />
+  return <div key={key} className={`absolute ${shape.className ?? ''}`} style={shape.style} />
 }
 
 interface TreeSceneProps {
@@ -208,6 +300,8 @@ export default function TreeScene({ level, fruits }: TreeSceneProps) {
           />
         ))}
         {scene.after.map(renderShape)}
+        {CRITTERS[level]}
+        <DriftingLeaves leaves={DRIFTING_LEAVES[level] ?? []} />
       </Stage>
     </>
   )
