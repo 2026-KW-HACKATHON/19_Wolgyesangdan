@@ -71,7 +71,7 @@ export default function Home() {
           <button
             key={c.key}
             type="button"
-            onClick={() => navigate('/browse')}
+            onClick={() => navigate(`/browse?category=${encodeURIComponent(c.key)}`)}
             className="flex flex-col items-center gap-1.5 py-2"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E7EBD8] text-[var(--color-primary)]">
