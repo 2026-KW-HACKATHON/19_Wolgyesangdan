@@ -7,7 +7,7 @@ import FilterChip from '../components/FilterChip'
 import ItemGridCard from '../components/ItemGridCard'
 import { TRADE_METHOD_LABEL } from '../lib/item'
 import type { CategoryGroup, ItemSort, ItemSummary, TradeMethod } from '../types/item'
-import { CAMPAIGN } from '../data/campaign'
+import { useActiveCampaign } from '../hooks/useActiveCampaign'
 
 const CATEGORY_FILTERS: (CategoryGroup | '전체')[] = ['전체', '가구', '가전', '주방', '생활', '기타']
 
@@ -58,7 +58,9 @@ export default function ItemList() {
   const [failed, setFailed] = useState<{ query: string; message: string } | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
 
-  const tradeMethodFilters: TradeMethodFilter[] = CAMPAIGN.active
+  // 거점 거래는 진행 중인 캠페인이 있을 때만 고를 수 있다 (GET /campaigns/active)
+  const { active: campaignActive } = useActiveCampaign()
+  const tradeMethodFilters: TradeMethodFilter[] = campaignActive
     ? ['전체', 'DIRECT', 'CAMPAIGN']
     : ['전체', 'DIRECT']
 

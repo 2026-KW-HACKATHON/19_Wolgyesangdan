@@ -6,7 +6,7 @@ import SearchBar from '../components/SearchBar'
 import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
 import type { ItemSummary } from '../types/item'
-import { CAMPAIGN } from '../data/campaign'
+import { useActiveCampaign } from '../hooks/useActiveCampaign'
 
 const CATEGORIES = [
   { key: '가구', icon: 'chair' },
@@ -20,6 +20,8 @@ const PREVIEW_COUNT = 4
 
 export default function Home() {
   const navigate = useNavigate()
+  // 캠페인 배너 (GET /campaigns/active). 받는 중이거나 실패하면 배너 자리를 비워둔다
+  const { campaign, active: campaignActive } = useActiveCampaign()
   // 최신 물품 4개 (GET /items). null은 아직 받는 중
   const [previewItems, setPreviewItems] = useState<ItemSummary[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -51,14 +53,7 @@ export default function Home() {
         </button>
       </header>
 
-      <CampaignBanner
-        name={CAMPAIGN.name}
-        period={CAMPAIGN.period}
-        hub={CAMPAIGN.hubName}
-        ddayLabel={CAMPAIGN.ddayLabel}
-        reusedCount={CAMPAIGN.reusedCount}
-        carbonKg={CAMPAIGN.carbonKg}
-      />
+      {campaign !== undefined && <CampaignBanner campaign={campaign} />}
 
       <div className="px-5">
         <SearchBar onClick={() => navigate('/browse')} />
@@ -87,7 +82,7 @@ export default function Home() {
               지금 새로운 주인을 기다려요
             </h2>
             <p className="mt-0.5 text-[13px] font-medium text-[#6E7263]">
-              거점 수령과 직거래 모두 가능해요
+              {campaignActive ? '거점 수령과 직거래 모두 가능해요' : '지금은 직거래로 주고받아요'}
             </p>
           </div>
           <button
