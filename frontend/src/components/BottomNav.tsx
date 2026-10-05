@@ -10,7 +10,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', label: '홈', icon: 'home' },
   { to: '/browse', label: '둘러보기', icon: 'explore' },
   { to: '/register', label: '등록', icon: 'add_box' },
-  { to: '/carbon-report', label: '탄소절감 리포트', icon: 'autorenew' },
+  { to: '/carbon-report', label: '탄소절감 리포트', icon: 'park' },
   { to: '/mypage', label: '마이페이지', icon: 'person' },
 ]
 
