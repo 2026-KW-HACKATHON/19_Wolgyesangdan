@@ -39,3 +39,12 @@ export interface MyApplicationSummary {
 export function getMyApplications(page = 0, size = 20) {
   return apiFetch<PageResponse<MyApplicationSummary>>(`/users/me/applications?page=${page}&size=${size}`)
 }
+
+/**
+ * 신청 취소 (DELETE /applications/{applicationId}, 로그인 필요). 성공하면 204.
+ * 대기 중(WAITING)인 신청만 취소할 수 있다 — 이미 배정됐으면 409 APPLICATION_ALREADY_SELECTED,
+ * 본인 신청이 아니면 403 APPLICATION_NOT_OWNER, 없는 신청이면 404 APPLICATION_NOT_FOUND.
+ */
+export function cancelApplication(applicationId: number) {
+  return apiFetch<void>(`/applications/${applicationId}`, { method: 'DELETE' })
+}
