@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../../api/client'
 import { getMyItems } from '../../api/items'
 import { isLoggedIn } from '../../lib/authStorage'
+import { formatMonthDay } from '../../lib/reservation'
 import type { ItemStatus, MyItemSummary } from '../../types/item'
 import MaterialIcon from '../icons/MaterialIcon'
+import OwnerReservationSection from './OwnerReservationSection'
 
 /** 한 번에 받아 오는 물품 수 */
 const PAGE_SIZE = 50
@@ -17,11 +19,6 @@ const STATUS_BADGE: Record<ItemStatus, { label: string; className: string }> = {
   ASSIGNED: { label: '배정 완료', className: 'bg-primary text-screen' },
   COMPLETED: { label: '전달 완료', className: 'bg-sunken text-ink-2' },
   CANCELED: { label: '취소됨', className: 'bg-sunken text-ink-2' },
-}
-
-function formatMonthDay(isoDateTime: string) {
-  const date = new Date(isoDateTime)
-  return `${date.getMonth() + 1}.${date.getDate()}`
 }
 
 /** 카드 둘째 줄 — 신청자 수와, 배정 뒤에는 전달 예정일(끝났으면 전달일) */
@@ -55,6 +52,11 @@ export default function RegisteredList() {
     }
   }, [loggedIn])
 
+  // 전달 완료에 성공하면 다시 조회하지 않고 그 물품만 거래 완료로 바꾼다
+  const markCompleted = (itemId: number) => {
+    setItems((prev) => prev?.map((item) => (item.id === itemId ? { ...item, status: 'COMPLETED' } : item)) ?? prev)
+  }
+
   if (!loggedIn) {
     return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">로그인하면 등록한 물품을 볼 수 있어요</p>
   }
@@ -76,6 +78,9 @@ export default function RegisteredList() {
     <div className="px-5">
       {items.map((item, i) => {
         const badge = STATUS_BADGE[item.status]
+        // 배정된 물품만 예약 정보(신청자 연락 수단·전달 완료)를 보여준다. 완료 직후에도 결과가 보이도록 key로 유지한다
+        const showReservation =
+          item.applicationId !== null && (item.status === 'ASSIGNED' || item.status === 'COMPLETED')
         return (
           <div key={item.id}>
             <button
@@ -95,6 +100,9 @@ export default function RegisteredList() {
               </span>
               <MaterialIcon name="chevron_right" size={18} className="text-label-alt" />
             </button>
+            {showReservation && item.applicationId !== null && (
+              <OwnerReservationSection applicationId={item.applicationId} onCompleted={() => markCompleted(item.id)} />
+            )}
             {i < items.length - 1 && <div className="h-px bg-border" />}
           </div>
         )
