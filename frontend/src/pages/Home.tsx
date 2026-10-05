@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getItems } from '../api/items'
 import CampaignBanner from '../components/CampaignBanner'
 import SearchBar from '../components/SearchBar'
 import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
-import { ITEMS } from '../data/items'
+import type { ItemSummary } from '../types/item'
 import { CAMPAIGN } from '../data/campaign'
 
 const CATEGORIES = [
@@ -14,9 +16,27 @@ const CATEGORIES = [
   { key: '기타', icon: 'more_horiz' },
 ]
 
+const PREVIEW_COUNT = 4
+
 export default function Home() {
   const navigate = useNavigate()
-  const previewItems = ITEMS.slice(0, 4)
+  // 최신 물품 4개 (GET /items). null은 아직 받는 중
+  const [previewItems, setPreviewItems] = useState<ItemSummary[] | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let ignore = false
+    getItems({ size: PREVIEW_COUNT })
+      .then((res) => {
+        if (!ignore) setPreviewItems(res.content)
+      })
+      .catch(() => {
+        if (!ignore) setFailed(true)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   return (
     <div className="flex flex-col gap-5 pb-6">
@@ -80,10 +100,19 @@ export default function Home() {
           </button>
         </div>
         <div className="divide-y divide-[var(--color-border)] px-5">
-          {previewItems.map((item) => (
+          {previewItems?.map((item) => (
             <ItemCard key={item.id} item={item} onClick={() => navigate(`/items/${item.id}`)} />
           ))}
         </div>
+        {(failed || previewItems === null || previewItems.length === 0) && (
+          <p className="px-5 py-6 text-center text-sm font-medium text-[var(--color-label-alt)]">
+            {failed
+              ? '물품을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.'
+              : previewItems === null
+                ? '물품을 불러오는 중이에요…'
+                : '아직 등록된 물품이 없어요'}
+          </p>
+        )}
       </div>
 
       <InfoBanner>로그인 없이도 둘러볼 수 있어요. 신청할 때만 로그인이 필요해요</InfoBanner>
