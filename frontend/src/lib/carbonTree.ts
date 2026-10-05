@@ -1,5 +1,5 @@
 // 동네 나무 계산 규칙 (README_탄소절감리포트 "계산 규칙").
-// 레벨 구간, 1그루당 kg, 열매 1개당 물품 수는 기획 확정 전 가정값이라 상수로 모아 둔다.
+// 레벨 구간, 열매 1개당 물품 수는 기획 확정 전 가정값이라 상수로 모아 둔다.
 
 export type TreeLevelNo = 1 | 2 | 3 | 4 | 5
 
@@ -22,8 +22,8 @@ export const TREE_LEVELS: readonly TreeLevel[] = [
   { lv: 5, name: '숲', min: 20000, message: '월계1동에 숲이 생겼어요', maxFruits: 9 },
 ]
 
-/** 소나무 1그루 연간 흡수량 가정 (kg CO₂e) */
-export const KG_PER_TREE = 6
+/** 소나무 1그루 연간 흡수량 (kg CO₂e) — 국립산림과학원 표준탄소흡수량, 30년생 소나무 기준 */
+export const KG_PER_TREE = 6.6
 /** 열매 1개 = 물품 100개 */
 export const ITEMS_PER_FRUIT = 100
 
