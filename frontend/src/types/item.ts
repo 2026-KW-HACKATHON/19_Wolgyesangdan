@@ -82,3 +82,16 @@ export interface ItemSearchParams {
   page?: number
   size?: number
 }
+
+/** GET /users/me/items 의 카드 한 장 (마이페이지 "내가 등록한 물품") */
+export interface MyItemSummary {
+  id: number
+  name: string
+  thumbnailImageUrl: string | null
+  status: ItemStatus
+  applicantCount: number
+  /** 배정된 신청 id — 예약 상세 조회에 쓴다. 배정 확정 뒤(ASSIGNED·COMPLETED)에만 값이 있다 */
+  applicationId: number | null
+  /** 전달 예정 일시. 배정 확정 뒤에만 값이 있다 */
+  scheduledAt: string | null
+}
