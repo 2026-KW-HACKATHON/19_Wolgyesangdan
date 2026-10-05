@@ -45,8 +45,8 @@ class MyItemControllerTest {
 	void 내가_등록한_물품을_명세의_페이지_형식으로_조회한다() throws Exception {
 		given(itemService.getMyItems(1L, 0, 20)).willReturn(new PageImpl<>(List.of(
 				new MyItemSummaryResponse(2L, "1인용 책상", "https://example.com/photo2.jpg", ItemStatus.ASSIGNED, 5,
-						LocalDateTime.of(2026, 10, 8, 14, 0)),
-				new MyItemSummaryResponse(1L, "전자레인지", null, ItemStatus.OPEN, 0, null)),
+						31L, LocalDateTime.of(2026, 10, 8, 14, 0)),
+				new MyItemSummaryResponse(1L, "전자레인지", null, ItemStatus.OPEN, 0, null, null)),
 				PageRequest.of(0, 20), 2));
 
 		getMyItems("")
@@ -57,8 +57,10 @@ class MyItemControllerTest {
 				.andExpect(jsonPath("$.content[0].thumbnailImageUrl").value("https://example.com/photo2.jpg"))
 				.andExpect(jsonPath("$.content[0].status").value("ASSIGNED"))
 				.andExpect(jsonPath("$.content[0].applicantCount").value(5))
+				.andExpect(jsonPath("$.content[0].applicationId").value(31))
 				.andExpect(jsonPath("$.content[0].scheduledAt").value("2026-10-08T14:00:00"))
 				.andExpect(jsonPath("$.content[1].thumbnailImageUrl").isEmpty())
+				.andExpect(jsonPath("$.content[1].applicationId").isEmpty())
 				.andExpect(jsonPath("$.content[1].scheduledAt").isEmpty())
 				.andExpect(jsonPath("$.totalElements").value(2))
 				.andExpect(jsonPath("$.number").value(0))

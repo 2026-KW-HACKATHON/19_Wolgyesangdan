@@ -104,11 +104,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 	List<LocalDateTime> findCompletedAtSince(@Param("from") LocalDateTime from, @Param("campaignId") Long campaignId);
 
 	/**
-	 * 물품별 진행 중인 예약의 전달 예정 일시. 노쇼·취소된 예약은 빼고,
+	 * 물품별 진행 중인 예약의 배정된 신청 id와 전달 예정 일시. 노쇼·취소된 예약은 빼고,
 	 * 노쇼 승계로 예약이 여러 건이면 나중 건이 뒤에 오도록 id 순으로 준다.
 	 */
 	@Query("""
-			select new com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule(r.application.item.id, r.scheduledAt)
+			select new com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule(
+				r.application.item.id, r.application.id, r.scheduledAt)
 			from Reservation r
 			where r.application.item.id in :itemIds
 				and r.status not in (

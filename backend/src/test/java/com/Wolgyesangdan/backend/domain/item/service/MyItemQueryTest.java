@@ -84,29 +84,49 @@ class MyItemQueryTest {
 	}
 
 	@Test
-	void 전달_예정_일시는_배정_이후_물품의_진행_중인_예약에서_가져온다() {
+	void 배정된_신청_id와_전달_예정_일시는_배정_이후_물품의_진행_중인_예약에서_가져온다() {
 		Item assigned = persist(item(owner, "배정됨", ItemStatus.ASSIGNED));
-		reservation(assigned, ReservationStatus.SCHEDULED, SCHEDULED_AT);
+		Application assignedApplication = reservation(assigned, ReservationStatus.SCHEDULED, SCHEDULED_AT);
 		Item completed = persist(item(owner, "완료", ItemStatus.COMPLETED));
-		reservation(completed, ReservationStatus.COMPLETED, SCHEDULED_AT.minusDays(1));
+		Application completedApplication = reservation(completed, ReservationStatus.COMPLETED,
+				SCHEDULED_AT.minusDays(1));
 		Item open = persist(item(owner, "모집 중", ItemStatus.OPEN));
 		flushAndClear();
 
 		Page<MyItemSummaryResponse> result = itemService.getMyItems(owner.getId(), 0, 20);
 
+		assertThat(find(result, assigned).applicationId()).isEqualTo(assignedApplication.getId());
 		assertThat(find(result, assigned).scheduledAt()).isEqualTo(SCHEDULED_AT);
+		assertThat(find(result, completed).applicationId()).isEqualTo(completedApplication.getId());
 		assertThat(find(result, completed).scheduledAt()).isEqualTo(SCHEDULED_AT.minusDays(1));
+		assertThat(find(result, open).applicationId()).isNull();
 		assertThat(find(result, open).scheduledAt()).isNull();
 	}
 
 	@Test
-	void 노쇼로_다음_대기자에게_넘어갔으면_새_예약의_일시를_쓴다() {
-		Item item = persist(item(owner, "승계됨", ItemStatus.ASSIGNED));
-		reservation(item, ReservationStatus.NO_SHOW, SCHEDULED_AT.minusDays(2));
-		reservation(item, ReservationStatus.SCHEDULED, SCHEDULED_AT);
+	void 취소된_물품은_예약이_남아_있어도_신청_id를_내려주지_않는다() {
+		// 승계할 대기자가 없어 물품이 취소된 경우 등 — 예약 행은 남아 있어도 진행 중인 거래가 아니다
+		Item canceled = persist(item(owner, "취소됨", ItemStatus.CANCELED));
+		reservation(canceled, ReservationStatus.SCHEDULED, SCHEDULED_AT);
 		flushAndClear();
 
-		assertThat(find(itemService.getMyItems(owner.getId(), 0, 20), item).scheduledAt()).isEqualTo(SCHEDULED_AT);
+		MyItemSummaryResponse summary = find(itemService.getMyItems(owner.getId(), 0, 20), canceled);
+
+		assertThat(summary.applicationId()).isNull();
+		assertThat(summary.scheduledAt()).isNull();
+	}
+
+	@Test
+	void 노쇼로_다음_대기자에게_넘어갔으면_새_예약의_신청_id와_일시를_쓴다() {
+		Item item = persist(item(owner, "승계됨", ItemStatus.ASSIGNED));
+		reservation(item, ReservationStatus.NO_SHOW, SCHEDULED_AT.minusDays(2));
+		Application successor = reservation(item, ReservationStatus.SCHEDULED, SCHEDULED_AT);
+		flushAndClear();
+
+		MyItemSummaryResponse summary = find(itemService.getMyItems(owner.getId(), 0, 20), item);
+
+		assertThat(summary.applicationId()).isEqualTo(successor.getId());
+		assertThat(summary.scheduledAt()).isEqualTo(SCHEDULED_AT);
 	}
 
 	@Test
@@ -131,7 +151,7 @@ class MyItemQueryTest {
 
 		itemService.getMyItems(owner.getId(), 0, 5);
 
-		// 물품 페이지, 전체 개수, 대표 사진, 예약 일시
+		// 물품 페이지, 전체 개수, 대표 사진, 진행 중인 예약(신청 id·일시)
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
 	}
 
@@ -139,12 +159,13 @@ class MyItemQueryTest {
 		return page.getContent().stream().filter(summary -> summary.id().equals(item.getId())).findFirst().orElseThrow();
 	}
 
-	private void reservation(Item item, ReservationStatus status, LocalDateTime scheduledAt) {
+	private Application reservation(Item item, ReservationStatus status, LocalDateTime scheduledAt) {
 		// (item, applicant)가 유니크라 예약마다 신청자를 따로 만든다
 		Application application = persist(Application.builder()
 				.item(item).applicant(persist(user("신청자"))).priorityScore(0).status(ApplicationStatus.SELECTED).build());
 		persist(Reservation.builder()
 				.application(application).tradeMethod(TradeMethod.DIRECT).scheduledAt(scheduledAt).status(status).build());
+		return application;
 	}
 
 	private <T> T persist(T entity) {
