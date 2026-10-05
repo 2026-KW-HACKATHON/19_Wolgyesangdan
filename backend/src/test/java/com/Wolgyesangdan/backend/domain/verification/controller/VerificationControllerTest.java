@@ -210,6 +210,37 @@ class VerificationControllerTest {
 				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
 	}
 
+	@Test
+	void 동네_인증을_한다() throws Exception {
+		given(verificationService.verifyNeighborhood(1L)).willReturn(
+				new VerificationCreateResponse(20L, VerificationType.NEIGHBORHOOD, VerificationStatus.APPROVED,
+						LocalDateTime.of(2026, 10, 5, 9, 0)));
+
+		mockMvc.perform(post("/verifications/neighborhood").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.id").value(20))
+				.andExpect(jsonPath("$.verificationType").value("NEIGHBORHOOD"))
+				.andExpect(jsonPath("$.status").value("APPROVED"))
+				.andExpect(jsonPath("$.submittedAt").value("2026-10-05T09:00:00"));
+	}
+
+	@Test
+	void 동네_인증이_이미_있으면_409() throws Exception {
+		given(verificationService.verifyNeighborhood(1L))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED));
+
+		mockMvc.perform(post("/verifications/neighborhood").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("VERIFICATION_ALREADY_APPROVED"));
+	}
+
+	@Test
+	void 토큰_없이_동네_인증하면_401() throws Exception {
+		mockMvc.perform(post("/verifications/neighborhood"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
 	private ResultActions postVerification(Long userId, String body) throws Exception {
 		return mockMvc.perform(post("/verifications")
 				.header(HttpHeaders.AUTHORIZATION, bearer(userId))

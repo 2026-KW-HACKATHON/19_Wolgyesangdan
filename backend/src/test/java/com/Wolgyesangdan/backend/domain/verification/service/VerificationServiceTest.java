@@ -168,6 +168,56 @@ class VerificationServiceTest {
 	}
 
 	@Test
+	void 동네_인증을_하면_심사_없이_바로_APPROVED로_저장한다() {
+		givenUserExists();
+
+		VerificationCreateResponse response = verificationService.verifyNeighborhood(USER_ID, NOW);
+
+		PriorityVerification saved = savedVerification();
+		assertThat(saved.getUser().getId()).isEqualTo(USER_ID);
+		assertThat(saved.getVerificationType()).isEqualTo(VerificationType.NEIGHBORHOOD);
+		assertThat(saved.getStatus()).isEqualTo(VerificationStatus.APPROVED);
+		assertThat(saved.getDocumentType()).isNull();
+		assertThat(saved.getSubmittedAt()).isEqualTo(NOW);
+		assertThat(saved.getReviewedAt()).isNull();
+		assertThat(saved.getExpiresAt()).isNull();
+		assertThat(response.verificationType()).isEqualTo(VerificationType.NEIGHBORHOOD);
+		assertThat(response.status()).isEqualTo(VerificationStatus.APPROVED);
+	}
+
+	@Test
+	void 동네_인증이_이미_있으면_거절한다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.NEIGHBORHOOD, null)));
+
+		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+		then(priorityVerificationRepository).should(never()).save(any());
+	}
+
+	@Test
+	void 우선배정_인증만_있으면_동네_인증을_할_수_있다() {
+		givenUserExists();
+		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
+				approved(1L, VerificationType.FRESHMAN, null)));
+
+		verificationService.verifyNeighborhood(USER_ID, NOW);
+
+		assertThat(savedVerification().getVerificationType()).isEqualTo(VerificationType.NEIGHBORHOOD);
+	}
+
+	@Test
+	void 동네_인증_회원이_없으면_NOT_FOUND() {
+		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(CommonErrorCode.NOT_FOUND);
+	}
+
+	@Test
 	void 동네_인증이_승인돼_있으면_신청_자격이_있다() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
 				approved(1L, VerificationType.NEIGHBORHOOD, null)));

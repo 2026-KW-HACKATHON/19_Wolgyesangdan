@@ -71,6 +71,28 @@ public class VerificationService {
 	}
 
 	/**
+	 * GPS 동네 인증. 월계1동 안인지는 프론트가 판정하고(2026-10-05 결정, #73), 서버는 심사 없이 바로 승인으로 기록한다.
+	 * 위치 좌표·주소는 받지도 저장하지도 않는다. 이미 유효한 동네 인증이 있으면 거절한다.
+	 */
+	@Transactional
+	public VerificationCreateResponse verifyNeighborhood(Long userId) {
+		return verifyNeighborhood(userId, LocalDateTime.now());
+	}
+
+	VerificationCreateResponse verifyNeighborhood(Long userId, LocalDateTime now) {
+		User user = findUser(userId);
+		if (hasNeighborhoodVerification(userId, now)) {
+			throw new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+		}
+		return VerificationCreateResponse.from(priorityVerificationRepository.save(PriorityVerification.builder()
+				.user(user)
+				.verificationType(VerificationType.NEIGHBORHOOD)
+				.status(VerificationStatus.APPROVED)
+				.submittedAt(now)
+				.build()));
+	}
+
+	/**
 	 * 내 인증 상태. 한 번이라도 신청한 유형만, 유형마다 가장 최근 제출 건 기준으로 내려준다.
 	 * 상태는 조회 시점 기준이라 만료일이 지난 승인은 EXPIRED로 나간다 (PriorityVerification.statusAt).
 	 * 신청한 적 없는 유형은 아예 빠진다 (프론트가 "미신청"으로 처리).

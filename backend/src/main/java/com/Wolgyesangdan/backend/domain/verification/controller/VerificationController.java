@@ -32,6 +32,13 @@ public class VerificationController {
 		return verificationService.createVerification(userId, request);
 	}
 
+	/** GPS 동네 인증 (본문 없음). 심사 없이 바로 APPROVED */
+	@PostMapping("/neighborhood")
+	@ResponseStatus(HttpStatus.CREATED)
+	public VerificationCreateResponse verifyNeighborhood(@AuthenticationPrincipal Long userId) {
+		return verificationService.verifyNeighborhood(userId);
+	}
+
 	@GetMapping("/me")
 	public List<MyVerificationResponse> getMyVerifications(@AuthenticationPrincipal Long userId) {
 		return verificationService.getMyVerifications(userId);
