@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { fetchMyImpact, type MyImpact } from '../api/carbonReport'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import {
   APPLIED_ITEMS,
-  MY_RECORD,
   PROFILE,
   REGISTERED_ITEMS,
   type AppliedItem,
@@ -11,6 +11,7 @@ import {
 } from '../data/mypage'
 import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
+import { isLoggedIn } from '../lib/authStorage'
 
 type TabKey = 'registered' | 'applied'
 
@@ -57,34 +58,73 @@ function ProfileRow({ verification }: { verification: VerificationSummary }) {
   )
 }
 
+/** 나의 자원순환 기록 — GET /users/me/impact (거래 완료 기준) */
 function RecordCard() {
-  const maxKg = Math.max(...MY_RECORD.byItem.map((i) => i.kg), 1)
+  const loggedIn = isLoggedIn()
+  const [impact, setImpact] = useState<MyImpact | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!loggedIn) return
+    let cancelled = false
+    fetchMyImpact()
+      .then((data) => {
+        if (!cancelled) setImpact(data)
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [loggedIn])
+
+  const rows = impact
+    ? [
+        { title: '전달 완료', count: impact.givenCount },
+        { title: '수령 완료', count: impact.receivedCount },
+      ]
+    : []
+  const maxCount = Math.max(...rows.map((row) => row.count), 1)
+
   return (
     <div className="mx-5 rounded-[18px] bg-primary-tint px-5 py-[18px]">
       <div className="text-[14px] font-bold text-body">나의 자원순환 기록</div>
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-[32px] font-extrabold tracking-[-0.023em] text-primary-dark">{MY_RECORD.co2eTotalKg}</span>
-        <span className="text-[15px] font-bold text-primary-dark">kg CO₂e</span>
-        <span className="ml-auto text-[13px] font-semibold text-primary-tint-ink">재사용 {MY_RECORD.reusedCount}개</span>
-      </div>
-      <div className="mt-0.5 text-[12px] font-medium text-primary-tint-ink opacity-80">
-        지금까지 줄인 것으로 예상되는 양이에요
-      </div>
-      <div className="mt-3.5 flex flex-col gap-[9px]">
-        {MY_RECORD.byItem.map((item, i) => (
-          <div key={item.title} className="flex items-center gap-2.5">
-            <span className="w-18 flex-none text-[13px] font-semibold text-body">{item.title}</span>
-            <span className="h-[7px] flex-1 overflow-hidden rounded-full bg-surface">
-              <span
-                // 0에서 제 값까지 자라고, 아래 행일수록 조금씩 늦게 시작한다
-                className="block h-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
-                style={{ width: `${(item.kg / maxKg) * 100}%`, animationDelay: `${i * 0.08}s` }}
-              />
+      {!loggedIn || failed ? (
+        <p className="mt-2 text-[13px] font-medium text-primary-tint-ink">
+          {loggedIn ? '기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.' : '로그인하면 나의 기록을 볼 수 있어요.'}
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-[32px] font-extrabold tracking-[-0.023em] text-primary-dark">
+              {impact ? impact.carbonReductionKg.toLocaleString('ko-KR') : '–'}
             </span>
-            <span className="w-11 text-right text-[13px] font-bold text-primary-dark">{item.kg}kg</span>
+            <span className="text-[15px] font-bold text-primary-dark">kg CO₂e</span>
+            <span className="ml-auto text-[13px] font-semibold text-primary-tint-ink">
+              재사용 {impact ? impact.givenCount + impact.receivedCount : '–'}개
+            </span>
           </div>
-        ))}
-      </div>
+          <div className="mt-0.5 text-[12px] font-medium text-primary-tint-ink opacity-80">
+            지금까지 줄인 것으로 예상되는 양이에요
+          </div>
+          <div className="mt-3.5 flex flex-col gap-[9px]">
+            {rows.map((row, i) => (
+              <div key={row.title} className="flex items-center gap-2.5">
+                <span className="w-18 flex-none text-[13px] font-semibold text-body">{row.title}</span>
+                <span className="h-[7px] flex-1 overflow-hidden rounded-full bg-surface">
+                  <span
+                    // 0에서 제 값까지 자라고, 아래 행일수록 조금씩 늦게 시작한다
+                    className="block h-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
+                    style={{ width: `${(row.count / maxCount) * 100}%`, animationDelay: `${i * 0.08}s` }}
+                  />
+                </span>
+                <span className="w-11 text-right text-[13px] font-bold text-primary-dark">{row.count}회</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

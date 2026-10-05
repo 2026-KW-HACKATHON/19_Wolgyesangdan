@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { fetchCarbonReport } from '../api/carbonReport'
+import { fetchCampaignReport, fetchDongReport } from '../api/carbonReport'
 import CampaignSummaryCard from '../components/carbon/CampaignSummaryCard'
 import CategoryTreeList from '../components/carbon/CategoryTreeList'
 import DailyTradeChart from '../components/carbon/DailyTradeChart'
 import MyTreeCard from '../components/carbon/MyTreeCard'
 import TreeLevelCard from '../components/carbon/TreeLevelCard'
-import { CAMPAIGN } from '../data/campaign'
-import type { CarbonReport, ReportScope } from '../data/carbonReport'
+import type { CampaignReport, CarbonReport, DongReport, ReportScope } from '../data/carbonReport'
 
 const SCOPE_TABS: { value: ReportScope; label: string }[] = [
   { value: 'dong', label: '월계1동 전체' },
@@ -17,24 +16,40 @@ const SCOPE_TABS: { value: ReportScope; label: string }[] = [
 /** 탄소절감 리포트 (탭 4, /carbon-report?scope=dong|campaign). 로그인 없이 볼 수 있다. */
 export default function CarbonReportPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const campaignActive = CAMPAIGN.active
-  // 진행 중인 캠페인이 없으면 ?scope=campaign으로 들어와도 동 전체를 보여준다
-  const scope: ReportScope = searchParams.get('scope') === 'campaign' && campaignActive ? 'campaign' : 'dong'
+  const [dong, setDong] = useState<DongReport | null>(null)
+  /** undefined: 불러오는 중, null: 진행 중·예정 캠페인 없음 */
+  const [campaign, setCampaign] = useState<CampaignReport | null | undefined>(undefined)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
-  const [report, setReport] = useState<CarbonReport | null>(null)
-
+  // 두 탭을 처음에 함께 불러온다 — 탭 전환이 바로 되고, 캠페인이 없으면 탭을 미리 비활성화할 수 있다
   useEffect(() => {
     let cancelled = false
-    fetchCarbonReport(scope).then((data) => {
-      if (!cancelled) setReport(data)
-    })
+    Promise.all([fetchDongReport(), fetchCampaignReport()])
+      .then(([dongReport, campaignReport]) => {
+        if (cancelled) return
+        setDong(dongReport)
+        setCampaign(campaignReport)
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
     return () => {
       cancelled = true
     }
-  }, [scope])
+  }, [attempt])
 
-  // 탭을 바꾼 직후 이전 탭 데이터가 남아 있으면 스켈레톤을 보여준다
-  const current = report?.scope === scope ? report : null
+  const retry = () => {
+    setFailed(false)
+    setDong(null)
+    setCampaign(undefined)
+    setAttempt((n) => n + 1)
+  }
+
+  const campaignActive = campaign !== null
+  // 진행 중인 캠페인이 없으면 ?scope=campaign으로 들어와도 동 전체를 보여준다
+  const scope: ReportScope = searchParams.get('scope') === 'campaign' && campaignActive ? 'campaign' : 'dong'
+  const current: CarbonReport | null = scope === 'dong' ? dong : (campaign ?? null)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pb-[22px]">
@@ -68,7 +83,7 @@ export default function CarbonReportPage() {
         <p className="mx-5 mt-1 text-[12px] font-medium text-label-alt">진행 중인 캠페인이 없어요</p>
       )}
 
-      {current ? <ReportBody report={current} /> : <ReportSkeleton />}
+      {failed ? <ReportError onRetry={retry} /> : current ? <ReportBody report={current} /> : <ReportSkeleton />}
     </div>
   )
 }
@@ -111,6 +126,22 @@ function SectionTitle({ title, caption, className }: { title: string; caption: s
     <div className={className}>
       <h2 className="font-hand text-[22px] leading-[1.3] font-bold text-label">{title}</h2>
       <p className="mt-0.5 text-[13px] font-medium text-label-alt">{caption}</p>
+    </div>
+  )
+}
+
+function ReportError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="mx-5 mt-3 flex flex-col items-center rounded-3xl border border-border bg-surface px-5 py-10 text-center">
+      <p className="text-[15px] font-bold text-label">리포트를 불러오지 못했어요</p>
+      <p className="mt-1 text-[13px] font-medium text-label-alt">잠시 후 다시 시도해 주세요</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 cursor-pointer rounded-full border border-border bg-screen px-4 py-2 text-[13px] font-bold text-accent"
+      >
+        다시 불러오기
+      </button>
     </div>
   )
 }
