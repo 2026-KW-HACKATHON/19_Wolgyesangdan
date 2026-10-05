@@ -8,6 +8,7 @@ import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
 import TextField from '../components/TextField'
 import Toast from '../components/Toast'
+import { getCategories } from '../api/items'
 import { useContact } from '../contexts/ContactContext'
 import type { CategoryGroup, ConditionGrade as Condition, TransportDifficulty } from '../types/item'
 import type { UploadedFile } from '../types/verification'
@@ -15,19 +16,6 @@ import type { UploadedFile } from '../types/verification'
 const CATEGORY_OPTIONS: CategoryGroup[] = ['가구', '가전', '주방', '생활', '기타']
 const CONDITION_OPTIONS: Condition[] = ['거의 새것', '상태 좋음', '사용감 있음']
 const TRANSPORT_OPTIONS: TransportDifficulty[] = ['쉬움', '보통', '어려움']
-
-/**
- * 카테고리별 탄소 절감 예상치(kg CO₂e).
- * TODO: 실제 산정 기준이 정해지면 서버 값으로 교체한다.
- * 지금 값은 목록 샘플 데이터(책상·전기포트·빨래건조대·전자레인지)에서 가져온 임시 값이다.
- */
-const CARBON_ESTIMATE_KG: Record<CategoryGroup, number> = {
-  가구: 41,
-  가전: 24,
-  주방: 9,
-  생활: 12,
-  기타: 6,
-}
 
 type TradeChoice = 'DIRECT' | 'CAMPAIGN' | 'BOTH'
 
@@ -170,6 +158,26 @@ export default function ItemRegisterPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  // 카테고리별 탄소 절감 예상치(kg CO₂e). 등록 시 서버가 저장하는 값과 같은 참조표라 화면 숫자와 등록 결과가 맞는다.
+  // 불러오는 중이거나 실패하면 null — 예상치 박스를 숨긴다
+  const [carbonByCategory, setCarbonByCategory] = useState<Partial<Record<CategoryGroup, number>> | null>(null)
+
+  useEffect(() => {
+    let ignore = false
+    getCategories()
+      .then((categories) => {
+        if (ignore) return
+        setCarbonByCategory(
+          Object.fromEntries(categories.map((c) => [c.categoryGroup, c.carbonReductionKg])),
+        )
+      })
+      .catch(() => {
+        // 예상치는 참고용이라 실패해도 등록은 그대로 진행할 수 있다
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   const today = todayIso()
   const hasPhoto = files.length > 0
@@ -216,7 +224,7 @@ export default function ItemRegisterPage() {
     setTimeout(() => setToastVisible(false), 2000)
   }
 
-  const carbonKg = form.categoryGroup ? CARBON_ESTIMATE_KG[form.categoryGroup] : null
+  const carbonKg = (form.categoryGroup && carbonByCategory?.[form.categoryGroup]) ?? null
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
