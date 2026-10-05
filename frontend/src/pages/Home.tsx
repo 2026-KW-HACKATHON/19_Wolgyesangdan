@@ -7,6 +7,7 @@ import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
 import type { ItemSummary } from '../types/item'
 import { useActiveCampaign } from '../hooks/useActiveCampaign'
+import { isLoggedIn } from '../lib/authStorage'
 
 const CATEGORIES = [
   { key: '가구', icon: 'chair' },
@@ -48,9 +49,15 @@ export default function Home() {
           월계1동
         </span>
         <span className="flex-1" />
-        <button type="button" className="text-[13px] font-bold text-[var(--color-accent)]">
-          로그인
-        </button>
+        {!isLoggedIn() && (
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="text-[13px] font-bold text-[var(--color-accent)]"
+          >
+            로그인
+          </button>
+        )}
       </header>
 
       {campaign !== undefined && <CampaignBanner campaign={campaign} />}
