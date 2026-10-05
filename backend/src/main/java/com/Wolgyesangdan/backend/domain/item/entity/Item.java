@@ -100,4 +100,12 @@ public class Item extends BaseTimeEntity {
 
 	@Column(nullable = false)
 	private int applicantCount;
+
+	/** 신청 접수 — 신청자 수를 늘리고, 정원(MAX_APPLICANTS)에 도달하면 더 이상 받지 않도록 CLOSED로 전환한다. */
+	public void increaseApplicantCount() {
+		this.applicantCount++;
+		if (this.applicantCount >= MAX_APPLICANTS) {
+			this.status = ItemStatus.CLOSED;
+		}
+	}
 }

@@ -57,4 +57,8 @@ public class Application extends BaseTimeEntity {
 	private Integer waitlistRank;
 
 	private LocalDateTime selectedAt;
+
+	public void assignWaitlistRank(int waitlistRank) {
+		this.waitlistRank = waitlistRank;
+	}
 }

@@ -1,0 +1,21 @@
+package com.Wolgyesangdan.backend.domain.application.exception;
+
+import com.Wolgyesangdan.backend.global.exception.BaseErrorCode;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@RequiredArgsConstructor
+public enum ApplicationErrorCode implements BaseErrorCode {
+
+	APPLICATION_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "주민 인증 승인이 필요합니다."),
+	APPLICATION_CONTACT_NOT_SET(HttpStatus.FORBIDDEN, "연락 수단을 먼저 등록해야 합니다."),
+	APPLICATION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 신청한 물품입니다."),
+	APPLICATION_ITEM_NOT_OPEN(HttpStatus.CONFLICT, "신청 가능한 상태의 물품이 아닙니다.");
+
+	private final HttpStatus status;
+	private final String message;
+
+}

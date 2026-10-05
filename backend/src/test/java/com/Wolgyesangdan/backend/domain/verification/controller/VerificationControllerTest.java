@@ -42,7 +42,7 @@ class VerificationControllerTest {
 	@Test
 	void 내_인증_상태를_유형별로_조회한다() throws Exception {
 		given(verificationService.getMyVerifications(1L)).willReturn(List.of(
-				new MyVerificationResponse(VerificationType.STUDENT, VerificationStatus.APPROVED,
+				new MyVerificationResponse(VerificationType.FRESHMAN, VerificationStatus.APPROVED,
 						LocalDateTime.of(2026, 9, 10, 9, 0), LocalDateTime.of(2026, 9, 11, 10, 0), null,
 						LocalDateTime.of(2027, 2, 28, 23, 59, 59)),
 				new MyVerificationResponse(VerificationType.LOW_INCOME, VerificationStatus.REJECTED,
@@ -52,7 +52,7 @@ class VerificationControllerTest {
 		mockMvc.perform(get("/verifications/me").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(2))
-				.andExpect(jsonPath("$[0].verificationType").value("STUDENT"))
+				.andExpect(jsonPath("$[0].verificationType").value("FRESHMAN"))
 				.andExpect(jsonPath("$[0].status").value("APPROVED"))
 				.andExpect(jsonPath("$[0].submittedAt").value("2026-09-10T09:00:00"))
 				.andExpect(jsonPath("$[0].reviewedAt").value("2026-09-11T10:00:00"))

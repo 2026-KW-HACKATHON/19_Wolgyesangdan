@@ -30,7 +30,7 @@ public class VerificationService {
 	private final PriorityVerificationRepository priorityVerificationRepository;
 
 	/**
-	 * 내 인증 상태. 한 번이라도 신청한 유형만, 유형마다 가장 최근 제출 건 기준으로 내려준다.
+	 * 내 인증 상태. 한 번이라도 신청한 유형만, 유형마다 가장 최근 제출 건 기준으로 내려준다 (RESIDENT → FRESHMAN → LOW_INCOME 순).
 	 * 상태는 조회 시점 기준이라 만료일이 지난 승인은 EXPIRED로 나간다 (PriorityVerification.statusAt).
 	 * 신청한 적 없는 유형은 아예 빠진다 (프론트가 "미신청"으로 처리).
 	 */
@@ -45,7 +45,7 @@ public class VerificationService {
 	}
 
 	/**
-	 * 유형별 가장 최근 제출 건 (RESIDENT → STUDENT → LOW_INCOME 순). 물품 신청 자격 체크도 이 조회를 쓴다.
+	 * 유형별 가장 최근 제출 건 (RESIDENT → FRESHMAN → LOW_INCOME 순). 물품 신청 자격 체크도 이 조회를 쓴다.
 	 * 승인 여부는 getStatus()가 아니라 statusAt(now)로 판단해야 만료된 인증이 통과하지 않는다.
 	 */
 	public Collection<PriorityVerification> findLatestByType(Long userId) {

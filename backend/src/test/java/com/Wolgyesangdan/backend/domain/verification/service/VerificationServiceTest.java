@@ -36,19 +36,19 @@ class VerificationServiceTest {
 	@Test
 	void 신청한_적_있는_유형만_내려준다() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
-				verification(1L, VerificationType.STUDENT, VerificationStatus.PENDING, SUBMITTED_AT)));
+				verification(1L, VerificationType.FRESHMAN, VerificationStatus.PENDING, SUBMITTED_AT)));
 
 		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses).extracting(MyVerificationResponse::verificationType)
-				.containsExactly(VerificationType.STUDENT);
+				.containsExactly(VerificationType.FRESHMAN);
 	}
 
 	@Test
 	void 유형마다_가장_최근_제출_건_기준으로_내려준다() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
-				verification(2L, VerificationType.STUDENT, VerificationStatus.PENDING, SUBMITTED_AT.plusDays(5)),  // 재신청
-				verification(1L, VerificationType.STUDENT, VerificationStatus.REJECTED, SUBMITTED_AT),
+				verification(2L, VerificationType.FRESHMAN, VerificationStatus.PENDING, SUBMITTED_AT.plusDays(5)),  // 재신청
+				verification(1L, VerificationType.FRESHMAN, VerificationStatus.REJECTED, SUBMITTED_AT),
 				verification(3L, VerificationType.RESIDENT, VerificationStatus.APPROVED, SUBMITTED_AT.plusDays(1))));
 
 		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
@@ -56,7 +56,7 @@ class VerificationServiceTest {
 		assertThat(responses).hasSize(2);
 		assertThat(responses.get(0).verificationType()).isEqualTo(VerificationType.RESIDENT);
 		assertThat(responses.get(0).status()).isEqualTo(VerificationStatus.APPROVED);
-		assertThat(responses.get(1).verificationType()).isEqualTo(VerificationType.STUDENT);
+		assertThat(responses.get(1).verificationType()).isEqualTo(VerificationType.FRESHMAN);
 		assertThat(responses.get(1).status()).isEqualTo(VerificationStatus.PENDING);
 		assertThat(responses.get(1).submittedAt()).isEqualTo(SUBMITTED_AT.plusDays(5));
 	}
@@ -74,47 +74,47 @@ class VerificationServiceTest {
 	}
 
 	@Test
-	void 유형_순서는_RESIDENT_STUDENT_LOW_INCOME() {
+	void 유형_순서는_RESIDENT_FRESHMAN_LOW_INCOME() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
 				verification(1L, VerificationType.LOW_INCOME, VerificationStatus.PENDING, SUBMITTED_AT),
-				verification(2L, VerificationType.STUDENT, VerificationStatus.PENDING, SUBMITTED_AT),
+				verification(2L, VerificationType.FRESHMAN, VerificationStatus.PENDING, SUBMITTED_AT),
 				verification(3L, VerificationType.RESIDENT, VerificationStatus.PENDING, SUBMITTED_AT)));
 
 		assertThat(verificationService.getMyVerifications(USER_ID, NOW))
 				.extracting(MyVerificationResponse::verificationType)
-				.containsExactly(VerificationType.RESIDENT, VerificationType.STUDENT, VerificationType.LOW_INCOME);
+				.containsExactly(VerificationType.RESIDENT, VerificationType.FRESHMAN, VerificationType.LOW_INCOME);
 	}
 
 	@Test
 	void 반려_사유는_REJECTED일_때만_내려준다() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
-				reviewed(1L, VerificationType.STUDENT, VerificationStatus.REJECTED),
+				reviewed(1L, VerificationType.FRESHMAN, VerificationStatus.REJECTED),
 				reviewed(2L, VerificationType.RESIDENT, VerificationStatus.APPROVED)));
 
 		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses.get(0).rejectionReason()).isNull();                 // RESIDENT, APPROVED
-		assertThat(responses.get(1).rejectionReason()).isEqualTo("반려 사유");   // STUDENT, REJECTED
+		assertThat(responses.get(1).rejectionReason()).isEqualTo("반려 사유");   // FRESHMAN, REJECTED
 	}
 
 	@Test
 	void 만료_일시는_APPROVED일_때만_내려준다() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
-				reviewed(1L, VerificationType.STUDENT, VerificationStatus.REJECTED),
+				reviewed(1L, VerificationType.FRESHMAN, VerificationStatus.REJECTED),
 				reviewed(2L, VerificationType.RESIDENT, VerificationStatus.APPROVED),
 				reviewed(3L, VerificationType.LOW_INCOME, VerificationStatus.EXPIRED)));
 
 		List<MyVerificationResponse> responses = verificationService.getMyVerifications(USER_ID, NOW);
 
 		assertThat(responses.get(0).expiresAt()).isEqualTo(SUBMITTED_AT.plusMonths(6));  // RESIDENT, APPROVED
-		assertThat(responses.get(1).expiresAt()).isNull();                               // STUDENT, REJECTED
+		assertThat(responses.get(1).expiresAt()).isNull();                               // FRESHMAN, REJECTED
 		assertThat(responses.get(2).expiresAt()).isNull();                               // LOW_INCOME, EXPIRED
 	}
 
 	@Test
 	void 만료일이_지난_승인은_EXPIRED로_내려준다() {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
-				approved(1L, VerificationType.STUDENT, NOW.minusSeconds(1)),   // 만료됨
+				approved(1L, VerificationType.FRESHMAN, NOW.minusSeconds(1)),  // 만료됨
 				approved(2L, VerificationType.RESIDENT, NOW.plusSeconds(1)),   // 아직 유효
 				approved(3L, VerificationType.LOW_INCOME, null)));             // 만료일 없음
 
@@ -122,7 +122,7 @@ class VerificationServiceTest {
 
 		assertThat(responses.get(0).status()).isEqualTo(VerificationStatus.APPROVED);   // RESIDENT
 		assertThat(responses.get(0).expiresAt()).isEqualTo(NOW.plusSeconds(1));
-		assertThat(responses.get(1).status()).isEqualTo(VerificationStatus.EXPIRED);    // STUDENT
+		assertThat(responses.get(1).status()).isEqualTo(VerificationStatus.EXPIRED);    // FRESHMAN
 		assertThat(responses.get(1).expiresAt()).isNull();
 		assertThat(responses.get(2).status()).isEqualTo(VerificationStatus.APPROVED);   // LOW_INCOME
 		assertThat(responses.get(2).expiresAt()).isNull();
