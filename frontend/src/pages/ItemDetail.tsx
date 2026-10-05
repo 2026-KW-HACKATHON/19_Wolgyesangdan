@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { applyForItem } from '../api/applications'
 import { ApiError } from '../api/client'
 import { getItem } from '../api/items'
 import Badge from '../components/Badge'
 import ItemThumb from '../components/ItemThumb'
 import Toast from '../components/Toast'
+import { isLoggedIn } from '../lib/authStorage'
 import { ITEM_STATUS_LABEL, TRADE_METHOD_LABEL, formatDeadline, itemStatusTone } from '../lib/item'
-import type { ItemDetail as ItemDetailData } from '../types/item'
+import type { ItemDetail as ItemDetailData, ItemStatus } from '../types/item'
+
+/** 신청할 수 없는 상태일 때 신청 버튼 자리에 보여주는 문구 */
+const CLOSED_BUTTON_LABEL: Partial<Record<ItemStatus, string>> = {
+  CLOSED: '신청이 마감됐어요',
+  ASSIGNED: '배정이 끝났어요',
+  COMPLETED: '거래가 끝났어요',
+}
+
+/** 신청이 막힌 사유 중 사용자가 바로 해결할 수 있는 것 — 해결하러 가는 버튼을 함께 보여준다 */
+const APPLY_ERROR_ACTION: Record<string, { label: string; to: (itemId: string) => string }> = {
+  APPLICATION_NOT_ELIGIBLE: { label: '동네 인증하러 가기', to: () => '/verify/location' },
+  APPLICATION_CONTACT_NOT_SET: {
+    label: '연락 수단 설정하러 가기',
+    to: (itemId) => `/settings/contact?next=/items/${itemId}`,
+  },
+}
 
 function SpecRow({ label, value }: { label: string; value: string }) {
   return (
@@ -40,15 +58,28 @@ export default function ItemDetail() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [result, setResult] = useState<Result | null>(null)
+  // 신청에 성공하면 대기 인원이 바로 보이도록 상세를 다시 받는다
+  const [reloadKey, setReloadKey] = useState(0)
 
-  const [showCopyToast, setShowCopyToast] = useState(false)
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [applying, setApplying] = useState(false)
+  // 이 화면에서 신청을 마친 물품 / 신청이 막힌 사유. 다른 물품으로 넘어가면 쓰지 않도록 id와 함께 둔다
+  const [appliedId, setAppliedId] = useState<string | null>(null)
+  const [applyError, setApplyError] = useState<{ id: string; code: string; message: string } | null>(null)
+
+  const [toast, setToast] = useState({ visible: false, message: '' })
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     }
   }, [])
+
+  const showToast = (message: string) => {
+    setToast({ visible: true, message })
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    toastTimeoutRef.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2000)
+  }
 
   // 물품 상세 (GET /items/{itemId}, 비회원 허용)
   useEffect(() => {
@@ -75,16 +106,44 @@ export default function ItemDetail() {
     return () => {
       ignore = true
     }
-  }, [id])
+  }, [id, reloadKey])
 
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
-      setShowCopyToast(true)
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-      copyTimeoutRef.current = setTimeout(() => setShowCopyToast(false), 2000)
+      showToast('URL을 복사했어요')
     } catch {
       // 클립보드 접근 권한이 없는 등 - 조용히 무시
+    }
+  }
+
+  // 물품 신청 (POST /items/{itemId}/applications). 신청은 로그인이 필요하다
+  const handleApply = async (itemId: number) => {
+    if (applying) return
+    if (!isLoggedIn()) {
+      navigate('/login')
+      return
+    }
+    setApplying(true)
+    setApplyError(null)
+    try {
+      const application = await applyForItem(itemId)
+      setAppliedId(id)
+      showToast(application.waitlistRank ? `신청했어요 · 대기 ${application.waitlistRank}번` : '신청했어요')
+      setReloadKey((key) => key + 1)
+    } catch (e) {
+      // 토큰이 만료돼 재발급도 실패한 경우 — 다시 로그인하게 한다
+      if (e instanceof ApiError && e.status === 401) {
+        navigate('/login')
+        return
+      }
+      setApplyError({
+        id,
+        code: e instanceof ApiError ? e.code : 'UNKNOWN',
+        message: e instanceof ApiError ? e.message : '신청하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      })
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -122,6 +181,18 @@ export default function ItemDetail() {
   const subtitle = [item.categoryGroup, item.category, item.conditionGrade].filter(Boolean).join(' · ')
   const availablePeriod = formatAvailablePeriod(item.availableFrom, item.availableUntil)
   const deadline = formatDeadline(item.applicationDeadline)
+
+  const applied = appliedId === id
+  const currentApplyError = applyError?.id === id ? applyError : null
+  const applyErrorAction = currentApplyError ? APPLY_ERROR_ACTION[currentApplyError.code] : undefined
+  const canApply = item.status === 'OPEN' && !applied
+  const applyLabel = applied
+    ? '신청 완료'
+    : applying
+      ? '신청 중…'
+      : item.status === 'OPEN'
+        ? '신청하기'
+        : (CLOSED_BUTTON_LABEL[item.status] ?? '신청할 수 없어요')
 
   return (
     <div className="relative flex h-full flex-col">
@@ -253,22 +324,40 @@ export default function ItemDetail() {
         </div>
       </div>
 
-      <div className="flex flex-none items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3">
-        <button
-          type="button"
-          className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl border border-[var(--color-border)] text-[#4A4A40]"
-        >
-          <span className="ms text-xl">favorite</span>
-        </button>
-        <button
-          type="button"
-          className="h-12 flex-1 rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)]"
-        >
-          신청하기
-        </button>
+      <div className="flex-none border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3">
+        {currentApplyError && (
+          <div role="alert" className="mb-2.5 flex items-center gap-2">
+            <p className="flex-1 text-[13px] font-semibold text-terracotta">{currentApplyError.message}</p>
+            {applyErrorAction && (
+              <button
+                type="button"
+                onClick={() => navigate(applyErrorAction.to(id))}
+                className="flex-none text-[13px] font-bold text-[var(--color-accent)] underline underline-offset-[3px]"
+              >
+                {applyErrorAction.label}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl border border-[var(--color-border)] text-[#4A4A40]"
+          >
+            <span className="ms text-xl">favorite</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleApply(item.id)}
+            disabled={!canApply || applying}
+            className="h-12 flex-1 rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)] disabled:opacity-50"
+          >
+            {applyLabel}
+          </button>
+        </div>
       </div>
 
-      <Toast visible={showCopyToast}>URL을 복사했어요</Toast>
+      <Toast visible={toast.visible}>{toast.message}</Toast>
     </div>
   )
 }
