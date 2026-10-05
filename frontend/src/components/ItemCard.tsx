@@ -17,7 +17,8 @@ export default function ItemCard({ item, onClick }: ItemCardProps) {
   return (
     <button type="button" onClick={onClick} className="flex w-full gap-3 py-3.5 text-left">
       <ItemThumb
-        imageUrl={item.thumbnailImageUrl}
+        // 목록 카드는 사진이 있어도 항상 카테고리 아이콘으로 보여준다 (사진은 상세 화면에서)
+        imageUrl={null}
         categoryGroup={item.categoryGroup}
         alt={item.name}
         className="h-[90px] w-[90px] flex-none rounded-2xl"
