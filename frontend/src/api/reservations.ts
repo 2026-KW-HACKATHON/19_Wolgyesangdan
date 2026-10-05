@@ -39,3 +39,27 @@ export interface ReservationDetail {
 export function getReservation(applicationId: number) {
   return apiFetch<ReservationDetail>(`/applications/${applicationId}/reservation`)
 }
+
+/** PATCH /reservations/{reservationId}/reconfirm 응답 */
+export interface ReconfirmResponse {
+  id: number
+  status: ReservationStatus
+  reconfirmedAt: string
+}
+
+/** 진행 중이라 아직 수령 재확인을 할 수 있는 예약 상태 (백엔드 RECONFIRMABLE_STATUSES) */
+export const RECONFIRMABLE_STATUSES: readonly ReservationStatus[] = [
+  'SCHEDULED',
+  'HUB_DROP_SCHEDULED',
+  'HUB_RECEIVED',
+  'PICKUP_SCHEDULED',
+]
+
+/**
+ * 수령 재확인 (PATCH /reservations/{reservationId}/reconfirm). 배정된 신청자 본인만 할 수 있다.
+ * 이미 했거나(RESERVATION_ALREADY_RECONFIRMED), 진행 중인 예약이 아니거나(RESERVATION_NOT_RECONFIRMABLE),
+ * 기한이 지났으면(RESERVATION_RECONFIRMATION_EXPIRED) 409.
+ */
+export function reconfirmReservation(reservationId: number) {
+  return apiFetch<ReconfirmResponse>(`/reservations/${reservationId}/reconfirm`, { method: 'PATCH' })
+}
