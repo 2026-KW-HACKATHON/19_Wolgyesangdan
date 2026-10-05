@@ -1,3 +1,4 @@
+import HourglassIcon from '../components/HourglassIcon'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import PrimaryButton from '../components/PrimaryButton'
 import Screen from '../components/Screen'
@@ -22,7 +23,7 @@ export default function VerificationDonePage({ meta, onGoHome, onViewStatus }: V
     <Screen>
       <div className="flex flex-1 flex-col items-center px-5 pt-[22px] pb-6 text-center">
         <span className="flex size-16 items-center justify-center rounded-full bg-primary-tint text-accent">
-          <MaterialIcon name="hourglass_top" size={32} />
+          <HourglassIcon size={32} />
         </span>
         <h1 className="mt-3 font-hand text-[26px] leading-[1.25] font-bold text-label">인증 신청이 접수됐어요</h1>
         <p className="mt-1.5 text-[14px] leading-[1.6] font-medium text-ink-3">

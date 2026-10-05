@@ -140,6 +140,60 @@
       transform: translateY(-7px);
     }
   }
+
+  /* 모래시계 (HourglassIcon). 한 주기 = 모래가 다 내려옴(0~68%) → 잠깐 멈춤 → 뒤집힘(76~100%) */
+  --animate-hourglass-flip: hourglass-flip 4.5s linear infinite;
+  --animate-hourglass-drain: hourglass-drain 4.5s linear infinite;
+  --animate-hourglass-fill: hourglass-fill 4.5s linear infinite;
+  --animate-hourglass-stream: hourglass-stream 4.5s linear infinite;
+
+  @keyframes hourglass-flip {
+    0% {
+      transform: rotate(0deg);
+    }
+    76% {
+      transform: rotate(0deg);
+      animation-timing-function: ease-in-out;
+    }
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+
+  /* 위쪽 모래가 내려간다 */
+  @keyframes hourglass-drain {
+    0% {
+      transform: translateY(0);
+    }
+    68%,
+    100% {
+      transform: translateY(8px);
+    }
+  }
+
+  /* 아래쪽 모래가 차오른다 */
+  @keyframes hourglass-fill {
+    0% {
+      transform: translateY(8px);
+    }
+    68%,
+    100% {
+      transform: translateY(0);
+    }
+  }
+
+  /* 떨어지는 모래 줄기 */
+  @keyframes hourglass-stream {
+    0%,
+    68%,
+    100% {
+      opacity: 0;
+    }
+    4%,
+    64% {
+      opacity: 1;
+    }
+  }
 }
 
 .ms {
