@@ -11,4 +11,6 @@ public interface ItemTradeMethodRepository extends JpaRepository<ItemTradeMethod
 
 	List<ItemTradeMethod> findByItemIdIn(Collection<Long> itemIds);
 
+	List<ItemTradeMethod> findByItemId(Long itemId);
+
 }

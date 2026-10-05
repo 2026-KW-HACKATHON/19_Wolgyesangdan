@@ -3,6 +3,7 @@ package com.Wolgyesangdan.backend.domain.item.controller;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
@@ -14,6 +15,7 @@ import com.Wolgyesangdan.backend.global.dto.PageResponse;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,6 +49,12 @@ public class ItemController {
 	@GetMapping("/categories")
 	public List<CategoryResponse> getCategories() {
 		return itemService.getCategories();
+	}
+
+	/** 물품 상세 (비회원 허용) */
+	@GetMapping("/{itemId}")
+	public ItemDetailResponse getItem(@PathVariable Long itemId) {
+		return itemService.getItem(itemId);
 	}
 
 }
