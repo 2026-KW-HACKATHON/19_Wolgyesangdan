@@ -40,7 +40,7 @@ class PriorityVerificationTest {
 
 	private static PriorityVerification verification(VerificationStatus status, LocalDateTime expiresAt) {
 		return PriorityVerification.builder()
-				.verificationType(VerificationType.STUDENT)
+				.verificationType(VerificationType.FRESHMAN)
 				.status(status)
 				.expiresAt(expiresAt)
 				.build();

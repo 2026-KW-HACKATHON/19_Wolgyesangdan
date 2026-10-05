@@ -1,5 +1,6 @@
 package com.Wolgyesangdan.backend.domain.verification.controller;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -15,6 +16,7 @@ import java.util.List;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
+import com.Wolgyesangdan.backend.domain.verification.entity.DocumentType;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
 import com.Wolgyesangdan.backend.domain.verification.exception.VerificationErrorCode;
@@ -51,33 +53,40 @@ class VerificationControllerTest {
 	@Test
 	void 내_인증_상태를_유형별로_조회한다() throws Exception {
 		given(verificationService.getMyVerifications(1L)).willReturn(List.of(
-				new MyVerificationResponse(VerificationType.STUDENT, VerificationStatus.APPROVED,
-						LocalDateTime.of(2026, 9, 10, 9, 0), LocalDateTime.of(2026, 9, 11, 10, 0), null,
-						LocalDateTime.of(2027, 2, 28, 23, 59, 59)),
-				new MyVerificationResponse(VerificationType.LOW_INCOME, VerificationStatus.REJECTED,
-						LocalDateTime.of(2026, 9, 12, 9, 0), LocalDateTime.of(2026, 9, 13, 10, 0),
-						"제출된 서류에서 대상 여부를 확인할 수 없어요.", null)));
+				new MyVerificationResponse(VerificationType.NEIGHBORHOOD, null, VerificationStatus.APPROVED,
+						LocalDateTime.of(2026, 10, 5, 9, 0), null, null, null),
+				new MyVerificationResponse(VerificationType.FRESHMAN, DocumentType.ADMISSION_LETTER,
+						VerificationStatus.APPROVED, LocalDateTime.of(2026, 9, 10, 9, 0),
+						LocalDateTime.of(2026, 9, 11, 10, 0), null, LocalDateTime.of(2027, 2, 28, 23, 59, 59)),
+				new MyVerificationResponse(VerificationType.LOW_INCOME, DocumentType.RECIPIENT_CERTIFICATE,
+						VerificationStatus.REJECTED, LocalDateTime.of(2026, 9, 12, 9, 0),
+						LocalDateTime.of(2026, 9, 13, 10, 0), "제출된 서류에서 대상 여부를 확인할 수 없어요.", null)));
 
 		mockMvc.perform(get("/verifications/me").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.length()").value(2))
-				.andExpect(jsonPath("$[0].verificationType").value("STUDENT"))
+				.andExpect(jsonPath("$.length()").value(3))
+				.andExpect(jsonPath("$[0].verificationType").value("NEIGHBORHOOD"))
+				.andExpect(jsonPath("$[0].documentType").isEmpty())
 				.andExpect(jsonPath("$[0].status").value("APPROVED"))
-				.andExpect(jsonPath("$[0].submittedAt").value("2026-09-10T09:00:00"))
-				.andExpect(jsonPath("$[0].reviewedAt").value("2026-09-11T10:00:00"))
-				.andExpect(jsonPath("$[0].rejectionReason").isEmpty())
-				.andExpect(jsonPath("$[0].expiresAt").value("2027-02-28T23:59:59"))
-				.andExpect(jsonPath("$[1].verificationType").value("LOW_INCOME"))
-				.andExpect(jsonPath("$[1].status").value("REJECTED"))
-				.andExpect(jsonPath("$[1].rejectionReason").value("제출된 서류에서 대상 여부를 확인할 수 없어요."))
-				.andExpect(jsonPath("$[1].expiresAt").isEmpty());
+				.andExpect(jsonPath("$[1].verificationType").value("FRESHMAN"))
+				.andExpect(jsonPath("$[1].documentType").value("ADMISSION_LETTER"))
+				.andExpect(jsonPath("$[1].status").value("APPROVED"))
+				.andExpect(jsonPath("$[1].submittedAt").value("2026-09-10T09:00:00"))
+				.andExpect(jsonPath("$[1].reviewedAt").value("2026-09-11T10:00:00"))
+				.andExpect(jsonPath("$[1].rejectionReason").isEmpty())
+				.andExpect(jsonPath("$[1].expiresAt").value("2027-02-28T23:59:59"))
+				.andExpect(jsonPath("$[2].verificationType").value("LOW_INCOME"))
+				.andExpect(jsonPath("$[2].documentType").value("RECIPIENT_CERTIFICATE"))
+				.andExpect(jsonPath("$[2].status").value("REJECTED"))
+				.andExpect(jsonPath("$[2].rejectionReason").value("제출된 서류에서 대상 여부를 확인할 수 없어요."))
+				.andExpect(jsonPath("$[2].expiresAt").isEmpty());
 	}
 
 	@Test
 	void 심사_중이면_심사_관련_값은_null로_내려준다() throws Exception {
 		given(verificationService.getMyVerifications(1L)).willReturn(List.of(
-				new MyVerificationResponse(VerificationType.RESIDENT, VerificationStatus.PENDING,
-						LocalDateTime.of(2026, 9, 26, 15, 0), null, null, null)));
+				new MyVerificationResponse(VerificationType.FRESHMAN, DocumentType.STUDENT_ID_CARD,
+						VerificationStatus.PENDING, LocalDateTime.of(2026, 9, 26, 15, 0), null, null, null)));
 
 		mockMvc.perform(get("/verifications/me").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
 				.andExpect(status().isOk())
@@ -104,73 +113,68 @@ class VerificationControllerTest {
 	}
 
 	@Test
-	void 학생_인증을_신청한다() throws Exception {
+	void 신입생_인증을_신청한다() throws Exception {
 		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class))).willReturn(
-				new VerificationCreateResponse(10L, VerificationType.STUDENT, VerificationStatus.PENDING,
+				new VerificationCreateResponse(10L, VerificationType.FRESHMAN, VerificationStatus.PENDING,
 						LocalDateTime.of(2026, 9, 26, 15, 0)));
 
-		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"studentId\":\"202312345\",\"department\":\"산업디자인\"}")
+		postVerification(1L, "{\"verificationType\":\"FRESHMAN\",\"documentType\":\"ADMISSION_LETTER\"}")
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.id").value(10))
-				.andExpect(jsonPath("$.verificationType").value("STUDENT"))
+				.andExpect(jsonPath("$.verificationType").value("FRESHMAN"))
 				.andExpect(jsonPath("$.status").value("PENDING"))
 				.andExpect(jsonPath("$.submittedAt").value("2026-09-26T15:00:00"));
 	}
 
 	@Test
-	void 주민_인증을_신청한다() throws Exception {
-		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class))).willReturn(
-				new VerificationCreateResponse(11L, VerificationType.RESIDENT, VerificationStatus.PENDING,
-						LocalDateTime.of(2026, 9, 26, 15, 0)));
-
-		postVerification(1L, "{\"verificationType\":\"RESIDENT\",\"name\":\"정하늘\",\"address\":\"서울 노원구 월계로 1\"}")
-				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.verificationType").value("RESIDENT"));
-	}
-
-	@Test
-	void 저소득층_인증은_유형만_보내면_된다() throws Exception {
+	void 기초수급자_인증을_신청한다() throws Exception {
 		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class))).willReturn(
 				new VerificationCreateResponse(12L, VerificationType.LOW_INCOME, VerificationStatus.PENDING,
 						LocalDateTime.of(2026, 9, 26, 15, 0)));
 
-		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\"}")
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\",\"documentType\":\"RECIPIENT_CERTIFICATE\"}")
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.verificationType").value("LOW_INCOME"));
 	}
 
 	@Test
 	void verificationType이_없으면_400() throws Exception {
-		postVerification(1L, "{\"studentId\":\"202312345\",\"department\":\"산업디자인\"}")
+		postVerification(1L, "{\"documentType\":\"ADMISSION_LETTER\"}")
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
 				.andExpect(jsonPath("$.errors[0].field").value("verificationType"));
 	}
 
 	@Test
-	void STUDENT인데_학과가_없으면_400() throws Exception {
-		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"studentId\":\"202312345\"}")
+	void documentType이_없으면_400() throws Exception {
+		postVerification(1L, "{\"verificationType\":\"FRESHMAN\"}")
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-				.andExpect(jsonPath("$.errors[0].field").value("valueProvidedForVerificationType"));
+				.andExpect(jsonPath("$.errors[0].field").value("documentType"));
 	}
 
 	@Test
-	void RESIDENT인데_주소가_빈_값이면_400() throws Exception {
-		postVerification(1L, "{\"verificationType\":\"RESIDENT\",\"name\":\"정하늘\",\"address\":\"  \"}")
+	void 유형에_맞지_않는_서류_종류면_400() throws Exception {
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\",\"documentType\":\"STUDENT_ID_CARD\"}")
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-				.andExpect(jsonPath("$.errors[0].field").value("valueProvidedForVerificationType"));
+				.andExpect(jsonPath("$.errors[0].field").value("documentTypeMatchingVerificationType"));
 	}
 
 	@Test
-	void 학번_형식이_틀리면_400() throws Exception {
-		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class)))
-				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_INVALID_STUDENT_ID));
-
-		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"studentId\":\"abc\",\"department\":\"산업디자인\"}")
+	void 동네_인증은_여기서_신청할_수_없다() throws Exception {
+		postVerification(1L, "{\"verificationType\":\"NEIGHBORHOOD\",\"documentType\":\"ADMISSION_LETTER\"}")
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.code").value("VERIFICATION_INVALID_STUDENT_ID"));
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[*].field").value(hasItem("priorityVerificationType")));
+	}
+
+	@Test
+	void 없어진_예전_유형이면_400() throws Exception {
+		postVerification(1L, "{\"verificationType\":\"STUDENT\",\"documentType\":\"STUDENT_ID_CARD\"}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("verificationType"));
 	}
 
 	@Test
@@ -178,7 +182,7 @@ class VerificationControllerTest {
 		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class)))
 				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_PENDING));
 
-		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\"}")
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\",\"documentType\":\"RECIPIENT_CERTIFICATE\"}")
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.status").value(409))
 				.andExpect(jsonPath("$.code").value("VERIFICATION_ALREADY_PENDING"))
@@ -191,7 +195,7 @@ class VerificationControllerTest {
 		given(verificationService.createVerification(eq(1L), any(VerificationCreateRequest.class)))
 				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED));
 
-		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\"}")
+		postVerification(1L, "{\"verificationType\":\"LOW_INCOME\",\"documentType\":\"RECIPIENT_CERTIFICATE\"}")
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("VERIFICATION_ALREADY_APPROVED"))
 				.andExpect(jsonPath("$.message").value("이미 승인된 인증이 있습니다."));
@@ -201,7 +205,7 @@ class VerificationControllerTest {
 	void 토큰_없이_신청하면_401() throws Exception {
 		mockMvc.perform(post("/verifications")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"verificationType\":\"LOW_INCOME\"}"))
+						.content("{\"verificationType\":\"LOW_INCOME\",\"documentType\":\"RECIPIENT_CERTIFICATE\"}"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
 	}
