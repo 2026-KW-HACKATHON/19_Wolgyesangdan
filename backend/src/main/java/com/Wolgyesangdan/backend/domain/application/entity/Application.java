@@ -70,4 +70,9 @@ public class Application extends BaseTimeEntity {
 		this.status = ApplicationStatus.SELECTED;
 		this.selectedAt = now;
 	}
+
+	/** 노쇼로 배정에서 빠짐 — 대기 순번은 지우지 않고 그대로 둔다 (ERD 수정 ⑯) */
+	public void dropForNoShow() {
+		this.status = ApplicationStatus.CANCELED;
+	}
 }

@@ -64,4 +64,9 @@ public class Reservation extends BaseTimeEntity {
 		this.status = ReservationStatus.RECONFIRMED;
 		this.reconfirmedAt = now;
 	}
+
+	/** 노쇼 — 재확인 기한까지 응답이 없을 때 스케줄러가 표시한다 (운영진은 DB에서 직접 표시) */
+	public void markNoShow() {
+		this.status = ReservationStatus.NO_SHOW;
+	}
 }

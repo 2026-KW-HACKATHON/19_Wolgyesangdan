@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.then;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.application.service.AssignmentService;
+import com.Wolgyesangdan.backend.domain.application.service.SuccessionService;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -15,7 +16,8 @@ import org.mockito.Mockito;
 class AssignmentSchedulerTest {
 
 	private final AssignmentService assignmentService = Mockito.mock(AssignmentService.class);
-	private final AssignmentScheduler scheduler = new AssignmentScheduler(assignmentService);
+	private final SuccessionService successionService = Mockito.mock(SuccessionService.class);
+	private final AssignmentScheduler scheduler = new AssignmentScheduler(assignmentService, successionService);
 
 	@Test
 	void 마감된_물품을_하나씩_배정한다() {
@@ -35,6 +37,16 @@ class AssignmentSchedulerTest {
 		scheduler.assignClosedItems();
 
 		then(assignmentService).should().assign(eq(2L), any());
+	}
+
+	@Test
+	void 노쇼_승계도_한_건이_실패해도_나머지를_처리한다() {
+		given(successionService.findReservationIdsToSucceed(any())).willReturn(List.of(10L, 20L));
+		given(successionService.succeed(eq(10L), any())).willThrow(new IllegalStateException("DB 오류"));
+
+		scheduler.succeedNoShows();
+
+		then(successionService).should().succeed(eq(20L), any());
 	}
 
 }
