@@ -111,4 +111,14 @@ public class Item extends BaseTimeEntity {
 			this.status = ItemStatus.CLOSED;
 		}
 	}
+
+	/** 배정 확정 — 전달·수령이 끝날 때까지 "예약 중" */
+	public void assign() {
+		this.status = ItemStatus.ASSIGNED;
+	}
+
+	/** 받을 사람이 없어 종료 (2026-10-05 결정 — 신청자 0명이거나 승계할 대기자가 없을 때) */
+	public void cancel() {
+		this.status = ItemStatus.CANCELED;
+	}
 }

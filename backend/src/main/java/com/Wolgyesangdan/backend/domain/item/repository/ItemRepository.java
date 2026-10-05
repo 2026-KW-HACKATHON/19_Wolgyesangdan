@@ -1,9 +1,13 @@
 package com.Wolgyesangdan.backend.domain.item.repository;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -37,5 +41,13 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select i from Item i where i.id = :id")
 	Optional<Item> findByIdForUpdate(@Param("id") Long id);
+
+	/** 배정 대상 — 신청 마감이 지났는데 아직 배정하지 않은 물품 (마감이 이른 순) */
+	@Query("""
+			select i.id from Item i
+			where i.status in :statuses and i.applicationDeadline < :now
+			order by i.applicationDeadline, i.id
+			""")
+	List<Long> findIdsToAssign(@Param("statuses") Collection<ItemStatus> statuses, @Param("now") LocalDateTime now);
 
 }
