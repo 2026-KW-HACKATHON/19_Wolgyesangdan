@@ -8,16 +8,6 @@ export const PROFILE = {
   provider: '카카오',
 }
 
-export const MY_RECORD = {
-  co2eTotalKg: 83,
-  reusedCount: 3,
-  byItem: [
-    { title: '전자레인지', kg: 24 },
-    { title: '책상', kg: 41 },
-    { title: '의자', kg: 18 },
-  ],
-}
-
 export interface RegisteredItem {
   id: string
   title: string

@@ -4,14 +4,14 @@ import MaterialIcon from '../icons/MaterialIcon'
 import { formatNumber } from './format'
 
 interface MyTreeCardProps {
-  co2eKg: number
+  carbonReductionKg: number
   /** 캠페인 탭이면 "이번 캠페인에서 …" 문구 */
   campaign: boolean
 }
 
 /** ④ 내가 키운 나무 (로그인 시에만). 카드 전체가 마이페이지 링크다. */
-export default function MyTreeCard({ co2eKg, campaign }: MyTreeCardProps) {
-  const trees = formatNumber(treesFromKg(co2eKg))
+export default function MyTreeCard({ carbonReductionKg, campaign }: MyTreeCardProps) {
+  const trees = formatNumber(treesFromKg(carbonReductionKg))
 
   return (
     <Link
@@ -26,7 +26,7 @@ export default function MyTreeCard({ co2eKg, campaign }: MyTreeCardProps) {
           {campaign ? `이번 캠페인에서 내가 키운 나무는 ${trees}그루예요` : `내가 키운 나무는 ${trees}그루예요`}
         </div>
         <div className="mt-0.5 text-[12px] font-medium">
-          {formatNumber(co2eKg)}kg CO₂e · 마이페이지에서 자세히 보기
+          {formatNumber(carbonReductionKg)}kg CO₂e · 마이페이지에서 자세히 보기
         </div>
       </div>
       <MaterialIcon name="chevron_right" size={18} color="var(--color-terracotta-ink)" />
