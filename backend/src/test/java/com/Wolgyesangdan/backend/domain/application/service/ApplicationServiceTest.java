@@ -7,11 +7,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.Wolgyesangdan.backend.domain.application.dto.ApplicationCreateResponse;
+import com.Wolgyesangdan.backend.domain.application.dto.MyApplicationSummaryResponse;
 import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.application.exception.ApplicationErrorCode;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
@@ -30,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
 
 /**
  * 실제 MySQL에서 물품 신청 확인. 끝나면 롤백된다.
@@ -275,6 +278,92 @@ class ApplicationServiceTest {
 
 		assertThat(item.getStatus()).isEqualTo(ItemStatus.CLOSED);
 		assertThat(item.getApplicantCount()).isEqualTo(3);
+	}
+
+	@Test
+	void 내가_신청한_물품_목록을_최근_신청순으로_내려준다() {
+		Item older = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		persist(ItemImage.builder().item(older).imageUrl("https://img/older.jpg").displayOrder(0).build());
+		ApplicationCreateResponse olderResponse = applicationService.apply(applicant.getId(), older.getId());
+		entityManager.flush();
+
+		Item newer = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		persist(ItemImage.builder().item(newer).imageUrl("https://img/newer.jpg").displayOrder(0).build());
+		ApplicationCreateResponse newerResponse = applicationService.apply(applicant.getId(), newer.getId());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent()).hasSize(2);
+		MyApplicationSummaryResponse first = result.getContent().get(0);
+		assertThat(first.id()).isEqualTo(newerResponse.id());
+		assertThat(first.itemId()).isEqualTo(newer.getId());
+		assertThat(first.itemName()).isEqualTo(newer.getName());
+		assertThat(first.itemThumbnailImageUrl()).isEqualTo("https://img/newer.jpg");
+		assertThat(first.status()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(first.waitlistRank()).isEqualTo(1);
+		assertThat(result.getContent().get(1).id()).isEqualTo(olderResponse.id());
+	}
+
+	@Test
+	void 대표_사진은_표시_순서가_가장_앞선_사진이다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		persist(ItemImage.builder().item(item).imageUrl("https://img/second.jpg").displayOrder(1).build());
+		persist(ItemImage.builder().item(item).imageUrl("https://img/first.jpg").displayOrder(0).build());
+		applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).itemThumbnailImageUrl()).isEqualTo("https://img/first.jpg");
+	}
+
+	@Test
+	void 물품에_사진이_없으면_대표_사진은_null이다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).itemThumbnailImageUrl()).isNull();
+	}
+
+	@Test
+	void 취소하면_waitlistRank가_null로_내려준다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.cancel(applicant.getId(), response.id());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).status()).isEqualTo(ApplicationStatus.CANCELED);
+		assertThat(result.getContent().get(0).waitlistRank()).isNull();
+	}
+
+	// 배정 확정 후에도 대기 순번을 그대로 보여준다 — "대기 1번이었어요" 화면 (요구사항 APPL-07, 2026-09-26 결정)
+	@Test
+	void 배정_후에도_waitlistRank가_그대로_내려준다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		Application application = entityManager.find(Application.class, response.id());
+		application.select(LocalDateTime.now());
+		entityManager.flush();
+
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent().get(0).status()).isEqualTo(ApplicationStatus.SELECTED);
+		assertThat(result.getContent().get(0).waitlistRank()).isEqualTo(1);
+	}
+
+	@Test
+	void 신청한_적이_없으면_빈_목록() {
+		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
+
+		assertThat(result.getContent()).isEmpty();
 	}
 
 	private User persistEligibleApplicant(String nickname) {

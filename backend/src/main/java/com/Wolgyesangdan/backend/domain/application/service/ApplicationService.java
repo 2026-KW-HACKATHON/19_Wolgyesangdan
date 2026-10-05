@@ -1,16 +1,22 @@
 package com.Wolgyesangdan.backend.domain.application.service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.Wolgyesangdan.backend.domain.application.dto.ApplicationCreateResponse;
+import com.Wolgyesangdan.backend.domain.application.dto.MyApplicationSummaryResponse;
 import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.application.exception.ApplicationErrorCode;
 import com.Wolgyesangdan.backend.domain.application.repository.ApplicationRepository;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
+import com.Wolgyesangdan.backend.domain.item.repository.ItemImageRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
@@ -19,6 +25,9 @@ import com.Wolgyesangdan.backend.global.exception.BusinessException;
 import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +38,7 @@ public class ApplicationService {
 
 	private final ApplicationRepository applicationRepository;
 	private final ItemRepository itemRepository;
+	private final ItemImageRepository itemImageRepository;
 	private final UserRepository userRepository;
 	private final VerificationService verificationService;
 
@@ -107,6 +117,30 @@ public class ApplicationService {
 		application.cancel();
 		item.decreaseApplicantCount(LocalDateTime.now());
 		recalculateWaitlistRanks(item);
+	}
+
+	/**
+	 * 마이페이지 "내가 신청한 물품" — 최근 신청순. 대표 사진은 페이지에 담긴 물품 id로 한 번씩만 조회해서 붙인다 (N+1 방지).
+	 */
+	public Page<MyApplicationSummaryResponse> getMyApplications(Long userId, int page, int size) {
+		Page<Application> applications = applicationRepository.findByApplicantId(userId,
+				PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+		List<Long> itemIds = applications.map(application -> application.getItem().getId()).getContent();
+		if (itemIds.isEmpty()) {
+			return applications.map(application -> MyApplicationSummaryResponse.of(application, null));
+		}
+
+		Map<Long, String> thumbnails = findThumbnails(itemIds);
+		return applications.map(application -> MyApplicationSummaryResponse.of(application,
+				thumbnails.get(application.getItem().getId())));
+	}
+
+	private Map<Long, String> findThumbnails(List<Long> itemIds) {
+		return itemImageRepository.findByItemIdIn(itemIds).stream()
+				.collect(Collectors.groupingBy(image -> image.getItem().getId(),
+						Collectors.collectingAndThen(
+								Collectors.minBy(Comparator.comparingInt(ItemImage::getDisplayOrder)),
+								image -> image.map(ItemImage::getImageUrl).orElse(null))));
 	}
 
 	private void recalculateWaitlistRanks(Item item) {
