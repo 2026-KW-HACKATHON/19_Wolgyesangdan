@@ -9,7 +9,7 @@ import PrimaryButton from '../components/PrimaryButton'
 import TextField from '../components/TextField'
 import Toast from '../components/Toast'
 import { useContact } from '../contexts/ContactContext'
-import type { CategoryGroup, Condition, TransportDifficulty } from '../data/items'
+import type { CategoryGroup, ConditionGrade as Condition, TransportDifficulty } from '../types/item'
 import type { UploadedFile } from '../types/verification'
 
 const CATEGORY_OPTIONS: CategoryGroup[] = ['가구', '가전', '주방', '생활', '기타']
