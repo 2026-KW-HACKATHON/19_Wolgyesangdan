@@ -1,20 +1,22 @@
-import {
-  MOCK_CAMPAIGN_REPORT,
-  MOCK_DONG_REPORT,
-  type CampaignReport,
-  type DongReport,
-  type ReportScope,
-} from '../data/carbonReport'
-import { isLoggedIn } from '../lib/authStorage'
+import type { CarbonReport, ReportScope } from '../data/carbonReport'
+import { apiFetch } from './client'
 
-export function fetchCarbonReport(scope: 'dong'): Promise<DongReport>
-export function fetchCarbonReport(scope: 'campaign'): Promise<CampaignReport>
-export function fetchCarbonReport(scope: ReportScope): Promise<DongReport | CampaignReport>
+/** 백엔드 GET /users/me/impact 응답 */
+export interface MyImpact {
+  givenCount: number
+  receivedCount: number
+  carbonReductionKg: number
+}
+
 /**
- * 탄소절감 리포트 조회. 비로그인도 볼 수 있고, 로그인 상태면 me(내 기여분)가 함께 온다.
- * TODO: 백엔드 GET /carbon-report 구현 후 apiFetch(`/carbon-report?scope=${scope}`)로 교체
+ * 탄소절감 리포트. 비회원도 볼 수 있고, 로그인 상태면 myCarbonReductionKg가 함께 온다.
+ * scope=CAMPAIGN인데 진행 중·예정 캠페인이 없으면 에러가 아니라 campaign: null (전부 0)로 온다.
  */
-export async function fetchCarbonReport(scope: ReportScope) {
-  const report = scope === 'dong' ? MOCK_DONG_REPORT : MOCK_CAMPAIGN_REPORT
-  return isLoggedIn() ? report : { ...report, me: undefined }
+export function fetchCarbonReport(scope: ReportScope) {
+  return apiFetch<CarbonReport>(`/carbon-report?scope=${scope}`)
+}
+
+/** 나의 자원순환 기록 (로그인 필요) */
+export function fetchMyImpact() {
+  return apiFetch<MyImpact>('/users/me/impact')
 }

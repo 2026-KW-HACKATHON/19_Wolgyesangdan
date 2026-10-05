@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
+import com.Wolgyesangdan.backend.domain.campaign.service.CampaignService;
 import com.Wolgyesangdan.backend.domain.carbonreport.dto.MyImpactResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
@@ -33,7 +34,7 @@ import org.springframework.context.annotation.Import;
  */
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaAuditingConfig.class, CarbonReportService.class})
+@Import({JpaAuditingConfig.class, CarbonReportService.class, CampaignService.class})
 class MyImpactQueryTest {
 
 	@Autowired
