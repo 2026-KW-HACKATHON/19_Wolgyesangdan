@@ -1,17 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { fetchMyImpact, type MyImpact } from '../api/carbonReport'
 import MaterialIcon from '../components/icons/MaterialIcon'
+import AppliedList from '../components/mypage/AppliedList'
 import { useContact } from '../contexts/ContactContext'
-import {
-  APPLIED_ITEMS,
-  MY_RECORD,
-  PROFILE,
-  REGISTERED_ITEMS,
-  type AppliedItem,
-  type RegisteredItem,
-} from '../data/mypage'
+import { PROFILE, REGISTERED_ITEMS, type RegisteredItem } from '../data/mypage'
 import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
+import { isLoggedIn } from '../lib/authStorage'
 
 type TabKey = 'registered' | 'applied'
 
@@ -58,34 +54,73 @@ function ProfileRow({ verification }: { verification: VerificationSummary }) {
   )
 }
 
+/** 나의 자원순환 기록 — GET /users/me/impact (거래 완료 기준) */
 function RecordCard() {
-  const maxKg = Math.max(...MY_RECORD.byItem.map((i) => i.kg), 1)
+  const loggedIn = isLoggedIn()
+  const [impact, setImpact] = useState<MyImpact | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (!loggedIn) return
+    let cancelled = false
+    fetchMyImpact()
+      .then((data) => {
+        if (!cancelled) setImpact(data)
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [loggedIn])
+
+  const rows = impact
+    ? [
+        { title: '전달 완료', count: impact.givenCount },
+        { title: '수령 완료', count: impact.receivedCount },
+      ]
+    : []
+  const maxCount = Math.max(...rows.map((row) => row.count), 1)
+
   return (
     <div className="mx-5 rounded-[18px] bg-primary-tint px-5 py-[18px]">
       <div className="text-[14px] font-bold text-body">나의 자원순환 기록</div>
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-[32px] font-extrabold tracking-[-0.023em] text-primary-dark">{MY_RECORD.co2eTotalKg}</span>
-        <span className="text-[15px] font-bold text-primary-dark">kg CO₂e</span>
-        <span className="ml-auto text-[13px] font-semibold text-primary-tint-ink">재사용 {MY_RECORD.reusedCount}개</span>
-      </div>
-      <div className="mt-0.5 text-[12px] font-medium text-primary-tint-ink opacity-80">
-        지금까지 줄인 것으로 예상되는 양이에요
-      </div>
-      <div className="mt-3.5 flex flex-col gap-[9px]">
-        {MY_RECORD.byItem.map((item, i) => (
-          <div key={item.title} className="flex items-center gap-2.5">
-            <span className="w-18 flex-none text-[13px] font-semibold text-body">{item.title}</span>
-            <span className="h-[7px] flex-1 overflow-hidden rounded-full bg-surface">
-              <span
-                // 0에서 제 값까지 자라고, 아래 행일수록 조금씩 늦게 시작한다
-                className="block h-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
-                style={{ width: `${(item.kg / maxKg) * 100}%`, animationDelay: `${i * 0.08}s` }}
-              />
+      {!loggedIn || failed ? (
+        <p className="mt-2 text-[13px] font-medium text-primary-tint-ink">
+          {loggedIn ? '기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.' : '로그인하면 나의 기록을 볼 수 있어요.'}
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-[32px] font-extrabold tracking-[-0.023em] text-primary-dark">
+              {impact ? impact.carbonReductionKg.toLocaleString('ko-KR') : '–'}
             </span>
-            <span className="w-11 text-right text-[13px] font-bold text-primary-dark">{item.kg}kg</span>
+            <span className="text-[15px] font-bold text-primary-dark">kg CO₂e</span>
+            <span className="ml-auto text-[13px] font-semibold text-primary-tint-ink">
+              재사용 {impact ? impact.givenCount + impact.receivedCount : '–'}개
+            </span>
           </div>
-        ))}
-      </div>
+          <div className="mt-0.5 text-[12px] font-medium text-primary-tint-ink opacity-80">
+            지금까지 줄인 것으로 예상되는 양이에요
+          </div>
+          <div className="mt-3.5 flex flex-col gap-[9px]">
+            {rows.map((row, i) => (
+              <div key={row.title} className="flex items-center gap-2.5">
+                <span className="w-18 flex-none text-[13px] font-semibold text-body">{row.title}</span>
+                <span className="h-[7px] flex-1 overflow-hidden rounded-full bg-surface">
+                  <span
+                    // 0에서 제 값까지 자라고, 아래 행일수록 조금씩 늦게 시작한다
+                    className="block h-full animate-bar-grow-x rounded-full bg-primary motion-reduce:animate-none"
+                    style={{ width: `${(row.count / maxCount) * 100}%`, animationDelay: `${i * 0.08}s` }}
+                  />
+                </span>
+                <span className="w-11 text-right text-[13px] font-bold text-primary-dark">{row.count}회</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -151,154 +186,6 @@ function RegisteredList({ items }: { items: RegisteredItem[] }) {
   )
 }
 
-/** 대기 순번 5칸 바. 내 순번 이전 칸은 진하게, 내 칸은 중간 톤으로 표시한다. */
-function WaitlistBar({ myNo, total }: { myNo: number; total: number }) {
-  return (
-    <div className="mt-2.5 flex gap-1">
-      {Array.from({ length: total }, (_, i) => {
-        const cls =
-          i < myNo - 1 ? 'bg-primary' : i === myNo - 1 ? 'bg-primary-mid' : 'bg-surface'
-        return <span key={i} className={`h-[7px] flex-1 rounded-full ${cls}`} />
-      })}
-    </div>
-  )
-}
-
-function ContactTile({ contact }: { contact: NonNullable<AppliedItem['contact']> }) {
-  if (contact.type === 'openchat') {
-    return (
-      <div className="mt-2.5 flex items-center gap-[9px] rounded-[14px] border border-border bg-surface px-3.5 py-3">
-        <span className="flex size-[34px] flex-none items-center justify-center rounded-[11px] bg-kakao text-kakao-ink">
-          <MaterialIcon name="chat_bubble" size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-bold text-label">카카오 오픈채팅방</div>
-          <div className="truncate text-[12px] font-medium text-label-alt">{contact.value}</div>
-        </div>
-        <a
-          href={`https://${contact.value}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex-none rounded-[10px] bg-primary px-2.5 py-2 text-[12px] font-bold text-screen"
-        >
-          열기
-        </a>
-      </div>
-    )
-  }
-  return (
-    <div className="mt-2.5 flex items-center gap-[9px] rounded-[14px] border border-border bg-surface px-3.5 py-3">
-      <MaterialIcon name="call" size={18} className="text-accent" />
-      <span className="flex-1 text-[14px] font-bold text-label">{contact.value}</span>
-    </div>
-  )
-}
-
-function AppliedList({ items, onCancel }: { items: AppliedItem[]; onCancel: (id: string) => void }) {
-  const navigate = useNavigate()
-
-  if (items.length === 0) {
-    return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">아직 신청한 물품이 없어요</p>
-  }
-
-  return (
-    <div className="flex flex-col gap-3 px-5">
-      {items.map((item) => {
-        const assigned = item.status === 'ASSIGNED'
-        const done = item.status === 'DONE'
-        return (
-          <div
-            key={item.id}
-            className={`rounded-[20px] bg-surface p-3.5 ${
-              assigned ? 'border-2 border-primary' : 'border border-border'
-            } ${done ? 'opacity-85' : ''}`}
-          >
-            <div className="flex gap-3">
-              <span className={`flex size-[72px] flex-none items-center justify-center rounded-2xl ${item.iconClassName}`}>
-                <MaterialIcon name={item.icon} size={30} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <span
-                  className={`inline-block rounded-[7px] px-[7px] py-[3px] text-[11px] font-bold ${
-                    assigned
-                      ? 'bg-primary text-screen'
-                      : done
-                        ? 'bg-sunken text-ink-2'
-                        : 'bg-amber-badge text-amber-badge-ink'
-                  }`}
-                >
-                  {assigned ? '나에게 배정됨' : done ? '전달 완료' : '배정 중'}
-                </span>
-                <div className="mt-1.5 text-[16px] font-bold text-label">{item.title}</div>
-                <div className="mt-0.5 text-[13px] font-medium text-label-alt">
-                  {done && item.co2eKg ? `${item.meta} · ${item.co2eKg}kg CO₂e 절감` : item.meta}
-                </div>
-              </div>
-            </div>
-
-            {item.status === 'WAITING' && item.waitlistNo && item.waitlistCount && (
-              <div className="mt-3 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-[14px] font-bold text-body">대기</span>
-                  <span className="text-[26px] font-extrabold tracking-[-0.02em] text-primary-dark">{item.waitlistNo}</span>
-                  <span className="text-[15px] font-bold text-primary-dark">번</span>
-                  <span className="ml-auto text-[13px] font-semibold text-primary-tint-ink">
-                    신청자 {item.waitlistCount}명 중
-                  </span>
-                </div>
-                <WaitlistBar myNo={item.waitlistNo} total={item.waitlistCount} />
-                <p className="mt-2.5 text-[12px] leading-normal font-medium text-primary-tint-ink">
-                  {item.waitlistNo === item.waitlistCount
-                    ? '대기는 5번까지만 받아요. 마지막 순번이라 배정이 어려울 수 있어요.'
-                    : '앞 순번이 취소하면 자동으로 올라가요. 우선배정 인증을 하면 순번이 앞당겨질 수 있어요.'}
-                </p>
-              </div>
-            )}
-
-            {assigned && (
-              <>
-                <div className="mt-3 flex items-center gap-2 rounded-[14px] bg-primary-tint px-3.5 py-3">
-                  <MaterialIcon name="check_circle" size={19} className="flex-none text-accent" />
-                  <span className="text-[13px] font-semibold text-primary-tint-ink">
-                    대기 {item.waitlistNo}번이었어요. 등록자와 약속을 잡아주세요.
-                  </span>
-                </div>
-                {item.contact && (
-                  <div className="mt-2.5 rounded-[14px] border border-border bg-surface px-3.5 py-[13px]">
-                    <div className="text-[12px] font-bold text-label-alt">등록자가 선택한 연락 수단</div>
-                    <ContactTile contact={item.contact} />
-                  </div>
-                )}
-              </>
-            )}
-
-            {item.status !== 'DONE' && (
-              <div className="mt-2.5 flex gap-2">
-                {item.status === 'WAITING' && (
-                  <button
-                    type="button"
-                    onClick={() => onCancel(item.id)}
-                    className="flex-1 cursor-pointer rounded-xl border border-border py-2.5 text-[13px] font-bold text-ink-2"
-                  >
-                    신청 취소
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => navigate(`/items/${item.id}`)}
-                  className="flex-1 cursor-pointer rounded-xl bg-primary py-2.5 text-[13px] font-bold text-screen"
-                >
-                  물품 보기
-                </button>
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function MenuRows() {
   const navigate = useNavigate()
   const { contact } = useContact()
@@ -331,17 +218,10 @@ function MenuRows() {
 export default function MyPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: TabKey = searchParams.get('tab') === 'applied' ? 'applied' : 'registered'
-  const [applied, setApplied] = useState<AppliedItem[]>(APPLIED_ITEMS)
   const verification = summarizeVerification(useMyVerifications().verifications)
 
   const changeTab = (next: TabKey) => {
     setSearchParams(next === 'applied' ? { tab: 'applied' } : {}, { replace: true })
-  }
-
-  const handleCancel = (id: string) => {
-    // TODO: DELETE /applications/:id 연동. 취소하면 뒤 순번이 자동으로 당겨진다.
-    if (!window.confirm('신청을 취소할까요?')) return
-    setApplied((prev) => prev.filter((item) => item.id !== id))
   }
 
   const tabs: { key: TabKey; label: string }[] = [
@@ -388,7 +268,7 @@ export default function MyPage() {
             <MenuRows />
           </>
         ) : (
-          <AppliedList items={applied} onCancel={handleCancel} />
+          <AppliedList />
         )}
       </div>
     </div>

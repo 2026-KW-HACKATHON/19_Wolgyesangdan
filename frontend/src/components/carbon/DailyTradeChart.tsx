@@ -4,6 +4,8 @@ import MaterialIcon from '../icons/MaterialIcon'
 import { formatMonthDay } from './format'
 
 const MAX_BAR_PX = 84
+/** 칸이 이보다 많으면 막대 위 숫자는 최다일·오늘만 보여준다 (좁은 칸에서 숫자가 겹침) */
+const MAX_LABELED_CELLS = 20
 
 interface DayCell {
   date: string
@@ -15,12 +17,12 @@ function toDateString(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** startAt ~ endAt 전체 일수만큼 칸을 만들고, 거래 기록이 없는 날(남은 날)은 count를 비운다. */
-function buildCells(startAt: string, endAt: string, daily: DailyTrade[]): DayCell[] {
-  const counts = new Map(daily.map((d) => [d.date, d.count]))
+/** startDate ~ endDate 전체 일수만큼 칸을 만들고, 거래 기록이 없는 날(남은 날)은 count를 비운다. */
+function buildCells(startDate: string, endDate: string, dailyTrend: DailyTrade[]): DayCell[] {
+  const counts = new Map(dailyTrend.map((d) => [d.date, d.count]))
   const cells: DayCell[] = []
-  const end = new Date(`${endAt}T00:00:00`)
-  for (let d = new Date(`${startAt}T00:00:00`); d <= end; d.setDate(d.getDate() + 1)) {
+  const end = new Date(`${endDate}T00:00:00`)
+  for (let d = new Date(`${startDate}T00:00:00`); d <= end; d.setDate(d.getDate() + 1)) {
     const date = toDateString(d)
     cells.push({ date, count: counts.get(date) ?? null })
   }
@@ -28,18 +30,19 @@ function buildCells(startAt: string, endAt: string, daily: DailyTrade[]): DayCel
 }
 
 interface DailyTradeChartProps {
-  startAt: string
-  endAt: string
-  daily: DailyTrade[]
+  startDate: string
+  endDate: string
+  dailyTrend: DailyTrade[]
 }
 
 /** 5c ②′ 날짜별 거래 차트 + 최다 거래일 인사이트 */
-export default function DailyTradeChart({ startAt, endAt, daily }: DailyTradeChartProps) {
+export default function DailyTradeChart({ startDate, endDate, dailyTrend }: DailyTradeChartProps) {
   const [selected, setSelected] = useState<string | null>(null)
-  const cells = buildCells(startAt, endAt, daily)
+  const cells = buildCells(startDate, endDate, dailyTrend)
+  const crowded = cells.length > MAX_LABELED_CELLS
   const todayDate = toDateString(new Date())
-  const maxCount = Math.max(1, ...daily.map((d) => d.count))
-  const peak = daily.reduce<DailyTrade | null>((best, d) => (!best || d.count > best.count ? d : best), null)
+  const maxCount = Math.max(1, ...dailyTrend.map((d) => d.count))
+  const peak = dailyTrend.reduce<DailyTrade | null>((best, d) => (!best || d.count > best.count ? d : best), null)
 
   return (
     <>
@@ -69,7 +72,7 @@ export default function DailyTradeChart({ startAt, endAt, daily }: DailyTradeCha
                 <span
                   className={`h-3 text-[10px] leading-3 font-bold ${isPeak ? 'text-primary-dark' : 'text-label-alt'}`}
                 >
-                  {cell.count ?? ''}
+                  {crowded && !isPeak && !isToday ? '' : (cell.count ?? '')}
                 </span>
                 {isRemaining ? (
                   <span className="box-border h-2 w-full max-w-3.5 rounded-[5px] border-[1.5px] border-dashed border-border-deep" />

@@ -32,13 +32,21 @@ public class CampaignService {
 	}
 
 	ActiveCampaignResponse getActiveCampaign(LocalDate today) {
-		// 캠페인은 운영진이 회차별로 몇 개만 넣으므로 전부 읽어서 고른다
-		List<Campaign> campaigns = campaignRepository.findAll();
-		return findEarliestStarting(campaigns, today, CampaignStatus.ACTIVE)
-				.or(() -> findEarliestStarting(campaigns, today, CampaignStatus.PLANNED))
+		return findCurrentCampaign(today)
 				.map(campaign -> ActiveCampaignResponse.of(campaign, campaign.statusOn(today),
 						itemRepository.summarizeCompletedByCampaignId(campaign.getId())))
 				.orElse(null);
+	}
+
+	/**
+	 * today 기준 진행 중인 캠페인, 없으면 가장 먼저 시작할 예정 캠페인.
+	 * 탄소절감 리포트의 "이번 캠페인" 범위도 이 캠페인을 쓴다.
+	 */
+	public Optional<Campaign> findCurrentCampaign(LocalDate today) {
+		// 캠페인은 운영진이 회차별로 몇 개만 넣으므로 전부 읽어서 고른다
+		List<Campaign> campaigns = campaignRepository.findAll();
+		return findEarliestStarting(campaigns, today, CampaignStatus.ACTIVE)
+				.or(() -> findEarliestStarting(campaigns, today, CampaignStatus.PLANNED));
 	}
 
 	private Optional<Campaign> findEarliestStarting(List<Campaign> campaigns, LocalDate today, CampaignStatus status) {

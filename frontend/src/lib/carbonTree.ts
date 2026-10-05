@@ -38,17 +38,17 @@ export interface TreeProgress {
   fruits: number
 }
 
-export function treeProgress(co2eKg: number, reusedCount: number): TreeProgress {
+export function treeProgress(carbonReductionKg: number, reusedCount: number): TreeProgress {
   let level = TREE_LEVELS[0]
   for (const l of TREE_LEVELS) {
-    if (co2eKg >= l.min) level = l
+    if (carbonReductionKg >= l.min) level = l
   }
   const next = TREE_LEVELS[level.lv] ?? null
   return {
     level,
     next,
-    remainKg: next ? next.min - co2eKg : 0,
-    progress: next ? (co2eKg - level.min) / (next.min - level.min) : 1,
+    remainKg: next ? next.min - carbonReductionKg : 0,
+    progress: next ? (carbonReductionKg - level.min) / (next.min - level.min) : 1,
     fruits: Math.min(Math.floor(reusedCount / ITEMS_PER_FRUIT), level.maxFruits),
   }
 }
