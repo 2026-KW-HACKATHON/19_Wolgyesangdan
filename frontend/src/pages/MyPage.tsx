@@ -8,7 +8,7 @@ import { useContact } from '../contexts/ContactContext'
 import { useMyInfo } from '../hooks/useMyInfo'
 import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
-import { isLoggedIn } from '../lib/authStorage'
+import { clearTokens, isLoggedIn } from '../lib/authStorage'
 import { formatJoinedPeriod, nicknameInitial } from '../lib/profile'
 
 type TabKey = 'registered' | 'applied'
@@ -196,6 +196,15 @@ function MenuRows() {
 export default function MyPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: TabKey = searchParams.get('tab') === 'applied' ? 'applied' : 'registered'
+  const navigate = useNavigate()
+  const loggedIn = isLoggedIn()
+
+  // 로그아웃 API는 MVP에서 만들지 않음 — 이 기기의 토큰만 지우고 홈으로 간다
+  const handleLogout = () => {
+    if (!window.confirm('로그아웃할까요?')) return
+    clearTokens()
+    navigate('/', { replace: true })
+  }
   const { verifications } = useMyVerifications()
   const verification = summarizeVerification(verifications)
   const neighborhoodVerified = verifications.some(
@@ -215,7 +224,16 @@ export default function MyPage() {
     <div className="flex flex-col pb-4">
       <header className="flex h-14 items-center px-5">
         <h1 className="flex-1 font-hand text-[24px] font-bold text-label">마이페이지</h1>
-        <MaterialIcon name="settings" size={22} className="text-ink-2" />
+        {loggedIn && (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex cursor-pointer items-center gap-1 rounded-full px-2 py-1.5 text-[13px] font-semibold text-ink-2"
+          >
+            <MaterialIcon name="logout" size={18} />
+            로그아웃
+          </button>
+        )}
       </header>
 
       <ProfileRow verification={verification} neighborhoodVerified={neighborhoodVerified} />
