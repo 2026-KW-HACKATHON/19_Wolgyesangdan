@@ -105,6 +105,7 @@ export default function PriorityDocumentPage({ type, onBack, onSubmitSuccess }: 
       <ChoiceChips label="서류 종류" required options={option.docTypes} value={docType} onChange={setDocType} />
 
       <PhotoUploadGrid
+        label="서류 사진"
         files={uploads.map((u) => u.meta)}
         max={MAX_FILES}
         thumbIcon="description"
