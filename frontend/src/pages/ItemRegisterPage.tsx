@@ -408,10 +408,7 @@ export default function ItemRegisterPage() {
       </form>
 
       {showSheet && (
-        <ContactRequiredSheet
-          onSetup={() => navigate('/settings/contact?next=/register')}
-          onLater={() => setSheetOpen(false)}
-        />
+        <ContactRequiredSheet onSetup={() => navigate('/settings/contact?next=/register')} />
       )}
 
       <Toast visible={toastVisible}>물품을 등록했어요</Toast>
