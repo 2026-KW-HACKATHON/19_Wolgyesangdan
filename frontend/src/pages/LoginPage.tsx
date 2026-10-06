@@ -86,7 +86,7 @@ export default function LoginPage({ onBrowse }: LoginPageProps) {
           className={`mt-2.5 font-hand text-[44px] leading-[1.1] font-bold text-accent ${FADE_UP}`}
           style={enter(0.2)}
         >
-          월계상단
+          월계장터
         </h1>
         <p className={`mt-0.5 text-[12px] font-bold tracking-[0.3em] text-amber-ink ${FADE_UP}`} style={enter(0.35)}>
           월계1동 나눔장터

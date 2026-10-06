@@ -46,7 +46,7 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-5 pb-6">
       <header className="flex items-center gap-2 px-5 pt-3.5">
-        <span className="text-2xl font-bold text-[var(--color-accent)]">월계상단</span>
+        <span className="text-2xl font-bold text-[var(--color-accent)]">월계장터</span>
         <span className="rounded-md bg-[#EBE4D1] px-2 py-0.5 text-xs font-semibold text-[var(--color-label-alt)]">
           월계1동
         </span>

@@ -5,7 +5,7 @@ interface MarketLogoProps {
 }
 
 /**
- * 월계상단 로고 — 시장 차양(awning) 모티프.
+ * 월계장터 로고 — 시장 차양(awning) 모티프.
  * 디자인 핸드오프의 인라인 SVG 스케치를 그대로 옮긴 임시 로고입니다.
  * README: "확정 전 디자이너 정리 또는 원본 로고 파일 교체를 권합니다."
  */
@@ -18,7 +18,7 @@ export default function MarketLogo({ width = 180, height = 104, className }: Mar
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="월계상단 로고"
+      aria-label="월계장터 로고"
       className={className}
     >
       <rect x="86" y="2" width="8" height="12" rx="4" fill="#4F6B2A" />

@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 
-// 로그인 화면 그림 — 마주 선 상단(보부상) 차림의 두 사람이 물건을 손에서 손으로 맞바꿀 때마다 뒤의 나무가 한 단계씩 자란다.
+// 로그인 화면 그림 — 마주 선 보부상 차림의 두 사람이 물건을 손에서 손으로 맞바꿀 때마다 뒤의 나무가 한 단계씩 자란다.
 // 한 바퀴 = 6박자: 0 작은 나무 → 1~4 교환할 때마다 성장(4번째에 다 자람) → 5 다 자란 채로 한 박자 쉼 → 처음으로.
 // 박자는 state로 세고, 움직임 자체는 CSS transition·animation(index.css의 exchange-*)이 맡는다.
 //
@@ -31,7 +31,7 @@ const LEAF_2 = '#6B8A44'
 const LEAF_3 = '#5E7F35'
 const FRUIT_A = '#E4A574'
 const FRUIT_B = '#B9603A'
-// 상단 사람 — 패랭이(목화송이 달린 갓), 흰 저고리·바지에 색 배자, 등에 봇짐, 짚신
+// 보부상 — 패랭이(목화송이 달린 갓), 흰 저고리·바지에 색 배자, 등에 봇짐, 짚신
 const SKIN = '#F6DDBF'
 const CHEEK = '#F0A58E'
 const FACE = '#3F2C1C'
@@ -64,7 +64,7 @@ interface MerchantProps {
 }
 
 /**
- * 오른쪽을 보고 선 상단 사람 (발끝 y=128, 몸 중심 x=72). 오른쪽 사람은 이 그림을 좌우로 뒤집어 쓴다.
+ * 오른쪽을 보고 선 보부상 (발끝 y=128, 몸 중심 x=72). 오른쪽 사람은 이 그림을 좌우로 뒤집어 쓴다.
  * 머리를 크게 그린 2.5등신. 소매 넓은 팔을 내밀어 손(92,98) 위에 물건을 올려 든다.
  */
 function Merchant({ beat, exchanging, vest, bundle }: MerchantProps) {
@@ -180,7 +180,7 @@ export default function ExchangeScene({ className }: ExchangeSceneProps) {
       height={150}
       viewBox="0 0 240 150"
       role="img"
-      aria-label="상단 차림의 두 사람이 물건을 주고받을 때마다 나무가 자라는 그림"
+      aria-label="보부상 차림의 두 사람이 물건을 주고받을 때마다 나무가 자라는 그림"
       className={className}
     >
       <ellipse cx="120" cy="131" rx="106" ry="9" fill={GROUND} />
