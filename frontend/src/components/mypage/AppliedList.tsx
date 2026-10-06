@@ -17,6 +17,7 @@ import { isLoggedIn } from '../../lib/authStorage'
 import { TRADE_METHOD_LABEL } from '../../lib/item'
 import { RESERVATION_STATUS_LABEL, formatDateTime, formatMonthDay } from '../../lib/reservation'
 import MaterialIcon from '../icons/MaterialIcon'
+import EmptyState from '../EmptyState'
 import ContactTile from './ContactTile'
 
 /** 물품 하나에 받는 신청 정원 — 대기 순번 바의 칸 수 (백엔드 Item.MAX_APPLICANTS) */
@@ -238,7 +239,13 @@ export default function AppliedList() {
   }
 
   if (applications.length === 0) {
-    return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">아직 신청한 물품이 없어요</p>
+    return (
+      <EmptyState
+        title="아직 받아 온 물건이 없어요"
+        description="이웃이 내놓은 물건을 구경해 보세요"
+        action={{ label: '둘러보기', onClick: () => navigate('/browse') }}
+      />
+    )
   }
 
   return (
