@@ -339,22 +339,14 @@ export default function ItemDetail() {
             )}
           </div>
         )}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl border border-[var(--color-border)] text-[#4A4A40]"
-          >
-            <span className="ms text-xl">favorite</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApply(item.id)}
-            disabled={!canApply || applying}
-            className="h-12 flex-1 rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)] disabled:opacity-50"
-          >
-            {applyLabel}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => handleApply(item.id)}
+          disabled={!canApply || applying}
+          className="h-12 w-full rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)] disabled:opacity-50"
+        >
+          {applyLabel}
+        </button>
       </div>
 
       <Toast visible={toast.visible}>{toast.message}</Toast>
