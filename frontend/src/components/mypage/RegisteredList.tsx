@@ -6,6 +6,7 @@ import { isLoggedIn } from '../../lib/authStorage'
 import { formatMonthDay } from '../../lib/reservation'
 import type { ItemStatus, MyItemSummary } from '../../types/item'
 import MaterialIcon from '../icons/MaterialIcon'
+import EmptyState from '../EmptyState'
 import OwnerReservationSection from './OwnerReservationSection'
 
 /** 한 번에 받아 오는 물품 수 */
@@ -71,7 +72,13 @@ export default function RegisteredList() {
     return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">등록한 물품을 불러오는 중이에요…</p>
   }
   if (items.length === 0) {
-    return <p className="px-5 py-10 text-center text-[14px] font-medium text-label-alt">아직 등록한 물품이 없어요</p>
+    return (
+      <EmptyState
+        title="보따리가 비어 있어요"
+        description="안 쓰는 물건을 이웃에게 건네 보세요"
+        action={{ label: '물품 등록하기', onClick: () => navigate('/register') }}
+      />
+    )
   }
 
   return (

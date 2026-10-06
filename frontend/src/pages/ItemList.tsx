@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { getItems } from '../api/items'
 import SearchBar from '../components/SearchBar'
+import EmptyState from '../components/EmptyState'
 import FilterChip from '../components/FilterChip'
 import ItemGridCard from '../components/ItemGridCard'
 import { TRADE_METHOD_LABEL } from '../lib/item'
@@ -43,6 +44,12 @@ function fetchItems(
     page,
     size: PAGE_SIZE,
   })
+}
+
+/** 받침 유무에 따라 '은'/'는'을 고른다. 한글이 아니면 '는' (예: '책상'은, 'TV'는) */
+function topicParticle(word: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00
+  return code >= 0 && code <= 11171 && code % 28 !== 0 ? '은' : '는'
 }
 
 function toMessage(e: unknown) {
@@ -238,9 +245,25 @@ export default function ItemList() {
       )}
 
       {current && items.length === 0 && (
-        <p className="px-5 py-8 text-center text-sm font-medium text-[var(--color-label-alt)]">
-          {keyword ? `'${keyword}' 검색 결과가 없어요` : '조건에 맞는 물품이 없어요'}
-        </p>
+        keyword ? (
+          <EmptyState
+            title={`'${keyword}'${topicParticle(keyword)} 아직 장터에 없어요`}
+            description={
+              // 필터 때문에 안 보이는 것일 수 있으면 필터를 먼저 풀어 보게 한다
+              category !== '전체' || tradeMethod !== '전체'
+                ? '카테고리나 거래 방식을 전체로 바꿔 보세요'
+                : '다른 이름으로 찾아보거나 나중에 다시 들러 주세요'
+            }
+          />
+        ) : category !== '전체' || tradeMethod !== '전체' ? (
+          <EmptyState title="이 조건의 물건은 아직 없어요" description="다른 카테고리나 거래 방식도 둘러보세요" />
+        ) : (
+          <EmptyState
+            title="장터가 아직 조용해요"
+            description="첫 물건을 내놓고 동네 장터를 열어 보세요"
+            action={{ label: '물품 등록하기', onClick: () => navigate('/register') }}
+          />
+        )
       )}
 
       {current && !current.last && (

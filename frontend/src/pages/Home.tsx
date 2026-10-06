@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getItems } from '../api/items'
 import CampaignBanner from '../components/CampaignBanner'
+import EmptyState from '../components/EmptyState'
 import SearchBar from '../components/SearchBar'
 import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
@@ -110,14 +111,17 @@ export default function Home() {
             <ItemCard key={item.id} item={item} onClick={() => navigate(`/items/${item.id}`)} />
           ))}
         </div>
-        {(failed || previewItems === null || previewItems.length === 0) && (
+        {(failed || previewItems === null) && (
           <p className="px-5 py-6 text-center text-sm font-medium text-[var(--color-label-alt)]">
-            {failed
-              ? '물품을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.'
-              : previewItems === null
-                ? '물품을 불러오는 중이에요…'
-                : '아직 등록된 물품이 없어요'}
+            {failed ? '물품을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.' : '물품을 불러오는 중이에요…'}
           </p>
+        )}
+        {!failed && previewItems?.length === 0 && (
+          <EmptyState
+            title="장터가 아직 조용해요"
+            description="첫 물건을 내놓고 동네 장터를 열어 보세요"
+            action={{ label: '물품 등록하기', onClick: () => navigate('/register') }}
+          />
         )}
       </div>
 
