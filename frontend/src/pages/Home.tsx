@@ -21,6 +21,7 @@ const PREVIEW_COUNT = 4
 
 export default function Home() {
   const navigate = useNavigate()
+  const loggedIn = isLoggedIn()
   // 캠페인 배너 (GET /campaigns/active). 받는 중이거나 실패하면 배너 자리를 비워둔다
   const { campaign, active: campaignActive } = useActiveCampaign()
   // 최신 물품 4개 (GET /items). null은 아직 받는 중
@@ -49,7 +50,7 @@ export default function Home() {
           월계1동
         </span>
         <span className="flex-1" />
-        {!isLoggedIn() && (
+        {!loggedIn && (
           <button
             type="button"
             onClick={() => navigate('/login')}
@@ -120,7 +121,7 @@ export default function Home() {
         )}
       </div>
 
-      <InfoBanner>로그인 없이도 둘러볼 수 있어요. 신청할 때만 로그인이 필요해요</InfoBanner>
+      {!loggedIn && <InfoBanner>로그인 없이도 둘러볼 수 있어요. 신청할 때만 로그인이 필요해요</InfoBanner>}
     </div>
   )
 }
