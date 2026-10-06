@@ -3,6 +3,8 @@ import type { UploadedFile } from '../types/verification'
 import MaterialIcon from './icons/MaterialIcon'
 
 interface PhotoUploadGridProps {
+  /** 칸 제목 (예: "물품 사진", "서류 사진") */
+  label: string
   files: UploadedFile[]
   max?: number
   /** 썸네일 플레이스홀더 아이콘/색 (주민: description, 학생: badge) */
@@ -16,8 +18,9 @@ interface PhotoUploadGridProps {
   helperText?: string
 }
 
-/** 서류 사진 업로드 — 썸네일 목록 + 추가 슬롯 (최대 max장). */
+/** 사진 업로드 (물품 등록·우선배정 서류) — 썸네일 목록 + 추가 슬롯 (최대 max장). */
 export default function PhotoUploadGrid({
+  label,
   files,
   max = 3,
   thumbIcon,
@@ -40,7 +43,8 @@ export default function PhotoUploadGrid({
     <div className="px-5 pt-5">
       <div className="mb-[9px] flex items-center gap-1.5">
         <span className="text-[14px] font-bold text-body">
-          서류 사진<span className="text-terracotta"> *</span>
+          {label}
+          <span className="text-terracotta"> *</span>
         </span>
         <span className="ml-auto text-[12px] font-semibold text-label-alt">
           {files.length} / {max}

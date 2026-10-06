@@ -234,6 +234,7 @@ export default function ItemRegisterPage() {
         </header>
 
         <PhotoUploadGrid
+          label="물품 사진"
           files={files}
           max={MAX_PHOTOS}
           thumbIcon="image"
