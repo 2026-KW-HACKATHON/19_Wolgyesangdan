@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import MaterialIcon from '../components/icons/MaterialIcon'
+import Screen from '../components/Screen'
 import TopBar from '../components/TopBar'
 import { DOCUMENT_TYPE_LABEL, PRIORITY_OPTIONS } from '../data/priorityVerification'
 import { useMyInfo } from '../hooks/useMyInfo'
@@ -235,60 +236,63 @@ export default function MyVerificationPage() {
   const freshman = byType('FRESHMAN')
   const { info, loading: infoLoading } = useMyInfo()
 
+  // 바텀 탭 없는 화면(DetailLayout)은 각 화면이 스크롤 영역(Screen)을 직접 감싼다
   return (
-    <div className="flex flex-col pb-6">
-      <TopBar title="인증 관리" onBack={() => navigate('/mypage')} />
+    <Screen>
+      <div className="flex flex-col pb-6">
+        <TopBar title="인증 관리" onBack={() => navigate('/mypage')} />
 
-      <div className="flex items-center gap-3.5 px-5 pt-1 pb-4">
-        <span className="flex size-14 flex-none items-center justify-center rounded-full bg-primary-tint text-[22px] font-bold text-accent">
-          {info ? nicknameInitial(info.nickname) : <MaterialIcon name="person" size={26} />}
-        </span>
-        <div className="min-w-0">
-          <div className="truncate text-[17px] font-extrabold text-label">
-            {info ? info.nickname : infoLoading ? '' : '정보를 불러오지 못했어요'}
-          </div>
-          <div className="mt-0.5 text-[13px] font-medium text-label-alt">
-            {/* 로그인은 카카오만 지원한다 */}
-            {info ? `카카오 로그인 · ${formatJoinedPeriod(info.createdAt)}` : infoLoading ? '불러오는 중…' : '잠시 후 다시 확인해 주세요'}
+        <div className="flex items-center gap-3.5 px-5 pt-1 pb-4">
+          <span className="flex size-14 flex-none items-center justify-center rounded-full bg-primary-tint text-[22px] font-bold text-accent">
+            {info ? nicknameInitial(info.nickname) : <MaterialIcon name="person" size={26} />}
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-[17px] font-extrabold text-label">
+              {info ? info.nickname : infoLoading ? '' : '정보를 불러오지 못했어요'}
+            </div>
+            <div className="mt-0.5 text-[13px] font-medium text-label-alt">
+              {/* 로그인은 카카오만 지원한다 */}
+              {info ? `카카오 로그인 · ${formatJoinedPeriod(info.createdAt)}` : infoLoading ? '불러오는 중…' : '잠시 후 다시 확인해 주세요'}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="px-5">
-        <h2 className="pb-2.5 font-hand text-[22px] font-bold text-label">인증 상태</h2>
-        <div className="flex flex-col gap-2.5">
+        <div className="px-5">
+          <h2 className="pb-2.5 font-hand text-[22px] font-bold text-label">인증 상태</h2>
+          <div className="flex flex-col gap-2.5">
+            {loading ? (
+              <p className="py-4 text-center text-[13px] font-medium text-label-alt">인증 상태를 불러오는 중이에요…</p>
+            ) : (
+              <NeighborhoodRow verification={byType('NEIGHBORHOOD')} />
+            )}
+            {error && (
+              <p role="alert" className="text-[13px] font-semibold text-terracotta">
+                {error}
+              </p>
+            )}
+          </div>
+
+          <h2 className="pt-6 pb-1.5 font-hand text-[22px] font-bold text-label">우선배정 신청</h2>
+          <p className="pb-2.5 text-[13px] leading-[1.6] font-medium text-ink-3">
+            꼭 필요한 이웃에게 먼저 돌아가도록, 아래에 해당하면 서류를 추가로 올릴 수 있어요. 안 해도 신청은 할 수 있습니다.
+          </p>
           {loading ? (
             <p className="py-4 text-center text-[13px] font-medium text-label-alt">인증 상태를 불러오는 중이에요…</p>
           ) : (
-            <NeighborhoodRow verification={byType('NEIGHBORHOOD')} />
+            <>
+              {freshman ? <FreshmanCard verification={freshman} /> : <FreshmanRow />}
+              <LowIncomeCard verification={byType('LOW_INCOME')} />
+            </>
           )}
-          {error && (
-            <p role="alert" className="text-[13px] font-semibold text-terracotta">
-              {error}
-            </p>
-          )}
-        </div>
 
-        <h2 className="pt-6 pb-1.5 font-hand text-[22px] font-bold text-label">우선배정 신청</h2>
-        <p className="pb-2.5 text-[13px] leading-[1.6] font-medium text-ink-3">
-          꼭 필요한 이웃에게 먼저 돌아가도록, 아래에 해당하면 서류를 추가로 올릴 수 있어요. 안 해도 신청은 할 수 있습니다.
-        </p>
-        {loading ? (
-          <p className="py-4 text-center text-[13px] font-medium text-label-alt">인증 상태를 불러오는 중이에요…</p>
-        ) : (
-          <>
-            {freshman ? <FreshmanCard verification={freshman} /> : <FreshmanRow />}
-            <LowIncomeCard verification={byType('LOW_INCOME')} />
-          </>
-        )}
-
-        <div className="mt-4 flex gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3.5">
-          <MaterialIcon name="help" size={18} className="mt-px flex-none text-label-alt" />
-          <span className="text-[13px] leading-normal font-medium text-body">
-            인증이 거절되면 사유와 함께 알려드리고, 서류를 고쳐서 다시 올릴 수 있어요.
-          </span>
+          <div className="mt-4 flex gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3.5">
+            <MaterialIcon name="help" size={18} className="mt-px flex-none text-label-alt" />
+            <span className="text-[13px] leading-normal font-medium text-body">
+              인증이 거절되면 사유와 함께 알려드리고, 서류를 고쳐서 다시 올릴 수 있어요.
+            </span>
+          </div>
         </div>
       </div>
-    </div>
+    </Screen>
   )
 }
