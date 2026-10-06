@@ -56,12 +56,6 @@ function ProfileRow({ verification, neighborhoodVerified }: { verification: Veri
           {detail}
         </div>
       </div>
-      <button
-        type="button"
-        className="flex-none cursor-pointer rounded-full border border-border bg-surface px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap text-ink-2"
-      >
-        프로필 수정
-      </button>
     </div>
   )
 }
