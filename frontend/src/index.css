@@ -86,6 +86,23 @@
   --animate-critter-nod: critter-nod 3.2s ease-in-out infinite;
   --animate-critter-nibble: critter-nibble 0.4s ease-in-out infinite;
   --animate-critter-hop: critter-hop 1.7s ease-out infinite;
+  /* 빈 상태 보따리 위의 새 — 짧게 두 번 들썩이고 쉰다 */
+  --animate-bird-bob: bird-bob 2.4s ease-in-out infinite;
+
+  @keyframes bird-bob {
+    0%,
+    40%,
+    100% {
+      transform: translateY(0);
+    }
+    10%,
+    30% {
+      transform: translateY(-3px);
+    }
+    20% {
+      transform: translateY(0);
+    }
+  }
 
   /* 계속 왔다 갔다 — 사슴벌레 큰턱, 새 날개, 다람쥐 머리 */
   @keyframes critter-sway {
