@@ -3,11 +3,14 @@ import PrimaryButton from './PrimaryButton'
 
 interface ContactRequiredSheetProps {
   onSetup: () => void
-  onLater: () => void
 }
 
-/** 4a — 연락 수단이 없을 때 등록 폼 위에 올라오는 바텀시트. */
-export default function ContactRequiredSheet({ onSetup, onLater }: ContactRequiredSheetProps) {
+/**
+ * 4a — 연락 수단이 없을 때 등록 폼 위에 올라오는 바텀시트.
+ * 연락 수단은 등록의 필수 조건(서버도 403 ITEM_CONTACT_NOT_SET)이라 "나중에 하기"로 닫을 수 없다 —
+ * 등록을 그만두려면 바텀 탭으로 다른 화면에 가면 되고, 작성 중인 내용은 임시 저장돼 있다.
+ */
+export default function ContactRequiredSheet({ onSetup }: ContactRequiredSheetProps) {
   return (
     <div className="absolute inset-0 z-10 flex flex-col justify-end bg-label/50">
       <div
@@ -56,7 +59,6 @@ export default function ContactRequiredSheet({ onSetup, onLater }: ContactRequir
         <div className="mt-3.5">
           <PrimaryButton label="연락 수단 설정하러 가기 →" onClick={onSetup} />
         </div>
-        <PrimaryButton className="mt-1" variant="text" label="나중에 하기" onClick={onLater} />
       </div>
     </div>
   )
