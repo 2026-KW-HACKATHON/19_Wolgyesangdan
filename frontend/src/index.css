@@ -305,3 +305,15 @@ body {
   color: var(--color-body);
   -webkit-font-smoothing: antialiased;
 }
+
+/*
+ * Tailwind v4 preflight는 button 커서를 default로 둔다. 누를 수 있는 것은 손가락 커서로 통일한다.
+ * base 레이어라서 disabled:cursor-default 같은 유틸리티 클래스가 그대로 우선한다.
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
