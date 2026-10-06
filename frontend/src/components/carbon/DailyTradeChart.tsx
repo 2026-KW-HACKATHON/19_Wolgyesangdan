@@ -42,7 +42,12 @@ export default function DailyTradeChart({ startDate, endDate, dailyTrend }: Dail
   const crowded = cells.length > MAX_LABELED_CELLS
   const todayDate = toDateString(new Date())
   const maxCount = Math.max(1, ...dailyTrend.map((d) => d.count))
-  const peak = dailyTrend.reduce<DailyTrade | null>((best, d) => (!best || d.count > best.count ? d : best), null)
+  // 거래가 한 건도 없으면 최다 거래일도 없다 — 0개인 날을 "가장 많은 날"로 강조하지 않는다
+  const peak = dailyTrend.reduce<DailyTrade | null>(
+    (best, d) => (d.count > 0 && (!best || d.count > best.count) ? d : best),
+    null,
+  )
+  const started = dailyTrend.length > 0
 
   return (
     <>
@@ -95,16 +100,18 @@ export default function DailyTradeChart({ startDate, endDate, dailyTrend }: Dail
           })}
         </div>
         <div className="mt-2.5 flex flex-wrap gap-3.5 px-1">
-          <Legend swatch="bg-primary">가장 많은 날</Legend>
+          {peak && <Legend swatch="bg-primary">가장 많은 날</Legend>}
           <Legend swatch="bg-[#7E9A55]">오늘</Legend>
           <Legend swatch="box-border border-[1.5px] border-dashed border-border-deep">남은 기간</Legend>
         </div>
       </div>
-      {peak && (
+      {started && (
         <div className="mx-5 mt-2.5 flex items-center gap-2 rounded-xl bg-amber-tint px-3 py-2.5">
           <MaterialIcon name="calendar_month" size={18} color="var(--color-terracotta-ink)" />
           <span className="text-[13px] font-semibold text-terracotta-deep">
-            {formatMonthDay(peak.date)}에 {peak.count}개로 가장 많이 거래됐어요
+            {peak
+              ? `${formatMonthDay(peak.date)}에 ${peak.count}개로 가장 많이 거래됐어요`
+              : '아직 거래가 완료된 물품이 없어요'}
           </span>
         </div>
       )}
