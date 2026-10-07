@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import DetailLayout from './layouts/DetailLayout'
@@ -17,8 +18,17 @@ import PriorityChoicePage from './pages/PriorityChoicePage'
 import PriorityDocumentPage from './pages/PriorityDocumentPage'
 import VerificationDonePage from './pages/VerificationDonePage'
 import { PRIORITY_TYPES } from './data/priorityVerification'
-import { takeLoginNext } from './lib/loginRedirect'
+import { isLoggedIn } from './lib/authStorage'
+import { loginPath, takeLoginNext } from './lib/loginRedirect'
 import type { PrioritySubmitMeta, PriorityType } from './types/verification'
+
+// 로그인이 필요한 화면 — 비로그인이면 로그인 화면으로 보내고, 로그인 후 이 화면으로 돌아오게 한다 (#173, #172).
+// replace라서 뒤로가기로 막힌 화면에 다시 오지 않는다
+function RequireLogin({ children }: { children: ReactNode }) {
+  const location = useLocation()
+  if (!isLoggedIn()) return <Navigate to={loginPath(location.pathname + location.search)} replace />
+  return children
+}
 
 // 접수 완료 화면은 제출 결과(meta)를 router state로 넘겨받는다.
 // state 없이 직접 진입하면 우선배정 선택으로 돌려보낸다.
@@ -63,7 +73,14 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/browse" element={<ItemList />} />
-          <Route path="/register" element={<ItemRegisterPage />} />
+          <Route
+            path="/register"
+            element={
+              <RequireLogin>
+                <ItemRegisterPage />
+              </RequireLogin>
+            }
+          />
           <Route path="/carbon-report" element={<CarbonReportPage />} />
           <Route path="/mypage" element={<MyPage />} />
         </Route>
