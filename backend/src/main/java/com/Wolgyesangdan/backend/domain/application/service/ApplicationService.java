@@ -12,6 +12,7 @@ import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.application.exception.ApplicationErrorCode;
 import com.Wolgyesangdan.backend.domain.application.repository.ApplicationRepository;
+import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
@@ -23,7 +24,6 @@ import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
-import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -65,7 +65,7 @@ public class ApplicationService {
 		}
 
 		User applicant = userRepository.findById(userId)
-				.orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+				.orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_USER_NOT_FOUND));
 
 		if (!verificationService.hasNeighborhoodVerification(userId)) {
 			throw new BusinessException(ApplicationErrorCode.APPLICATION_NOT_ELIGIBLE);

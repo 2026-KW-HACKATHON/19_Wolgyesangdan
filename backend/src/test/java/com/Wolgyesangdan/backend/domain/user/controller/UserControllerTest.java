@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDateTime;
 
+import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.user.dto.ContactResponse;
 import com.Wolgyesangdan.backend.domain.user.dto.ContactUpdateRequest;
 import com.Wolgyesangdan.backend.domain.user.dto.MyInfoResponse;
@@ -17,7 +18,6 @@ import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
 import com.Wolgyesangdan.backend.domain.user.service.UserService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
-import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 import com.Wolgyesangdan.backend.global.security.JwtAuthenticationEntryPoint;
 import com.Wolgyesangdan.backend.global.security.JwtProvider;
 
@@ -83,12 +83,12 @@ class UserControllerTest {
 	}
 
 	@Test
-	void 토큰은_유효한데_회원이_없으면_404() throws Exception {
-		given(userService.getMyInfo(99L)).willThrow(new BusinessException(CommonErrorCode.NOT_FOUND));
+	void 토큰은_유효한데_회원이_없으면_401_AUTH_USER_NOT_FOUND() throws Exception {
+		given(userService.getMyInfo(99L)).willThrow(new BusinessException(AuthErrorCode.AUTH_USER_NOT_FOUND));
 
 		mockMvc.perform(get("/users/me").header(HttpHeaders.AUTHORIZATION, bearer(99L)))
-				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.code").value("NOT_FOUND"));
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_USER_NOT_FOUND"));
 	}
 
 	@Test
