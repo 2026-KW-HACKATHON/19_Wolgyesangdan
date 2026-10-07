@@ -7,6 +7,7 @@ import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
 import LoginRequiredDialog from './components/LoginRequiredDialog'
+import SessionExpiredDialog from './components/SessionExpiredDialog'
 import CarbonReportPage from './pages/CarbonReportPage'
 import MyPage from './pages/MyPage'
 import MyVerificationPage from './pages/MyVerificationPage'
@@ -78,6 +79,7 @@ function App() {
 
   return (
     <ContactProvider>
+      <SessionExpiredDialog />
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />

@@ -1,4 +1,4 @@
-import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '../lib/authStorage'
+import { expireSession, getAccessToken, getRefreshToken, saveTokens } from '../lib/authStorage'
 import type { AuthTokens } from '../types/auth'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -64,7 +64,7 @@ async function requestNewTokens(): Promise<boolean> {
     })
     if (!response.ok) {
       // 보낸 토큰이 아직 저장돼 있을 때만 지운다 — 바뀌었으면 다른 탭이 새로 받은 것이니 그걸로 계속한다
-      if (getRefreshToken() === refreshToken) clearTokens()
+      if (getRefreshToken() === refreshToken) expireSession()
       return getRefreshToken() !== null
     }
     saveTokens((await response.json()) as AuthTokens)
@@ -87,9 +87,13 @@ function refreshTokens(expiredAccessToken: string | null): Promise<boolean> {
   return refreshing
 }
 
+/** 재발급으로 해결되지 않는 401 — 토큰을 지우고 다시 로그인하게 한다 (#171) */
+const SESSION_INVALID_CODES = new Set(['AUTH_INVALID_TOKEN', 'AUTH_USER_NOT_FOUND'])
+
 /**
  * 백엔드 API 호출. 로그인 상태면 Authorization 헤더를 자동으로 붙이고,
  * access 토큰이 만료(AUTH_TOKEN_EXPIRED)되면 재발급 후 한 번 재시도한다.
+ * 토큰이 무효하거나(AUTH_INVALID_TOKEN) 회원이 없으면(AUTH_USER_NOT_FOUND) 로그인을 정리한다.
  * 실패 응답은 ApiError로 던진다.
  */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -100,6 +104,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const body = await response.clone().json().catch(() => null)
     if (body?.code === 'AUTH_TOKEN_EXPIRED' && (await refreshTokens(sentAccessToken))) {
       return parse<T>(await request(path, init))
+    }
+    // 보낸 토큰이 아직 그대로일 때만 — 그 사이 다시 로그인했거나 다른 탭이 새로 받았으면 그 로그인은 지우지 않는다
+    if (SESSION_INVALID_CODES.has(body?.code) && sentAccessToken !== null && getAccessToken() === sentAccessToken) {
+      expireSession()
     }
   }
   return parse<T>(response)
