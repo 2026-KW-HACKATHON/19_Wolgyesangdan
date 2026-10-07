@@ -125,8 +125,22 @@ function App() {
           <Route path="/verify/done" element={<VerificationDoneRoute />} />
           {/* v1 주소(주민·학생 서류 인증)는 GPS 동네 인증으로 통합됐다 */}
           <Route path="/verification/*" element={<Navigate to="/verify/location" replace />} />
-          <Route path="/settings/contact" element={<ContactSettingsPage />} />
-          <Route path="/mypage/verification" element={<MyVerificationPage />} />
+          <Route
+            path="/settings/contact"
+            element={
+              <RequireLogin description="연락 수단을 설정하려면 로그인해 주세요. 로그인하면 바로 설정 화면으로 이어져요.">
+                <ContactSettingsPage />
+              </RequireLogin>
+            }
+          />
+          <Route
+            path="/mypage/verification"
+            element={
+              <RequireLogin description="인증하려면 로그인해 주세요. 로그인하면 바로 인증 화면으로 이어져요.">
+                <MyVerificationPage />
+              </RequireLogin>
+            }
+          />
         </Route>
       </Routes>
     </ContactProvider>
