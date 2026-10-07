@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.Wolgyesangdan.backend.domain.application.entity.Application;
+import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
@@ -13,6 +15,7 @@ import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 
 /**
  * 물품 상세. 등록자의 연락처는 담지 않는다 — 배정된 상대에게만 예약 상세 API로 공개.
+ * isMine·myApplication은 보는 사람 기준 값이다 (비회원이면 false·null, #168).
  */
 public record ItemDetailResponse(
 		Long id,
@@ -38,10 +41,12 @@ public record ItemDetailResponse(
 		List<TradeMethod> tradeMethods,
 		List<ImageResponse> images,
 		CampaignInfo campaign,
-		OwnerInfo owner) {
+		OwnerInfo owner,
+		boolean isMine,
+		MyApplication myApplication) {
 
 	public static ItemDetailResponse of(Item item, List<TradeMethod> tradeMethods, List<ItemImage> images,
-			long ownerGivenCount) {
+			long ownerGivenCount, boolean isMine, MyApplication myApplication) {
 		return new ItemDetailResponse(
 				item.getId(),
 				item.getName(),
@@ -66,7 +71,9 @@ public record ItemDetailResponse(
 				tradeMethods,
 				images.stream().map(ImageResponse::from).toList(),
 				item.getCampaign() == null ? null : CampaignInfo.from(item.getCampaign()),
-				new OwnerInfo(item.getOwner().getNickname(), Math.toIntExact(ownerGivenCount)));
+				new OwnerInfo(item.getOwner().getNickname(), Math.toIntExact(ownerGivenCount)),
+				isMine,
+				myApplication);
 	}
 
 	public record ImageResponse(String imageUrl, int displayOrder) {
@@ -86,6 +93,14 @@ public record ItemDetailResponse(
 	}
 
 	public record OwnerInfo(String nickname, int givenCount) {
+	}
+
+	/** 보는 사람이 이 물품에 넣은 신청 — 신청한 적 없거나 취소했으면 null */
+	public record MyApplication(Long id, ApplicationStatus status, Integer waitlistRank) {
+
+		public static MyApplication from(Application application) {
+			return new MyApplication(application.getId(), application.getStatus(), application.getWaitlistRank());
+		}
 	}
 
 }

@@ -62,10 +62,10 @@ public class ItemController {
 		return itemService.getCategories();
 	}
 
-	/** 물품 상세 (비회원 허용) */
+	/** 물품 상세 (비회원 허용). 로그인 상태면 내 물품 여부·내 신청을 함께 내려준다 */
 	@GetMapping("/{itemId}")
-	public ItemDetailResponse getItem(@PathVariable Long itemId) {
-		return itemService.getItem(itemId);
+	public ItemDetailResponse getItem(@PathVariable Long itemId, @AuthenticationPrincipal Long userId) {
+		return itemService.getItem(itemId, userId);
 	}
 
 	/** 물품 등록 (로그인 필요). 응답은 상세 조회와 같은 형태 + 201 Created */
