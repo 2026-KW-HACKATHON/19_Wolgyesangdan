@@ -17,6 +17,13 @@ const CLOSED_BUTTON_LABEL: Partial<Record<ItemStatus, string>> = {
   COMPLETED: '거래가 끝났어요',
 }
 
+/** 이미 신청한 사람에게 보여줄 버튼 문구 — 누르면 마이페이지 "내가 신청한 물품"으로 간다 */
+function myApplicationLabel({ status, waitlistRank }: NonNullable<ItemDetailData['myApplication']>) {
+  if (status === 'SELECTED') return '나에게 배정됐어요 · 내 신청 보기'
+  if (status === 'COMPLETED') return '받은 물건이에요 · 내 신청 보기'
+  return waitlistRank ? `신청 완료 · 대기 ${waitlistRank}번` : '신청 완료 · 내 신청 보기'
+}
+
 /** 신청이 막힌 사유 중 사용자가 바로 해결할 수 있는 것 — 해결하러 가는 버튼을 함께 보여준다 */
 const APPLY_ERROR_ACTION: Record<string, { label: string; to: (itemId: string) => string }> = {
   APPLICATION_NOT_ELIGIBLE: { label: '동네 인증하러 가기', to: () => '/verify/location' },
@@ -182,6 +189,7 @@ export default function ItemDetail() {
   const availablePeriod = formatAvailablePeriod(item.availableFrom, item.availableUntil)
   const deadline = formatDeadline(item.applicationDeadline)
 
+  // 방금 이 화면에서 신청했으면 상세를 다시 받는 동안에도 신청 완료로 둔다 (그 사이 다시 누르지 않게)
   const applied = appliedId === id
   const currentApplyError = applyError?.id === id ? applyError : null
   const applyErrorAction = currentApplyError ? APPLY_ERROR_ACTION[currentApplyError.code] : undefined
@@ -193,6 +201,12 @@ export default function ItemDetail() {
       : item.status === 'OPEN'
         ? '신청하기'
         : (CLOSED_BUTTON_LABEL[item.status] ?? '신청할 수 없어요')
+  // 내 물품이거나 이미 신청했으면 신청 버튼 대신 마이페이지로 가는 버튼 (GET /items/{id}의 isMine·myApplication)
+  const viewerAction = item.isMine
+    ? { label: '내가 등록한 물품이에요 · 관리하기', to: '/mypage' }
+    : item.myApplication
+      ? { label: myApplicationLabel(item.myApplication), to: '/mypage?tab=applied' }
+      : null
 
   return (
     <div className="relative flex h-full flex-col">
@@ -339,14 +353,25 @@ export default function ItemDetail() {
             )}
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => handleApply(item.id)}
-          disabled={!canApply || applying}
-          className="h-12 w-full rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)] disabled:opacity-50"
-        >
-          {applyLabel}
-        </button>
+        {viewerAction ? (
+          <button
+            type="button"
+            onClick={() => navigate(viewerAction.to)}
+            className="flex h-12 w-full items-center justify-center gap-0.5 rounded-2xl border border-[var(--color-primary)] bg-[var(--color-surface)] text-base font-bold text-[var(--color-accent)]"
+          >
+            {viewerAction.label}
+            <span className="ms text-lg">chevron_right</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleApply(item.id)}
+            disabled={!canApply || applying}
+            className="h-12 w-full rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)] disabled:opacity-50"
+          >
+            {applyLabel}
+          </button>
+        )}
       </div>
 
       <Toast visible={toast.visible}>{toast.message}</Toast>

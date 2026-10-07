@@ -1,5 +1,7 @@
 // 백엔드 /items API 타입
 
+import type { ApplicationStatus } from '../api/applications'
+
 /** 카테고리 대분류 — API가 한글 표시값 그대로 주고받는다 */
 export type CategoryGroup = '가구' | '가전' | '주방' | '생활' | '기타'
 
@@ -79,6 +81,10 @@ export interface ItemDetail {
   /** 거점 수령을 지원하는 물품만 값이 있다 */
   campaign: { id: number; locationName: string; locationAddress: string; hubHours: string | null } | null
   owner: { nickname: string; givenCount: number }
+  /** 보는 사람이 등록자인지 (비회원이면 false) */
+  isMine: boolean
+  /** 보는 사람의 신청. 신청한 적 없음·취소함·비회원·등록자면 null */
+  myApplication: { id: number; status: ApplicationStatus; waitlistRank: number | null } | null
 }
 
 export interface ItemSearchParams {
