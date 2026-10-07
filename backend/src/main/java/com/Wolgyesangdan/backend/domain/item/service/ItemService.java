@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.application.repository.ApplicationRepository;
+import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
@@ -38,7 +39,6 @@ import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
-import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
@@ -160,7 +160,7 @@ public class ItemService {
 	@Transactional
 	public ItemDetailResponse createItem(Long userId, ItemCreateRequest request) {
 		User owner = userRepository.findById(userId)
-				.orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+				.orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_USER_NOT_FOUND));
 		if (owner.getContactType() == null) {
 			throw new BusinessException(ItemErrorCode.ITEM_CONTACT_NOT_SET);
 		}

@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
@@ -23,7 +24,6 @@ import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
 import com.Wolgyesangdan.backend.domain.verification.exception.VerificationErrorCode;
 import com.Wolgyesangdan.backend.domain.verification.repository.PriorityVerificationRepository;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
-import com.Wolgyesangdan.backend.global.exception.CommonErrorCode;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -159,12 +159,12 @@ class VerificationServiceTest {
 	}
 
 	@Test
-	void 회원이_없으면_NOT_FOUND() {
+	void 회원이_없으면_AUTH_USER_NOT_FOUND() {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> verificationService.createVerification(USER_ID, LOW_INCOME_REQUEST, NOW))
 				.isInstanceOf(BusinessException.class)
-				.extracting("errorCode").isEqualTo(CommonErrorCode.NOT_FOUND);
+				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_USER_NOT_FOUND);
 	}
 
 	@Test
@@ -209,12 +209,12 @@ class VerificationServiceTest {
 	}
 
 	@Test
-	void 동네_인증_회원이_없으면_NOT_FOUND() {
+	void 동네_인증_회원이_없으면_AUTH_USER_NOT_FOUND() {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, NOW))
 				.isInstanceOf(BusinessException.class)
-				.extracting("errorCode").isEqualTo(CommonErrorCode.NOT_FOUND);
+				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_USER_NOT_FOUND);
 	}
 
 	@Test
