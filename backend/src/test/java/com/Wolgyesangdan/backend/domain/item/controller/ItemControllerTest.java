@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
@@ -146,12 +147,12 @@ class ItemControllerTest {
 
 	@Test
 	void 비로그인으로_물품_상세를_조회한다() throws Exception {
-		given(itemService.getItem(1L)).willReturn(new ItemDetailResponse(1L, "전자레인지", "생활가전",
+		given(itemService.getItem(1L, null)).willReturn(new ItemDetailResponse(1L, "전자레인지", "생활가전",
 				CategoryGroup.APPLIANCE, "설명", "상태 좋음", "2년 사용", false, null, "정상 작동", "48cm", "보통", 24,
 				LocalDate.of(2026, 9, 20), LocalDate.of(2026, 10, 4), null, LocalDateTime.of(2026, 10, 2, 23, 59, 59),
 				ItemStatus.OPEN, 3, 5, List.of(TradeMethod.DIRECT),
 				List.of(new ItemDetailResponse.ImageResponse("https://example.com/a.jpg", 0)),
-				null, new ItemDetailResponse.OwnerInfo("월계1동 이웃", 3)));
+				null, new ItemDetailResponse.OwnerInfo("월계1동 이웃", 3), false, null));
 
 		mockMvc.perform(get("/items/1"))
 				.andExpect(status().isOk())
@@ -166,12 +167,34 @@ class ItemControllerTest {
 				.andExpect(jsonPath("$.owner.givenCount").value(3))
 				// 연락처는 노출하지 않는다
 				.andExpect(jsonPath("$.owner.phone").doesNotExist())
-				.andExpect(jsonPath("$.owner.openchatLink").doesNotExist());
+				.andExpect(jsonPath("$.owner.openchatLink").doesNotExist())
+				.andExpect(jsonPath("$.isMine").value(false))
+				.andExpect(jsonPath("$.myApplication").isEmpty());
+	}
+
+	@Test
+	void 로그인_상태로_물품_상세를_조회하면_내_신청을_함께_내려준다() throws Exception {
+		ItemDetailResponse base = detail(1L);
+		given(itemService.getItem(1L, 7L)).willReturn(new ItemDetailResponse(base.id(), base.name(), base.category(),
+				base.categoryGroup(), base.description(), base.conditionGrade(), base.usagePeriod(), base.defectYn(),
+				base.defectDescription(), base.workingStatus(), base.size(), base.transportDifficulty(),
+				base.estimatedCarbonReduction(), base.availableFrom(), base.availableUntil(), base.disposalDeadline(),
+				base.applicationDeadline(), base.status(), base.applicantCount(), base.maxApplicants(),
+				base.tradeMethods(), base.images(), base.campaign(), base.owner(), false,
+				new ItemDetailResponse.MyApplication(30L, ApplicationStatus.WAITING, 2)));
+
+		mockMvc.perform(get("/items/1").header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(7L)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.isMine").value(false))
+				.andExpect(jsonPath("$.mine").doesNotExist())
+				.andExpect(jsonPath("$.myApplication.id").value(30))
+				.andExpect(jsonPath("$.myApplication.status").value("WAITING"))
+				.andExpect(jsonPath("$.myApplication.waitlistRank").value(2));
 	}
 
 	@Test
 	void 없는_물품이면_404_ITEM_NOT_FOUND() throws Exception {
-		given(itemService.getItem(999L)).willThrow(new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		given(itemService.getItem(999L, null)).willThrow(new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 
 		mockMvc.perform(get("/items/999"))
 				.andExpect(status().isNotFound())
@@ -303,7 +326,7 @@ class ItemControllerTest {
 				null, null, null, null, 24, null, null, null, LocalDateTime.of(2026, 10, 8, 23, 59, 59),
 				ItemStatus.OPEN, 0, 5, List.of(TradeMethod.DIRECT),
 				List.of(new ItemDetailResponse.ImageResponse("https://img/1.jpg", 0)), null,
-				new ItemDetailResponse.OwnerInfo("등록자", 0));
+				new ItemDetailResponse.OwnerInfo("등록자", 0), true, null);
 	}
 
 }

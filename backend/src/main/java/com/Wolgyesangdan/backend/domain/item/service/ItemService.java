@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
+import com.Wolgyesangdan.backend.domain.application.repository.ApplicationRepository;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
@@ -62,6 +64,7 @@ public class ItemService {
 	private final ReservationRepository reservationRepository;
 	private final UserRepository userRepository;
 	private final CampaignRepository campaignRepository;
+	private final ApplicationRepository applicationRepository;
 
 	/** 전달 예정 일시를 보여주는 상태 — 배정 확정 이후 */
 	private static final EnumSet<ItemStatus> SCHEDULED_STATUSES = EnumSet.of(ItemStatus.ASSIGNED, ItemStatus.COMPLETED);
@@ -124,9 +127,11 @@ public class ItemService {
 
 	/**
 	 * 물품 상세 (비회원 허용). 상태와 관계없이 조회된다 — 상태는 응답의 status로 프론트가 표시.
-	 * 쿼리: 물품+등록자+캠페인 1번, 사진 1번, 거래 방식 1번, 등록자 전달 완료 횟수 1번.
+	 * viewerId(보는 사람, 비회원이면 null) 기준으로 내 물품인지·내 신청이 있는지를 함께 내려준다 (#168).
+	 * 쿼리: 물품+등록자+캠페인 1번, 사진 1번, 거래 방식 1번, 등록자 전달 완료 횟수 1번
+	 * (+ 등록자가 아닌 회원이 보면 내 신청 1번).
 	 */
-	public ItemDetailResponse getItem(Long itemId) {
+	public ItemDetailResponse getItem(Long itemId, Long viewerId) {
 		Item item = itemRepository.findWithOwnerAndCampaignById(itemId)
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 		List<TradeMethod> tradeMethods = itemTradeMethodRepository.findByItemId(itemId).stream()
@@ -135,7 +140,14 @@ public class ItemService {
 				.toList();
 		List<ItemImage> images = itemImageRepository.findByItemIdOrderByDisplayOrderAsc(itemId);
 		long givenCount = reservationRepository.countCompletedByItemOwnerId(item.getOwner().getId());
-		return ItemDetailResponse.of(item, tradeMethods, images, givenCount);
+		boolean mine = viewerId != null && viewerId.equals(item.getOwner().getId());
+		// 등록자는 자기 물품에 신청할 수 없으니 찾지 않는다. 취소한 신청은 다시 신청할 수 있어서(#169) 없는 것으로 본다
+		ItemDetailResponse.MyApplication myApplication = viewerId == null || mine ? null
+				: applicationRepository.findByItemIdAndApplicantId(itemId, viewerId)
+						.filter(application -> application.getStatus() != ApplicationStatus.CANCELED)
+						.map(ItemDetailResponse.MyApplication::from)
+						.orElse(null);
+		return ItemDetailResponse.of(item, tradeMethods, images, givenCount, mine, myApplication);
 	}
 
 	/**
@@ -199,7 +211,7 @@ public class ItemService {
 				.toList());
 
 		long givenCount = reservationRepository.countCompletedByItemOwnerId(owner.getId());
-		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount);
+		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount, true, null);
 	}
 
 	// 물품별 대표 사진 = 순서가 가장 앞인 사진

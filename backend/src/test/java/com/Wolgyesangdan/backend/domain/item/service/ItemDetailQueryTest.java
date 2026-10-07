@@ -69,7 +69,7 @@ class ItemDetailQueryTest {
 		persist(ItemTradeMethod.builder().item(item).tradeMethod(TradeMethod.DIRECT).build());
 		flushAndClear();
 
-		ItemDetailResponse response = itemService.getItem(item.getId());
+		ItemDetailResponse response = itemService.getItem(item.getId(), null);
 
 		assertThat(response.name()).isEqualTo("전자레인지");
 		assertThat(response.description()).isEqualTo("이사 때문에 내놓아요.");
@@ -87,7 +87,7 @@ class ItemDetailQueryTest {
 		Item item = persist(item(owner, null, ItemStatus.OPEN));
 		flushAndClear();
 
-		ItemDetailResponse response = itemService.getItem(item.getId());
+		ItemDetailResponse response = itemService.getItem(item.getId(), null);
 
 		assertThat(response.campaign()).isNull();
 		assertThat(response.images()).isEmpty();
@@ -104,7 +104,7 @@ class ItemDetailQueryTest {
 		reservation(persist(item(other, null, ItemStatus.COMPLETED)), ReservationStatus.COMPLETED);  // 남의 물품
 		flushAndClear();
 
-		assertThat(itemService.getItem(target.getId()).owner().givenCount()).isEqualTo(2);
+		assertThat(itemService.getItem(target.getId(), null).owner().givenCount()).isEqualTo(2);
 	}
 
 	@Test
@@ -118,15 +118,79 @@ class ItemDetailQueryTest {
 		Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
 		statistics.clear();
 
-		itemService.getItem(item.getId());
+		itemService.getItem(item.getId(), null);
 
 		// 물품+등록자+캠페인, 사진, 거래 방식, 등록자 전달 완료 횟수
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
 	}
 
 	@Test
+	void 비회원이면_내_물품도_아니고_내_신청도_없다() {
+		Item item = persist(item(owner, null, ItemStatus.OPEN));
+		flushAndClear();
+
+		ItemDetailResponse response = itemService.getItem(item.getId(), null);
+
+		assertThat(response.isMine()).isFalse();
+		assertThat(response.myApplication()).isNull();
+	}
+
+	@Test
+	void 등록자가_보면_내_물품이고_신청은_찾지_않는다() {
+		Item item = persist(item(owner, null, ItemStatus.OPEN));
+		flushAndClear();
+		Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+		statistics.clear();
+
+		ItemDetailResponse response = itemService.getItem(item.getId(), owner.getId());
+
+		assertThat(response.isMine()).isTrue();
+		assertThat(response.myApplication()).isNull();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+	}
+
+	@Test
+	void 신청한_사람이_보면_내_신청_상태와_대기_순번을_내려준다() {
+		Item item = persist(item(owner, null, ItemStatus.OPEN));
+		Application application = persist(Application.builder()
+				.item(item).applicant(applicant).priorityScore(0).status(ApplicationStatus.WAITING).waitlistRank(2).build());
+		flushAndClear();
+
+		ItemDetailResponse response = itemService.getItem(item.getId(), applicant.getId());
+
+		assertThat(response.isMine()).isFalse();
+		assertThat(response.myApplication().id()).isEqualTo(application.getId());
+		assertThat(response.myApplication().status()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(response.myApplication().waitlistRank()).isEqualTo(2);
+	}
+
+	@Test
+	void 취소한_신청은_다시_신청할_수_있어서_내_신청이_없는_것으로_본다() {
+		Item item = persist(item(owner, null, ItemStatus.OPEN));
+		persist(Application.builder()
+				.item(item).applicant(applicant).priorityScore(0).status(ApplicationStatus.CANCELED).build());
+		flushAndClear();
+
+		assertThat(itemService.getItem(item.getId(), applicant.getId()).myApplication()).isNull();
+	}
+
+	@Test
+	void 신청하지_않은_회원이_보면_내_신청은_null이고_쿼리가_한_번_더_나간다() {
+		Item item = persist(item(owner, null, ItemStatus.OPEN));
+		flushAndClear();
+		Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+		statistics.clear();
+
+		ItemDetailResponse response = itemService.getItem(item.getId(), applicant.getId());
+
+		assertThat(response.isMine()).isFalse();
+		assertThat(response.myApplication()).isNull();
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(5);
+	}
+
+	@Test
 	void 없는_물품이면_ITEM_NOT_FOUND() {
-		assertThatThrownBy(() -> itemService.getItem(Long.MAX_VALUE))
+		assertThatThrownBy(() -> itemService.getItem(Long.MAX_VALUE, null))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_NOT_FOUND);
 	}
