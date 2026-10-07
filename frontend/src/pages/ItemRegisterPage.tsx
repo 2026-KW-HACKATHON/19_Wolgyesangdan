@@ -8,9 +8,17 @@ import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
 import TextField from '../components/TextField'
 import Toast from '../components/Toast'
-import { getCategories } from '../api/items'
+import { getActiveCampaign } from '../api/campaigns'
+import { ApiError } from '../api/client'
+import { createItem, getCategories, resolveItemImageContentType, uploadItemImage } from '../api/items'
 import { useContact } from '../contexts/ContactContext'
-import type { CategoryGroup, ConditionGrade as Condition, TransportDifficulty } from '../types/item'
+import type {
+  CategoryGroup,
+  ConditionGrade as Condition,
+  ItemCreateRequest,
+  TradeMethod,
+  TransportDifficulty,
+} from '../types/item'
 import type { UploadedFile } from '../types/verification'
 
 const CATEGORY_OPTIONS: CategoryGroup[] = ['가구', '가전', '주방', '생활', '기타']
@@ -24,6 +32,15 @@ const TRADE_CHOICES: { value: TradeChoice; label: string; desc: string; icon: st
   { value: 'CAMPAIGN', label: '캠페인 거점', desc: '비대면 입고', icon: 'inventory_2' },
   { value: 'BOTH', label: '둘 다 가능', desc: '신청자가 선택', icon: 'swap_horiz' },
 ]
+
+const TRADE_METHODS: Record<TradeChoice, TradeMethod[]> = {
+  DIRECT: ['DIRECT'],
+  CAMPAIGN: ['CAMPAIGN'],
+  BOTH: ['DIRECT', 'CAMPAIGN'],
+}
+
+/** 서버가 받는 사진 형식 (jpeg·png·webp·heic·heif) */
+const PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif'
 
 const MAX_PHOTOS = 5
 const MAX_NAME = 30
@@ -97,6 +114,31 @@ function todayIso() {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
+/** 등록 요청 본문. 비운 선택 항목은 보내지 않는다 */
+function toCreateRequest(form: RegisterForm, imageUrls: string[], campaignId: number | undefined): ItemCreateRequest {
+  const optional = (value: string) => value.trim() || undefined
+  const defect = form.defect.trim()
+  const tradeMethods = TRADE_METHODS[form.trade!]
+  return {
+    name: form.name.trim(),
+    categoryGroup: form.categoryGroup!,
+    conditionGrade: form.condition!,
+    description: optional(form.description),
+    usagePeriod: optional(form.usagePeriod),
+    // 하자 칸에 무언가 적었으면 하자 있음으로 본다
+    defectYn: defect.length > 0,
+    defectDescription: defect || undefined,
+    size: optional(form.size),
+    transportDifficulty: form.transport ?? undefined,
+    availableFrom: form.pickupStart || undefined,
+    availableUntil: form.pickupEnd || undefined,
+    disposalDeadline: form.disposeBy || undefined,
+    tradeMethods,
+    campaignId: tradeMethods.includes('CAMPAIGN') ? campaignId : undefined,
+    imageUrls,
+  }
+}
+
 function isFormValid(form: RegisterForm, hasPhoto: boolean) {
   const rangeOk = !form.pickupStart || !form.pickupEnd || form.pickupStart <= form.pickupEnd
   return (
@@ -158,6 +200,10 @@ export default function ItemRegisterPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  // 거점 거래로 등록할 때 보낼 캠페인. 없거나 못 불러오면 거점 거래 등록은 서버가 거절한다
+  const [campaignId, setCampaignId] = useState<number>()
   // 카테고리별 탄소 절감 예상치(kg CO₂e). 등록 시 서버가 저장하는 값과 같은 참조표라 화면 숫자와 등록 결과가 맞는다.
   // 불러오는 중이거나 실패하면 null — 예상치 박스를 숨긴다
   const [carbonByCategory, setCarbonByCategory] = useState<Partial<Record<CategoryGroup, number>> | null>(null)
@@ -174,13 +220,23 @@ export default function ItemRegisterPage() {
       .catch(() => {
         // 예상치는 참고용이라 실패해도 등록은 그대로 진행할 수 있다
       })
+    getActiveCampaign()
+      .then((campaign) => {
+        if (!ignore && campaign) setCampaignId(campaign.id)
+      })
+      .catch(() => {
+        // 직거래 등록에는 필요 없다. 거점 거래를 고르면 서버 오류 문구로 안내한다
+      })
     return () => {
       ignore = true
     }
   }, [])
 
   const today = todayIso()
-  const hasPhoto = files.length > 0
+  const photosUploading = files.some((f) => f.status === 'uploading')
+  const photosFailed = files.some((f) => f.status === 'error')
+  // 사진은 전부 올라간 뒤에만 등록할 수 있다 (올리지 못한 사진은 지우고 다시 첨부)
+  const hasPhoto = files.length > 0 && !photosUploading && !photosFailed
   const valid = isFormValid(form, hasPhoto)
   const showSheet = sheetOpen && !contact
 
@@ -191,14 +247,37 @@ export default function ItemRegisterPage() {
   const set = <K extends keyof RegisterForm>(key: K, value: RegisterForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  const updateFile = (id: string, patch: Partial<UploadedFile>) =>
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+
+  // 고르자마자 한 장씩 S3에 올린다. 등록 요청에는 올라간 사진 주소만 담는다
   const handleAddFiles = (fileList: FileList) => {
-    const next: UploadedFile[] = Array.from(fileList).map((file) => ({
-      id: crypto.randomUUID(),
-      name: file.name,
-      size: file.size,
-      status: 'done',
-    }))
-    setFiles((prev) => [...prev, ...next].slice(0, MAX_PHOTOS))
+    const picked = Array.from(fileList).slice(0, MAX_PHOTOS - files.length)
+    const unsupported = picked.filter((file) => !resolveItemImageContentType(file))
+    setPhotoError(
+      unsupported.length > 0 ? 'JPG, PNG, WEBP, HEIC 사진만 올릴 수 있어요' : null,
+    )
+
+    const uploads = picked.flatMap((file) => {
+      const contentType = resolveItemImageContentType(file)
+      if (!contentType) return []
+      const entry: UploadedFile = { id: crypto.randomUUID(), name: file.name, size: file.size, status: 'uploading' }
+      return [{ entry, file, contentType }]
+    })
+    setFiles((prev) => [...prev, ...uploads.map((u) => u.entry)].slice(0, MAX_PHOTOS))
+
+    for (const { entry, file, contentType } of uploads) {
+      uploadItemImage(file, contentType)
+        .then((imageUrl) => updateFile(entry.id, { status: 'done', imageUrl }))
+        .catch((e) => {
+          updateFile(entry.id, { status: 'error' })
+          setPhotoError(
+            e instanceof ApiError && e.code === 'ITEM_IMAGE_UPLOAD_UNAVAILABLE'
+              ? '지금은 사진을 올릴 수 없어요. 잠시 후 다시 시도해 주세요'
+              : '사진을 올리지 못했어요. 지우고 다시 첨부해 주세요',
+          )
+        })
+    }
   }
 
   const handleRemoveFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id))
@@ -214,11 +293,19 @@ export default function ItemRegisterPage() {
     if (!valid || !form.trade) return
 
     setSubmitting(true)
-    // TODO: POST /items (multipart: 사진 + 필드) 연동
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    setSubmitting(false)
+    setSubmitError(null)
+    try {
+      const imageUrls = files.flatMap((f) => (f.imageUrl ? [f.imageUrl] : []))
+      await createItem(toCreateRequest(form, imageUrls, campaignId))
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : '등록하지 못했어요. 잠시 후 다시 시도해 주세요.')
+      return
+    } finally {
+      setSubmitting(false)
+    }
     setForm(INITIAL_FORM)
     setFiles([])
+    setPhotoError(null)
     clearDraft()
     setToastVisible(true)
     setTimeout(() => setToastVisible(false), 2000)
@@ -242,8 +329,14 @@ export default function ItemRegisterPage() {
           onAdd={handleAddFiles}
           onRemove={handleRemoveFile}
           showQuickActions
+          accept={PHOTO_ACCEPT}
           helperText="밝은 곳에서 찍은 사진 한 장이면 충분해요 (최대 5장)"
         />
+        {photoError && (
+          <p role="alert" className="px-5 pt-1.5 text-[12px] font-semibold text-terracotta">
+            {photoError}
+          </p>
+        )}
 
         <div className="px-5 pt-4.5">
           <TextField
@@ -397,6 +490,11 @@ export default function ItemRegisterPage() {
         <div className="flex-1" />
 
         <BottomActionBar sticky={false}>
+          {submitError && (
+            <p role="alert" className="mb-2.5 text-center text-[13px] font-semibold text-terracotta">
+              {submitError}
+            </p>
+          )}
           <PrimaryButton
             type="submit"
             label="등록하기"

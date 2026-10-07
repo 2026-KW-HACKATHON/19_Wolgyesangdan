@@ -87,6 +87,39 @@ export interface ItemDetail {
   myApplication: { id: number; status: ApplicationStatus; waitlistRank: number | null } | null
 }
 
+/** POST /items 요청. 필수는 사진·물품명·카테고리 대분류·상태 등급·거래 방식 */
+export interface ItemCreateRequest {
+  name: string
+  categoryGroup: CategoryGroup
+  conditionGrade: ConditionGrade
+  description?: string
+  usagePeriod?: string
+  defectYn?: boolean
+  defectDescription?: string
+  size?: string
+  transportDifficulty?: TransportDifficulty
+  /** YYYY-MM-DD */
+  availableFrom?: string
+  availableUntil?: string
+  disposalDeadline?: string
+  tradeMethods: TradeMethod[]
+  /** 거점 거래(CAMPAIGN)를 고르면 필수 */
+  campaignId?: number
+  /** 업로드 URL 발급 응답의 imageUrl들 (1~5장, 앞이 대표 사진) */
+  imageUrls: string[]
+}
+
+/** 물품 사진으로 받는 형식 */
+export type ItemImageContentType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic' | 'image/heif'
+
+/** POST /items/images/upload-url 응답 */
+export interface ImageUploadUrlResponse {
+  /** S3 presigned PUT URL (5분 유효) */
+  uploadUrl: string
+  /** 업로드 후 저장될 공개 URL — 물품 등록 시 imageUrls에 담는다 */
+  imageUrl: string
+}
+
 export interface ItemSearchParams {
   /** 물품명 부분 일치 (앞뒤 공백 무시) */
   keyword?: string
