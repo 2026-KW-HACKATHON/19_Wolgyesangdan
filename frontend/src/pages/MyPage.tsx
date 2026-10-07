@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchMyImpact, type MyImpact } from '../api/carbonReport'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import AppliedList from '../components/mypage/AppliedList'
 import RegisteredList from '../components/mypage/RegisteredList'
 import { useContact } from '../contexts/ContactContext'
+import { useLoginGate } from '../hooks/useLoginGate'
 import { useMyInfo } from '../hooks/useMyInfo'
 import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
@@ -131,7 +132,13 @@ function RecordCard() {
   )
 }
 
-function VerificationCard({ verification }: { verification: VerificationSummary }) {
+// 비로그인이면 이동 대신 "로그인이 필요해요" 팝업에 보여줄 안내 (#179)
+const VERIFY_LOGIN_MESSAGE = '인증하려면 로그인해 주세요. 로그인하면 바로 인증 화면으로 이어져요.'
+const CONTACT_LOGIN_MESSAGE = '연락 수단을 설정하려면 로그인해 주세요. 로그인하면 바로 설정 화면으로 이어져요.'
+
+type GoWithLogin = (to: string, description: string) => void
+
+function VerificationCard({ verification, go }: { verification: VerificationSummary; go: GoWithLogin }) {
   return (
     <div className="mx-5 mt-3 flex items-center gap-3 rounded-[18px] border border-border bg-surface px-[18px] py-4">
       <span className="flex size-[38px] flex-none items-center justify-center rounded-xl bg-sunken text-ink-2">
@@ -148,23 +155,23 @@ function VerificationCard({ verification }: { verification: VerificationSummary 
           신입생·저소득층이라면 인증하고 가산점을 받으세요
         </div>
       </div>
-      <Link
-        to="/mypage/verification"
+      <button
+        type="button"
+        onClick={() => go('/mypage/verification', VERIFY_LOGIN_MESSAGE)}
         className="flex-none rounded-[10px] bg-primary px-3 py-2 text-[13px] font-bold text-screen"
       >
         인증하기
-      </Link>
+      </button>
     </div>
   )
 }
 
-function MenuRows() {
-  const navigate = useNavigate()
+function MenuRows({ go }: { go: GoWithLogin }) {
   const { contact } = useContact()
   const contactLabel = contact ? (contact.type === 'openchat' ? '오픈채팅방' : '전화번호') : '미설정'
   const rows: { label: string; value?: string; onClick: () => void }[] = [
-    { label: '연락 수단 설정', value: contactLabel, onClick: () => navigate('/settings/contact?next=/mypage') },
-    { label: '인증하기', value: '주민 · 학생 · 우선배정', onClick: () => navigate('/mypage/verification') },
+    { label: '연락 수단 설정', value: contactLabel, onClick: () => go('/settings/contact?next=/mypage', CONTACT_LOGIN_MESSAGE) },
+    { label: '인증하기', value: '주민 · 학생 · 우선배정', onClick: () => go('/mypage/verification', VERIFY_LOGIN_MESSAGE) },
     { label: '이용 안내', onClick: () => {} },
     { label: '문의하기', onClick: () => {} },
   ]
@@ -192,6 +199,7 @@ export default function MyPage() {
   const tab: TabKey = searchParams.get('tab') === 'applied' ? 'applied' : 'registered'
   const navigate = useNavigate()
   const loggedIn = isLoggedIn()
+  const { go, dialog: loginDialog } = useLoginGate()
 
   // 로그아웃 API는 MVP에서 만들지 않음 — 이 기기의 토큰만 지우고 홈으로 간다
   const handleLogout = () => {
@@ -232,7 +240,7 @@ export default function MyPage() {
 
       <ProfileRow verification={verification} neighborhoodVerified={neighborhoodVerified} />
       <RecordCard />
-      <VerificationCard verification={verification} />
+      <VerificationCard verification={verification} go={go} />
 
       <div role="tablist" className="mt-5 flex border-b border-border">
         {tabs.map((t) => {
@@ -259,12 +267,13 @@ export default function MyPage() {
           <>
             <RegisteredList />
             <div className="mt-2 h-2 bg-sunken" />
-            <MenuRows />
+            <MenuRows go={go} />
           </>
         ) : (
           <AppliedList />
         )}
       </div>
+      {loginDialog}
     </div>
   )
 }
