@@ -16,6 +16,8 @@ interface PhotoUploadGridProps {
   /** 카메라/파일 선택 보조 액션 행 노출 여부 */
   showQuickActions?: boolean
   helperText?: string
+  /** 사진 첨부·파일 선택의 accept (카메라는 항상 image/*) */
+  accept?: string
 }
 
 /** 사진 업로드 (물품 등록·우선배정 서류) — 썸네일 목록 + 추가 슬롯 (최대 max장). */
@@ -29,6 +31,7 @@ export default function PhotoUploadGrid({
   onRemove,
   showQuickActions,
   helperText,
+  accept = 'image/*,application/pdf',
 }: PhotoUploadGridProps) {
   const canAddMore = files.length < max
 
@@ -58,6 +61,18 @@ export default function PhotoUploadGrid({
             className={`relative flex h-32 w-26 flex-none items-center justify-center overflow-hidden rounded-2xl border border-border ${thumbClassName}`}
           >
             <MaterialIcon name={thumbIcon} size={34} />
+            {file.status === 'uploading' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface/80 text-[12px] font-bold text-label-alt">
+                <span className="size-[18px] animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
+                올리는 중
+              </div>
+            )}
+            {file.status === 'error' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface/85 text-[12px] font-bold text-terracotta">
+                <MaterialIcon name="error" size={22} />
+                올리지 못했어요
+              </div>
+            )}
             <button
               type="button"
               onClick={() => onRemove(file.id)}
@@ -78,7 +93,7 @@ export default function PhotoUploadGrid({
             <span className="text-[12px] font-bold">사진 첨부</span>
             <input
               type="file"
-              accept="image/*,application/pdf"
+              accept={accept}
               multiple
               onChange={handleInputChange}
               className="sr-only"
@@ -104,7 +119,7 @@ export default function PhotoUploadGrid({
               파일 선택
               <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept={accept}
                 multiple
                 onChange={handleInputChange}
                 className="sr-only"

@@ -7,6 +7,8 @@ export interface UploadedFile {
   status: UploadStatus
   /** 로컬 미리보기/전송용 오브젝트 URL. 서버 업로드 연동 전까지는 클라이언트에만 존재합니다. */
   url?: string
+  /** 서버(S3)에 올라간 사진 주소. 물품 등록 사진은 업로드가 끝나면(status: 'done') 채워진다. */
+  imageUrl?: string
 }
 
 /** GPS 동네 인증(1b) 화면 상태 */
