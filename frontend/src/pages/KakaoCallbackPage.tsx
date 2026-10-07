@@ -7,6 +7,7 @@ import PrimaryButton from '../components/PrimaryButton'
 import Screen from '../components/Screen'
 import { saveTokens } from '../lib/authStorage'
 import { clearKakaoState, isValidKakaoState } from '../lib/kakao'
+import { loginPath, takeLoginNext } from '../lib/loginRedirect'
 
 /**
  * 카카오 로그인 후 돌아오는 화면 (/oauth/kakao/callback).
@@ -31,7 +32,8 @@ export default function KakaoCallbackPage() {
     requested.current = true
 
     if (cancelled) {
-      navigate('/login', { replace: true })
+      // 동의를 취소하고 다시 로그인 화면으로 — 돌아갈 화면은 이어서 넘긴다
+      navigate(loginPath(takeLoginNext() ?? ''), { replace: true })
       return
     }
     if (invalidRequest || !code) return
@@ -40,7 +42,8 @@ export default function KakaoCallbackPage() {
       .then((response) => {
         clearKakaoState()
         saveTokens(response)
-        navigate(response.isNewUser ? '/verify/location' : '/', { replace: true })
+        // 기존 회원은 원래 보던 화면으로. 신규 회원은 동네 인증부터 하고, 돌아갈 화면은 인증을 건너뛸 때 쓴다
+        navigate(response.isNewUser ? '/verify/location' : (takeLoginNext() ?? '/'), { replace: true })
       })
       .catch((error: unknown) => {
         setLoginError(
@@ -60,7 +63,7 @@ export default function KakaoCallbackPage() {
             <p className="mt-3 text-[15px] leading-[1.6] font-medium text-ink-3">{errorMessage}</p>
             <PrimaryButton
               label="로그인 화면으로"
-              onClick={() => navigate('/login', { replace: true })}
+              onClick={() => navigate(loginPath(takeLoginNext() ?? ''), { replace: true })}
               className="mt-6"
             />
           </>
