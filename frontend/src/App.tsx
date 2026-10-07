@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import DetailLayout from './layouts/DetailLayout'
@@ -5,6 +6,7 @@ import Home from './pages/Home'
 import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
+import LoginRequiredDialog from './components/LoginRequiredDialog'
 import CarbonReportPage from './pages/CarbonReportPage'
 import MyPage from './pages/MyPage'
 import MyVerificationPage from './pages/MyVerificationPage'
@@ -17,8 +19,25 @@ import PriorityChoicePage from './pages/PriorityChoicePage'
 import PriorityDocumentPage from './pages/PriorityDocumentPage'
 import VerificationDonePage from './pages/VerificationDonePage'
 import { PRIORITY_TYPES } from './data/priorityVerification'
-import { takeLoginNext } from './lib/loginRedirect'
+import { isLoggedIn } from './lib/authStorage'
+import { loginPath, takeLoginNext } from './lib/loginRedirect'
 import type { PrioritySubmitMeta, PriorityType } from './types/verification'
+
+// 로그인이 필요한 화면 — 주소를 직접 입력해 들어온 비로그인 사용자에게 "로그인이 필요해요" 팝업을 띄운다 (#173).
+// 로그인하면 이 화면으로 돌아온다(#172). 바텀 탭에서 누른 경우는 BottomNav가 이동 전에 같은 팝업을 띄운다.
+// replace라서 뒤로가기로 막힌 화면에 다시 오지 않는다
+function RequireLogin({ description, children }: { description: string; children: ReactNode }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  if (isLoggedIn()) return children
+  return (
+    <LoginRequiredDialog
+      description={description}
+      onLogin={() => navigate(loginPath(location.pathname + location.search), { replace: true })}
+      onCancel={() => navigate('/', { replace: true })}
+    />
+  )
+}
 
 // 접수 완료 화면은 제출 결과(meta)를 router state로 넘겨받는다.
 // state 없이 직접 진입하면 우선배정 선택으로 돌려보낸다.
@@ -63,7 +82,14 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/browse" element={<ItemList />} />
-          <Route path="/register" element={<ItemRegisterPage />} />
+          <Route
+            path="/register"
+            element={
+              <RequireLogin description="물품을 등록하려면 로그인해 주세요. 로그인하면 바로 등록 화면으로 이어져요.">
+                <ItemRegisterPage />
+              </RequireLogin>
+            }
+          />
           <Route path="/carbon-report" element={<CarbonReportPage />} />
           <Route path="/mypage" element={<MyPage />} />
         </Route>
