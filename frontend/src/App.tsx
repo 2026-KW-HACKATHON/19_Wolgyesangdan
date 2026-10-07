@@ -6,6 +6,7 @@ import Home from './pages/Home'
 import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
+import LoginRequiredDialog from './components/LoginRequiredDialog'
 import CarbonReportPage from './pages/CarbonReportPage'
 import MyPage from './pages/MyPage'
 import MyVerificationPage from './pages/MyVerificationPage'
@@ -22,12 +23,20 @@ import { isLoggedIn } from './lib/authStorage'
 import { loginPath, takeLoginNext } from './lib/loginRedirect'
 import type { PrioritySubmitMeta, PriorityType } from './types/verification'
 
-// 로그인이 필요한 화면 — 비로그인이면 로그인 화면으로 보내고, 로그인 후 이 화면으로 돌아오게 한다 (#173, #172).
+// 로그인이 필요한 화면 — 주소를 직접 입력해 들어온 비로그인 사용자에게 "로그인이 필요해요" 팝업을 띄운다 (#173).
+// 로그인하면 이 화면으로 돌아온다(#172). 바텀 탭에서 누른 경우는 BottomNav가 이동 전에 같은 팝업을 띄운다.
 // replace라서 뒤로가기로 막힌 화면에 다시 오지 않는다
-function RequireLogin({ children }: { children: ReactNode }) {
+function RequireLogin({ description, children }: { description: string; children: ReactNode }) {
   const location = useLocation()
-  if (!isLoggedIn()) return <Navigate to={loginPath(location.pathname + location.search)} replace />
-  return children
+  const navigate = useNavigate()
+  if (isLoggedIn()) return children
+  return (
+    <LoginRequiredDialog
+      description={description}
+      onLogin={() => navigate(loginPath(location.pathname + location.search), { replace: true })}
+      onCancel={() => navigate('/', { replace: true })}
+    />
+  )
 }
 
 // 접수 완료 화면은 제출 결과(meta)를 router state로 넘겨받는다.
@@ -76,7 +85,7 @@ function App() {
           <Route
             path="/register"
             element={
-              <RequireLogin>
+              <RequireLogin description="물품을 등록하려면 로그인해 주세요. 로그인하면 바로 등록 화면으로 이어져요.">
                 <ItemRegisterPage />
               </RequireLogin>
             }
