@@ -15,7 +15,10 @@ import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
+import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
+import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
 import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.verification.entity.PriorityVerification;
@@ -117,6 +120,65 @@ class ApplicationServiceTest {
 	void 이미_신청했으면_409() {
 		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
 		applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		assertThatThrownBy(() -> applicationService.apply(applicant.getId(), item.getId()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ApplicationErrorCode.APPLICATION_ALREADY_EXISTS);
+	}
+
+	@Test
+	void 취소한_신청은_같은_물품에_다시_신청할_수_있다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse first = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.cancel(applicant.getId(), first.id());
+		entityManager.flush();
+
+		ApplicationCreateResponse again = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		assertThat(again.status()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(again.waitlistRank()).isEqualTo(1);
+		assertThat(again.id()).isNotEqualTo(first.id());
+		// 취소한 신청은 지워지고 새 신청 하나만 남는다
+		assertThat(entityManager.find(Application.class, first.id())).isNull();
+		assertThat(item.getApplicantCount()).isEqualTo(1);
+	}
+
+	@Test
+	void 다시_신청하면_대기_순서는_맨_뒤가_된다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		ApplicationCreateResponse first = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		User second = persistEligibleApplicant("두번째신청자");
+		ApplicationCreateResponse secondResponse = applicationService.apply(second.getId(), item.getId());
+		entityManager.flush();
+		applicationService.cancel(applicant.getId(), first.id());
+		entityManager.flush();
+
+		ApplicationCreateResponse again = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+
+		assertThat(again.waitlistRank()).isEqualTo(2);
+		assertThat(entityManager.find(Application.class, secondResponse.id()).getWaitlistRank()).isEqualTo(1);
+	}
+
+	@Test
+	void 노쇼로_빠져_예약이_남은_신청은_다시_신청할_수_없다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		Application dropped = persist(Application.builder()
+				.item(item)
+				.applicant(applicant)
+				.priorityScore(0)
+				.status(ApplicationStatus.CANCELED)
+				.waitlistRank(1)
+				.build());
+		persist(Reservation.builder()
+				.application(dropped)
+				.tradeMethod(TradeMethod.DIRECT)
+				.status(ReservationStatus.NO_SHOW)
+				.build());
 		entityManager.flush();
 
 		assertThatThrownBy(() -> applicationService.apply(applicant.getId(), item.getId()))

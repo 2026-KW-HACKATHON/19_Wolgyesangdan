@@ -18,6 +18,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
+	/** 신청 재신청 시 — 노쇼로 빠진(예약이 남아 있는) 신청은 지우면 안 된다 */
+	boolean existsByApplicationId(Long applicationId);
+
 	/**
 	 * 등록자가 전달을 완료한 횟수 — 그 사람이 등록한 물품의 예약 중 COMPLETED인 것의 수.
 	 * ERD 결정대로 캐시 필드 없이 조회할 때마다 계산한다.

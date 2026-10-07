@@ -16,7 +16,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface ApplicationRepository extends JpaRepository<Application, Long> {
 
-	boolean existsByItemIdAndApplicantId(Long itemId, Long applicantId);
+	/** 물품당 한 사람의 신청은 하나뿐이다 (item_id + applicant_id 유니크) — 취소한 신청도 포함 */
+	Optional<Application> findByItemIdAndApplicantId(Long itemId, Long applicantId);
 
 	/** 마이페이지 "내가 신청한 물품" — 물품을 같이 가져와서 itemName 조회 시 N+1이 안 생기게 한다 */
 	@EntityGraph(attributePaths = {"item"})

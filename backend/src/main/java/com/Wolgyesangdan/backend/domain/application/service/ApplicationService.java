@@ -18,6 +18,7 @@ import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemImageRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
+import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
@@ -39,6 +40,7 @@ public class ApplicationService {
 	private final ApplicationRepository applicationRepository;
 	private final ItemRepository itemRepository;
 	private final ItemImageRepository itemImageRepository;
+	private final ReservationRepository reservationRepository;
 	private final UserRepository userRepository;
 	private final VerificationService verificationService;
 
@@ -71,9 +73,7 @@ public class ApplicationService {
 		if (applicant.getContactType() == null) {
 			throw new BusinessException(ApplicationErrorCode.APPLICATION_CONTACT_NOT_SET);
 		}
-		if (applicationRepository.existsByItemIdAndApplicantId(itemId, userId)) {
-			throw new BusinessException(ApplicationErrorCode.APPLICATION_ALREADY_EXISTS);
-		}
+		applicationRepository.findByItemIdAndApplicantId(itemId, userId).ifPresent(this::removeCanceledForReapply);
 
 		Application application = applicationRepository.save(Application.builder()
 				.item(item)
@@ -85,6 +85,21 @@ public class ApplicationService {
 		recalculateWaitlistRanks(item);
 
 		return ApplicationCreateResponse.from(application);
+	}
+
+	/**
+	 * 취소한 신청이면 지워서 다시 신청할 수 있게 한다 (#169). 행을 새로 만들어야 신청 시각(createdAt)이 지금으로
+	 * 찍혀 대기 순서가 맨 뒤가 된다 — createdAt은 수정할 수 없는 컬럼이라 기존 행을 되살리지 않는다.
+	 * 취소하지 않은 신청이나, 노쇼로 빠져 예약이 남아 있는 신청은 지금처럼 "이미 신청함"이다.
+	 */
+	private void removeCanceledForReapply(Application previous) {
+		if (previous.getStatus() != ApplicationStatus.CANCELED
+				|| reservationRepository.existsByApplicationId(previous.getId())) {
+			throw new BusinessException(ApplicationErrorCode.APPLICATION_ALREADY_EXISTS);
+		}
+		applicationRepository.delete(previous);
+		// Hibernate는 flush 때 insert를 delete보다 먼저 보내서, 바로 flush하지 않으면 새 신청 insert가 유니크 제약에 걸린다
+		applicationRepository.flush();
 	}
 
 	/**
