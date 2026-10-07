@@ -7,6 +7,7 @@ import Badge from '../components/Badge'
 import ItemThumb from '../components/ItemThumb'
 import Toast from '../components/Toast'
 import { isLoggedIn } from '../lib/authStorage'
+import { loginPath } from '../lib/loginRedirect'
 import { ITEM_STATUS_LABEL, TRADE_METHOD_LABEL, formatDeadline, itemStatusTone } from '../lib/item'
 import type { ItemDetail as ItemDetailData, ItemStatus } from '../types/item'
 
@@ -128,7 +129,7 @@ export default function ItemDetail() {
   const handleApply = async (itemId: number) => {
     if (applying) return
     if (!isLoggedIn()) {
-      navigate('/login')
+      navigate(loginPath(`/items/${id}`))
       return
     }
     setApplying(true)
@@ -141,7 +142,7 @@ export default function ItemDetail() {
     } catch (e) {
       // 토큰이 만료돼 재발급도 실패한 경우 — 다시 로그인하게 한다
       if (e instanceof ApiError && e.status === 401) {
-        navigate('/login')
+        navigate(loginPath(`/items/${id}`))
         return
       }
       setApplyError({

@@ -17,6 +17,7 @@ import PriorityChoicePage from './pages/PriorityChoicePage'
 import PriorityDocumentPage from './pages/PriorityDocumentPage'
 import VerificationDonePage from './pages/VerificationDonePage'
 import { PRIORITY_TYPES } from './data/priorityVerification'
+import { takeLoginNext } from './lib/loginRedirect'
 import type { PrioritySubmitMeta, PriorityType } from './types/verification'
 
 // 접수 완료 화면은 제출 결과(meta)를 router state로 넘겨받는다.
@@ -76,7 +77,8 @@ function App() {
             element={
               <LocationVerificationPage
                 onBack={() => navigate(-1)}
-                onSkip={() => navigate('/', { replace: true })}
+                // 신규 회원이 로그인 전에 보던 화면이 있으면 그리로 (#172)
+                onSkip={() => navigate(takeLoginNext() ?? '/', { replace: true })}
                 onVerified={() => navigate('/verify/priority', { replace: true })}
               />
             }
@@ -86,7 +88,7 @@ function App() {
             element={
               <PriorityChoicePage
                 onBack={() => navigate(-1)}
-                onSkip={() => navigate('/', { replace: true })}
+                onSkip={() => navigate(takeLoginNext() ?? '/', { replace: true })}
                 onNext={(type) => navigate(`/verify/priority/${type}`)}
               />
             }

@@ -1,8 +1,10 @@
 import { useState, type CSSProperties } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import ExchangeScene from '../components/ExchangeScene'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import Screen from '../components/Screen'
 import { startKakaoLogin } from '../lib/kakao'
+import { rememberLoginNext } from '../lib/loginRedirect'
 
 // 뒤로 흩날리는 잎 — 다시 쓰기로 키우는 동네 나무(탄소절감 리포트)와 같은 잎이다. duration·delay는 초
 const DRIFTING_LEAVES = [
@@ -32,9 +34,12 @@ interface LoginPageProps {
  */
 export default function LoginPage({ onBrowse }: LoginPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // 로그인 후 돌아갈 화면 (?next=/items/123). 카카오 로그인 페이지를 다녀오는 동안 보관한다
+  const next = useSearchParams()[0].get('next')
 
   const handleKakaoLogin = () => {
     try {
+      rememberLoginNext(next)
       startKakaoLogin()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '카카오 로그인을 시작하지 못했어요.')
