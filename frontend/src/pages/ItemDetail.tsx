@@ -140,11 +140,8 @@ export default function ItemDetail() {
       showToast(application.waitlistRank ? `신청했어요 · 대기 ${application.waitlistRank}번` : '신청했어요')
       setReloadKey((key) => key + 1)
     } catch (e) {
-      // 토큰이 만료돼 재발급도 실패한 경우 — 다시 로그인하게 한다
-      if (e instanceof ApiError && e.status === 401) {
-        navigate(loginPath(`/items/${id}`))
-        return
-      }
+      // 로그인이 풀린 경우 — apiFetch가 로그인을 정리하고 "로그인이 필요해요" 팝업(SessionExpiredDialog)을 띄운다
+      if (e instanceof ApiError && e.status === 401) return
       setApplyError({
         id,
         code: e instanceof ApiError ? e.code : 'UNKNOWN',
