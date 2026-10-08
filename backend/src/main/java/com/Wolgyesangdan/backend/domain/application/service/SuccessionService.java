@@ -80,6 +80,7 @@ public class SuccessionService {
 				.tradeMethod(reservation.getTradeMethod())
 				.status(nextStatus)
 				.reconfirmationDeadline(now.plus(AssignmentService.RECONFIRMATION_PERIOD))
+				.hubReceivedAt(hubReceivedAtForSuccessor(reservation, nextStatus, now))
 				.build());
 		return Result.SUCCEEDED;
 	}
@@ -107,6 +108,16 @@ public class SuccessionService {
 		return reservation.getStatus() == ReservationStatus.HUB_DROP_SCHEDULED
 				? ReservationStatus.HUB_DROP_SCHEDULED
 				: ReservationStatus.PICKUP_SCHEDULED;
+	}
+
+	// 물품이 이미 거점에 있으면 다음 배정자의 예약도 입고된 상태로 시작해야 운영진이 바로 수령 완료를 처리할 수 있다 (#252).
+	// 입고 시각 기록이 없는 예전 예약(DB에서 직접 상태를 바꾼 경우)은 지금 시각으로 채운다
+	private static LocalDateTime hubReceivedAtForSuccessor(Reservation reservation, ReservationStatus nextStatus,
+			LocalDateTime now) {
+		if (nextStatus != ReservationStatus.PICKUP_SCHEDULED) {
+			return null;
+		}
+		return reservation.getHubReceivedAt() != null ? reservation.getHubReceivedAt() : now;
 	}
 
 }
