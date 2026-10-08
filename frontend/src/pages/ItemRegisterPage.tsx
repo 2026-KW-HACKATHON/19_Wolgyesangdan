@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomActionBar from '../components/BottomActionBar'
 import ChoiceChips from '../components/ChoiceChips'
@@ -190,6 +190,13 @@ function DateField({
   )
 }
 
+/** 로컬 미리보기 주소(URL.createObjectURL)를 해제한다 — 해제하지 않으면 사진이 메모리에 계속 남는다 */
+function revokePreviews(files: UploadedFile[]) {
+  for (const file of files) {
+    if (file.url) URL.revokeObjectURL(file.url)
+  }
+}
+
 /** 물품 등록 (4d, /register). 연락 수단이 없으면 4a 시트를 띄운다. */
 export default function ItemRegisterPage() {
   const navigate = useNavigate()
@@ -247,6 +254,13 @@ export default function ItemRegisterPage() {
   const set = <K extends keyof RegisterForm>(key: K, value: RegisterForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  // 화면을 떠날 때 남아 있는 미리보기 주소를 정리한다. 정리 시점의 목록이 필요해서 ref로 따라간다
+  const filesRef = useRef(files)
+  useEffect(() => {
+    filesRef.current = files
+  }, [files])
+  useEffect(() => () => revokePreviews(filesRef.current), [])
+
   const updateFile = (id: string, patch: Partial<UploadedFile>) =>
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
 
@@ -261,7 +275,14 @@ export default function ItemRegisterPage() {
     const uploads = picked.flatMap((file) => {
       const contentType = resolveItemImageContentType(file)
       if (!contentType) return []
-      const entry: UploadedFile = { id: crypto.randomUUID(), name: file.name, size: file.size, status: 'uploading' }
+      const entry: UploadedFile = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        status: 'uploading',
+        // 올리는 동안에도 바로 사진이 보이도록 로컬 미리보기 주소를 만든다 (지울 때·등록 후·화면을 떠날 때 정리)
+        url: URL.createObjectURL(file),
+      }
       return [{ entry, file, contentType }]
     })
     setFiles((prev) => [...prev, ...uploads.map((u) => u.entry)].slice(0, MAX_PHOTOS))
@@ -280,7 +301,10 @@ export default function ItemRegisterPage() {
     }
   }
 
-  const handleRemoveFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id))
+  const handleRemoveFile = (id: string) => {
+    revokePreviews(files.filter((f) => f.id === id))
+    setFiles((prev) => prev.filter((f) => f.id !== id))
+  }
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -304,6 +328,7 @@ export default function ItemRegisterPage() {
       setSubmitting(false)
     }
     setForm(INITIAL_FORM)
+    revokePreviews(files)
     setFiles([])
     setPhotoError(null)
     clearDraft()
