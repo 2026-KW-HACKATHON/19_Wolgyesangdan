@@ -19,6 +19,9 @@ export type ItemStatus = 'REGISTERED' | 'OPEN' | 'CLOSED' | 'ASSIGNED' | 'COMPLE
 /** 정렬 기준. 같은 순위끼리는 최신 등록순 */
 export type ItemSort = 'LATEST' | 'CARBON' | 'CONDITION'
 
+/** 목록에 보여줄 상태 범위 — OPEN: 신청 가능만, ACTIVE(기본): 거래 끝난 것 숨김, ALL: 전부 (#190) */
+export type ItemAvailability = 'OPEN' | 'ACTIVE' | 'ALL'
+
 /** 목록 API 공통 페이지 응답 */
 export interface PageResponse<T> {
   content: T[]
@@ -126,6 +129,7 @@ export interface ItemSearchParams {
   categoryGroup?: CategoryGroup
   tradeMethod?: TradeMethod
   sort?: ItemSort
+  availability?: ItemAvailability
   page?: number
   size?: number
 }
