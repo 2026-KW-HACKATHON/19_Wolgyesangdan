@@ -137,6 +137,7 @@ function RecordCard() {
 // 비로그인이면 이동 대신 "로그인이 필요해요" 팝업에 보여줄 안내 (#179)
 const VERIFY_LOGIN_MESSAGE = '인증하려면 로그인해 주세요. 로그인하면 바로 인증 화면으로 이어져요.'
 const CONTACT_LOGIN_MESSAGE = '연락 수단을 설정하려면 로그인해 주세요. 로그인하면 바로 설정 화면으로 이어져요.'
+const INQUIRY_LOGIN_MESSAGE = '문의하려면 로그인해 주세요. 로그인하면 바로 문의하기 화면으로 이어져요.'
 
 type GoWithLogin = (to: string, description: string) => void
 
@@ -175,7 +176,7 @@ function MenuRows({ go }: { go: GoWithLogin }) {
     { label: '연락 수단 설정', value: contactLabel, onClick: () => go('/settings/contact?next=/mypage', CONTACT_LOGIN_MESSAGE) },
     { label: '인증하기', value: '주민 · 학생 · 우선배정', onClick: () => go('/mypage/verification', VERIFY_LOGIN_MESSAGE) },
     { label: '이용 안내', onClick: () => {} },
-    { label: '문의하기', onClick: () => {} },
+    { label: '문의하기', onClick: () => go('/mypage/inquiries', INQUIRY_LOGIN_MESSAGE) },
   ]
   return (
     <div className="mt-4 border-t border-border">
