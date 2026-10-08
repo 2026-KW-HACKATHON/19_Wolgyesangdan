@@ -460,6 +460,32 @@ class ApplicationServiceTest {
 		MyApplicationSummaryResponse waiting = applicationService.getMyApplications(second.getId(), 0, 20).getContent().get(0);
 		assertThat(waiting.status()).isEqualTo(ApplicationStatus.WAITING);
 		assertThat(waiting.waitlistRank()).isEqualTo(2);
+		assertThat(waiting.itemStatus()).isEqualTo(ItemStatus.ASSIGNED);
+	}
+
+	// 배정된 사람과 거래가 끝나면, 대기하던 신청자는 물품 상태(COMPLETED)와 자기 순번으로 "배정받지 못함"을 알 수 있다 (#265)
+	@Test
+	void 거래가_끝난_물품의_대기자에게는_물품_상태_COMPLETED와_순번을_내려준다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		User second = persistEligibleApplicant("두번째신청자");
+		ApplicationCreateResponse firstResponse = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.apply(second.getId(), item.getId());
+		entityManager.flush();
+		Application selected = entityManager.find(Application.class, firstResponse.id());
+		selected.select(LocalDateTime.now());
+		item.assign();
+		selected.complete();
+		item.complete();
+		entityManager.flush();
+
+		MyApplicationSummaryResponse missed = applicationService.getMyApplications(second.getId(), 0, 20).getContent().get(0);
+		assertThat(missed.status()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(missed.itemStatus()).isEqualTo(ItemStatus.COMPLETED);
+		assertThat(missed.waitlistRank()).isEqualTo(2);
+		MyApplicationSummaryResponse received = applicationService.getMyApplications(applicant.getId(), 0, 20).getContent().get(0);
+		assertThat(received.status()).isEqualTo(ApplicationStatus.COMPLETED);
+		assertThat(received.itemStatus()).isEqualTo(ItemStatus.COMPLETED);
 	}
 
 	@Test

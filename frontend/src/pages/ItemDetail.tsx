@@ -21,9 +21,14 @@ const CLOSED_BUTTON_LABEL: Partial<Record<ItemStatus, string>> = {
 }
 
 /** 이미 신청한 사람에게 보여줄 버튼 문구 — 누르면 마이페이지 "내가 신청한 물품"으로 간다 */
-function myApplicationLabel({ status, waitlistRank }: NonNullable<ItemDetailData['myApplication']>) {
+function myApplicationLabel(
+  { status, waitlistRank }: NonNullable<ItemDetailData['myApplication']>,
+  itemStatus: ItemStatus,
+) {
   if (status === 'SELECTED') return '나에게 배정됐어요 · 내 신청 보기'
   if (status === 'COMPLETED') return '받은 물건이에요 · 내 신청 보기'
+  // 대기 중이었는데 다른 신청자와 거래가 끝남 (#265)
+  if (itemStatus === 'COMPLETED') return '배정받지 못했어요 · 내 신청 보기'
   // 배정 전에는 서버가 순번을 내려주지 않는다 (#265)
   return waitlistRank ? `신청 완료 · 대기 ${waitlistRank}번` : '신청 완료 · 내 신청 보기'
 }
@@ -225,7 +230,7 @@ export default function ItemDetail() {
   const viewerAction = item.isMine
     ? { label: '내가 등록한 물품이에요 · 관리하기', to: '/mypage' }
     : item.myApplication
-      ? { label: myApplicationLabel(item.myApplication), to: '/mypage?tab=applied' }
+      ? { label: myApplicationLabel(item.myApplication, item.status), to: '/mypage?tab=applied' }
       : null
 
   return (

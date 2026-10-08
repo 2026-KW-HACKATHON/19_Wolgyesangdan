@@ -1,4 +1,4 @@
-import type { PageResponse } from '../types/item'
+import type { ItemStatus, PageResponse } from '../types/item'
 import { apiFetch } from './client'
 
 export type ApplicationStatus = 'WAITING' | 'SELECTED' | 'CANCELED' | 'COMPLETED'
@@ -32,6 +32,8 @@ export interface MyApplicationSummary {
   status: ApplicationStatus
   /** 대기 순번 (1부터). 물품이 아직 배정 전이면 null (#265). 배정된 뒤에는 그대로 남고, 취소하면 null */
   waitlistRank: number | null
+  /** 물품의 지금 상태. 대기 중(WAITING)인 신청인데 COMPLETED면 다른 신청자와 거래가 끝나 배정받지 못한 것 (#265) */
+  itemStatus: ItemStatus
   appliedAt: string
 }
 

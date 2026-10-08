@@ -35,6 +35,9 @@ const STATUS_BADGE: Record<ApplicationStatus, { label: string; className: string
   CANCELED: { label: '신청 취소됨', className: 'bg-sunken text-ink-2' },
 }
 
+/** 대기 중이던 신청인데 물품 거래가 다른 신청자와 끝난 경우의 배지 (#265) */
+const MISSED_BADGE = { label: '배정받지 못함', className: 'bg-sunken text-ink-2' }
+
 /** 대기 순번 5칸 바. 내 순번 이전 칸은 진하게, 내 칸은 중간 톤으로 표시한다. */
 function WaitlistBar({ myNo, total }: { myNo: number; total: number }) {
   return (
@@ -262,8 +265,10 @@ export default function AppliedList() {
       {applications.map((item) => {
         const selected = item.status === 'SELECTED'
         // 끝난 신청(전달 완료·취소)은 흐리게 두고 버튼을 보여주지 않는다
-        const closed = item.status === 'COMPLETED' || item.status === 'CANCELED'
-        const badge = STATUS_BADGE[item.status]
+        // 대기 중이었는데 물품 거래가 다른 신청자와 끝남 — 배정받지 못한 신청 (#265)
+        const missed = item.status === 'WAITING' && item.itemStatus === 'COMPLETED'
+        const closed = item.status === 'COMPLETED' || item.status === 'CANCELED' || missed
+        const badge = missed ? MISSED_BADGE : STATUS_BADGE[item.status]
         return (
           <div
             key={item.id}
@@ -289,18 +294,27 @@ export default function AppliedList() {
 
             {/* 배정 전에는 서버가 순번을 내려주지 않는다 (#265) — 순번 대신 언제 알 수 있는지만 알려준다 */}
             {item.status === 'WAITING' && !item.waitlistRank && (
-              <div className="mt-3 flex gap-2 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
-                <MaterialIcon name="hourglass_top" size={18} className="mt-px flex-none text-accent" />
-                <div>
-                  <div className="text-[14px] font-bold text-primary-tint-ink">신청이 접수됐어요</div>
-                  <p className="mt-1 text-[12px] leading-normal font-medium text-primary-tint-ink">
-                    순번은 신청 마감 뒤 배정이 끝나면 알려드려요.
-                  </p>
-                </div>
+              <div className="mt-3 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
+                <div className="text-[14px] font-bold text-primary-tint-ink">신청이 접수됐어요</div>
+                <p className="mt-1 text-[12px] leading-normal font-medium text-primary-tint-ink">
+                  순번은 신청 마감 뒤 배정이 끝나면 알려드려요.
+                </p>
               </div>
             )}
 
-            {item.status === 'WAITING' && item.waitlistRank && (
+            {/* 다른 신청자와 거래가 끝난 물품 — 더 넘어올 일이 없으니 순번 카드 대신 결과를 알려준다 (#265) */}
+            {missed && (
+              <div className="mt-3 rounded-[14px] bg-sunken px-3.5 py-[13px]">
+                <div className="text-[14px] font-bold text-ink-2">거래가 완료됐어요</div>
+                <p className="mt-1 text-[12px] leading-normal font-medium text-ink-2">
+                  {item.waitlistRank
+                    ? `대기 ${item.waitlistRank}번이라 배정받지 못했어요.`
+                    : '다른 신청자에게 배정돼 받지 못했어요.'}
+                </p>
+              </div>
+            )}
+
+            {item.status === 'WAITING' && item.waitlistRank && !missed && (
               <div className="mt-3 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-[14px] font-bold text-body">대기</span>

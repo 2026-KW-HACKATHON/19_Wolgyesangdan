@@ -15,6 +15,7 @@ import java.util.List;
 import com.Wolgyesangdan.backend.domain.application.dto.ApplicationCreateResponse;
 import com.Wolgyesangdan.backend.domain.application.dto.MyApplicationSummaryResponse;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.application.exception.ApplicationErrorCode;
 import com.Wolgyesangdan.backend.domain.application.service.ApplicationService;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
@@ -148,8 +149,8 @@ class ApplicationControllerTest {
 	void 내가_신청한_물품을_명세의_페이지_형식으로_조회한다() throws Exception {
 		given(applicationService.getMyApplications(1L, 0, 20)).willReturn(new PageImpl<>(List.of(
 				new MyApplicationSummaryResponse(5L, 1L, "전자레인지", "https://example.com/photo1.jpg",
-						ApplicationStatus.WAITING, 2, LocalDateTime.of(2026, 9, 26, 15, 30)),
-				new MyApplicationSummaryResponse(3L, 2L, "책상", null, ApplicationStatus.CANCELED, null,
+						ApplicationStatus.WAITING, 2, ItemStatus.ASSIGNED, LocalDateTime.of(2026, 9, 26, 15, 30)),
+				new MyApplicationSummaryResponse(3L, 2L, "책상", null, ApplicationStatus.CANCELED, null, ItemStatus.OPEN,
 						LocalDateTime.of(2026, 9, 20, 10, 0))),
 				PageRequest.of(0, 20), 2));
 
@@ -162,6 +163,7 @@ class ApplicationControllerTest {
 				.andExpect(jsonPath("$.content[0].itemThumbnailImageUrl").value("https://example.com/photo1.jpg"))
 				.andExpect(jsonPath("$.content[0].status").value("WAITING"))
 				.andExpect(jsonPath("$.content[0].waitlistRank").value(2))
+				.andExpect(jsonPath("$.content[0].itemStatus").value("ASSIGNED"))
 				.andExpect(jsonPath("$.content[0].appliedAt").value("2026-09-26T15:30:00"))
 				.andExpect(jsonPath("$.content[1].itemThumbnailImageUrl").isEmpty())
 				.andExpect(jsonPath("$.content[1].waitlistRank").isEmpty())
