@@ -28,6 +28,16 @@ function toCategoryFilter(value: string | null): CategoryFilter {
 }
 type TradeMethodFilter = TradeMethod | '전체'
 
+/** 주소의 ?tradeMethod= 값. 없거나 모르는 값이면 '전체' */
+function toTradeMethodFilter(value: string | null): TradeMethodFilter {
+  return value === 'DIRECT' || value === 'CAMPAIGN' ? value : '전체'
+}
+
+/** 주소의 ?sort= 값. 없거나 모르는 값이면 최신순 */
+function toSort(value: string | null): ItemSort {
+  return value === 'CARBON' || value === 'CONDITION' ? value : 'LATEST'
+}
+
 // 검색·필터·정렬은 서버가 처리한다 (GET /items). 빈 검색어와 '전체'는 조건을 보내지 않는다
 // 기본은 거래가 끝난 물건(배정·거래 완료)을 숨기고, "거래 끝난 물건도 보기"면 전부 (#191)
 function fetchItems(
@@ -84,15 +94,19 @@ export default function ItemList() {
   const draftText = draft.keyword === keyword ? draft.text : keyword
   // 홈 검색창을 눌러 들어오면 바로 입력할 수 있게 포커스한다
   const focusSearch = (useLocation().state as { focusSearch?: boolean } | null)?.focusSearch === true
-  const [tradeMethod, setTradeMethod] = useState<TradeMethodFilter>('전체')
-  const [sortBy, setSortBy] = useState<ItemSort>('LATEST')
+  // 거래 방식·정렬도 주소(?tradeMethod=&sort=)에 둬서 상세에 갔다 와도 유지한다. 기본값(전체·최신순)이면 주소에서 뺀다 (#195)
+  const urlTradeMethod = toTradeMethodFilter(searchParams.get('tradeMethod'))
+  const sortBy = toSort(searchParams.get('sort'))
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState<{ query: string; message: string } | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
 
   // 거점 거래는 진행 중인 캠페인이 있을 때만 고를 수 있다 (GET /campaigns/active)
-  const { active: campaignActive } = useActiveCampaign()
+  const { active: campaignActive, loading: campaignLoading } = useActiveCampaign()
+  // 진행 중인 캠페인이 없는데 주소에 거점 거래가 남아 있으면(지난 링크 등) '전체'로 본다. 확인 중에는 주소 값 그대로
+  const tradeMethod: TradeMethodFilter =
+    urlTradeMethod === 'CAMPAIGN' && !campaignActive && !campaignLoading ? '전체' : urlTradeMethod
   const tradeMethodFilters: TradeMethodFilter[] = campaignActive
     ? ['전체', 'DIRECT', 'CAMPAIGN']
     : ['전체', 'DIRECT']
@@ -100,7 +114,7 @@ export default function ItemList() {
   const query = `${keyword}|${category}|${tradeMethod}|${sortBy}|${showFinished}`
 
   /** 주소의 조건 하나만 바꾼다. 빈 값이면 지운다 */
-  const changeParam = (key: 'keyword' | 'category' | 'finished', value: string) => {
+  const changeParam = (key: 'keyword' | 'category' | 'finished' | 'tradeMethod' | 'sort', value: string) => {
     setSearchParams(
       (prev) => {
         const params = new URLSearchParams(prev)
@@ -113,6 +127,8 @@ export default function ItemList() {
   }
 
   const setCategory = (next: CategoryFilter) => changeParam('category', next === '전체' ? '' : next)
+  const setTradeMethod = (next: TradeMethodFilter) => changeParam('tradeMethod', next === '전체' ? '' : next)
+  const setSortBy = (next: ItemSort) => changeParam('sort', next === 'LATEST' ? '' : next)
   const setShowFinished = (next: boolean) => changeParam('finished', next ? '1' : '')
   // 빈 결과일 때 거래 끝난 물건을 숨기고 있으면 함께 볼 수 있게 안내한다
   const finishedAction = showFinished
