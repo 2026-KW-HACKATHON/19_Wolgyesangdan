@@ -17,6 +17,14 @@ export function itemStatusTone(status: ItemStatus): 'primary' | 'warning' | 'neu
   return 'neutral'
 }
 
+/**
+ * 등록자가 수정·삭제할 수 있는 물품인지 — 신청을 받는 중이고 아직 아무도 신청하지 않았을 때만.
+ * 서버(Item.isModifiable)와 같은 기준이다
+ */
+export function isItemModifiable(item: { status: ItemStatus; applicantCount: number }) {
+  return item.status === 'OPEN' && item.applicantCount === 0
+}
+
 export const TRADE_METHOD_LABEL: Record<TradeMethod, string> = {
   DIRECT: '직거래',
   CAMPAIGN: '거점 수령',

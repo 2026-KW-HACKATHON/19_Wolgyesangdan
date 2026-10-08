@@ -16,6 +16,7 @@ import CarbonReportPage from './pages/CarbonReportPage'
 import MyPage from './pages/MyPage'
 import MyVerificationPage from './pages/MyVerificationPage'
 import ItemDetail from './pages/ItemDetail'
+import ItemEditPage from './pages/ItemEditPage'
 import ItemRegisterPage from './pages/ItemRegisterPage'
 import KakaoCallbackPage from './pages/KakaoCallbackPage'
 import LocationVerificationPage from './pages/LocationVerificationPage'
@@ -104,6 +105,14 @@ function App() {
         </Route>
         <Route element={<DetailLayout />}>
           <Route path="/items/:id" element={<ItemDetail />} />
+          <Route
+            path="/items/:id/edit"
+            element={
+              <RequireLogin description="물품을 수정하려면 로그인해 주세요. 로그인하면 바로 수정 화면으로 이어져요.">
+                <ItemEditPage />
+              </RequireLogin>
+            }
+          />
           <Route path="/login" element={<LoginPage onBrowse={() => navigate('/')} />} />
           <Route path="/oauth/kakao/callback" element={<KakaoCallbackPage />} />
           {/* 로그인·인증 v2: GPS 동네 인증 → (선택) 우선배정 인증 */}

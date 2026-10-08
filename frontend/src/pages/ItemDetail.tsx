@@ -2,15 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { applyForItem } from '../api/applications'
 import { ApiError } from '../api/client'
-import { getItem } from '../api/items'
+import { deleteItem, getItem } from '../api/items'
 import ApplyProcessGuide from '../components/ApplyProcessGuide'
 import Badge from '../components/Badge'
+import ConfirmDialog from '../components/ConfirmDialog'
 import ItemThumb from '../components/ItemThumb'
 import LoginRequiredDialog from '../components/LoginRequiredDialog'
 import Toast from '../components/Toast'
 import { isLoggedIn } from '../lib/authStorage'
 import { loginPath } from '../lib/loginRedirect'
-import { ITEM_STATUS_LABEL, TRADE_METHOD_LABEL, formatDeadline, itemStatusTone } from '../lib/item'
+import { ITEM_STATUS_LABEL, TRADE_METHOD_LABEL, formatDeadline, isItemModifiable, itemStatusTone } from '../lib/item'
 import type { ItemDetail as ItemDetailData, ItemStatus } from '../types/item'
 
 /** 신청할 수 없는 상태일 때 신청 버튼 자리에 보여주는 문구 */
@@ -84,10 +85,20 @@ export default function ItemDetail() {
   const [appliedId, setAppliedId] = useState<string | null>(null)
   const [applyError, setApplyError] = useState<{ id: string; code: string; message: string } | null>(null)
 
-  // 물품 등록 직후 넘어온 경우 "등록했어요" 토스트로 시작한다 (#193)
+  // 등록자가 삭제를 확인 중인 물품 / 삭제 중 여부 / 수정·삭제가 막힌 사유. 다른 물품으로 넘어가면 쓰지 않도록 id로 둔다
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [manageError, setManageError] = useState<{ id: string; message: string } | null>(null)
+
+  // 물품 등록(#193)·수정 직후 넘어온 경우 "등록했어요"/"수정했어요" 토스트로 시작한다
   const location = useLocation()
-  const justRegistered = (location.state as { registered?: boolean } | null)?.registered === true
-  const [toast, setToast] = useState(() => ({ visible: justRegistered, message: '물품을 등록했어요' }))
+  const arrivedState = location.state as { registered?: boolean; updated?: boolean } | null
+  const arrivedMessage = arrivedState?.registered
+    ? '물품을 등록했어요'
+    : arrivedState?.updated
+      ? '물품을 수정했어요'
+      : null
+  const [toast, setToast] = useState(() => ({ visible: arrivedMessage !== null, message: arrivedMessage ?? '' }))
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -97,11 +108,11 @@ export default function ItemDetail() {
   }, [])
 
   useEffect(() => {
-    if (!justRegistered) return
+    if (!arrivedMessage) return
     toastTimeoutRef.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2000)
     // 새로고침·뒤로가기로 다시 들어와도 토스트가 또 뜨지 않게 기록의 표시를 지운다
     navigate(location.pathname + location.search, { replace: true, state: null })
-  }, [justRegistered, navigate, location.pathname, location.search])
+  }, [arrivedMessage, navigate, location.pathname, location.search])
 
   const showToast = (message: string) => {
     setToast({ visible: true, message })
@@ -177,6 +188,29 @@ export default function ItemDetail() {
     }
   }
 
+  // 물품 삭제 (DELETE /items/{itemId}). 신청자가 0명인 신청 받는 중 물품만 — 끝나면 마이페이지 "내가 등록한 물품"으로
+  const handleDelete = async (itemId: number) => {
+    setConfirmDeleteId(null)
+    if (deleting) return
+    setDeleting(true)
+    setManageError(null)
+    try {
+      await deleteItem(itemId)
+      navigate('/mypage', { replace: true })
+    } catch (e) {
+      // 로그인이 풀린 경우 — apiFetch가 로그인을 정리하고 "로그인이 필요해요" 팝업(SessionExpiredDialog)을 띄운다
+      if (e instanceof ApiError && e.status === 401) return
+      setManageError({
+        id,
+        message: e instanceof ApiError ? e.message : '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.',
+      })
+      // 그 사이 신청이 들어와 막혔을 수 있으니 최신 상태로 다시 받는다
+      setReloadKey((key) => key + 1)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const current = result?.id === id ? result : null
 
   if (!current) {
@@ -226,6 +260,9 @@ export default function ItemDetail() {
       : item.status === 'OPEN'
         ? '신청하기'
         : (CLOSED_BUTTON_LABEL[item.status] ?? '신청할 수 없어요')
+  // 내 물품이고 아직 아무도 신청하지 않았으면 수정·삭제할 수 있다. 신청자가 생기면 마이페이지에서 관리한다
+  const modifiable = item.isMine && isItemModifiable(item)
+  const currentManageError = manageError?.id === id ? manageError : null
   // 내 물품이거나 이미 신청했으면 신청 버튼 대신 마이페이지로 가는 버튼 (GET /items/{id}의 isMine·myApplication)
   const viewerAction = item.isMine
     ? { label: '내가 등록한 물품이에요 · 관리하기', to: '/mypage' }
@@ -375,6 +412,16 @@ export default function ItemDetail() {
       </div>
 
       <div className="flex-none border-t border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3">
+        {currentManageError && (
+          <p role="alert" className="mb-2.5 text-[13px] font-semibold text-terracotta">
+            {currentManageError.message}
+          </p>
+        )}
+        {item.isMine && !modifiable && item.applicantCount > 0 && (item.status === 'OPEN' || item.status === 'CLOSED') && (
+          <p className="mb-2.5 text-center text-[13px] font-medium text-[var(--color-label-alt)]">
+            신청한 이웃이 있어서 수정·삭제할 수 없어요
+          </p>
+        )}
         {currentApplyError && (
           <div role="alert" className="mb-2.5 flex items-center gap-2">
             <p className="flex-1 text-[13px] font-semibold text-terracotta">{currentApplyError.message}</p>
@@ -389,7 +436,26 @@ export default function ItemDetail() {
             )}
           </div>
         )}
-        {viewerAction ? (
+        {modifiable ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteId(id)}
+              disabled={deleting}
+              className="h-12 flex-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 text-base font-bold text-terracotta disabled:opacity-50"
+            >
+              {deleting ? '삭제 중…' : '삭제'}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/items/${id}/edit`)}
+              disabled={deleting}
+              className="h-12 flex-1 rounded-2xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-surface)] disabled:opacity-50"
+            >
+              수정하기
+            </button>
+          </div>
+        ) : viewerAction ? (
           <button
             type="button"
             onClick={() => navigate(viewerAction.to)}
@@ -411,6 +477,19 @@ export default function ItemDetail() {
       </div>
 
       <Toast visible={toast.visible}>{toast.message}</Toast>
+
+      {confirmDeleteId === id && (
+        <ConfirmDialog
+          icon="delete"
+          tone="danger"
+          title="물품을 삭제할까요?"
+          description="삭제하면 목록과 마이페이지에서 사라지고 되돌릴 수 없어요."
+          confirmLabel="삭제"
+          cancelLabel="그대로 둘게요"
+          onConfirm={() => handleDelete(item.id)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
 
       {loginPromptId === id && (
         <LoginRequiredDialog

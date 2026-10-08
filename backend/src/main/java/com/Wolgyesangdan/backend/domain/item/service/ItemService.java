@@ -99,11 +99,11 @@ public class ItemService {
 	}
 
 	/**
-	 * 내가 등록한 물품 (마이페이지). 본인 목록이라 취소된 물품까지 상태와 관계없이 전부, 최근 등록순.
+	 * 내가 등록한 물품 (마이페이지). 본인 목록이라 취소된 물품까지 상태와 관계없이 전부(삭제한 물품만 뺀다), 최근 등록순.
 	 * 대표 사진과 진행 중인 예약(배정된 신청 id·전달 예정 일시)은 페이지에 담긴 물품 id로 한 번씩만 조회해서 붙인다 (N+1 방지).
 	 */
 	public Page<MyItemSummaryResponse> getMyItems(Long userId, int page, int size) {
-		Page<Item> items = itemRepository.findByOwnerId(userId,
+		Page<Item> items = itemRepository.findByOwnerIdAndDeletedFalse(userId,
 				PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
 		List<Long> itemIds = items.map(Item::getId).getContent();
 		if (itemIds.isEmpty()) {
@@ -127,13 +127,14 @@ public class ItemService {
 	}
 
 	/**
-	 * 물품 상세 (비회원 허용). 상태와 관계없이 조회된다 — 상태는 응답의 status로 프론트가 표시.
+	 * 물품 상세 (비회원 허용). 상태와 관계없이 조회된다 — 상태는 응답의 status로 프론트가 표시. 삭제한 물품은 없는 물품으로 본다.
 	 * viewerId(보는 사람, 비회원이면 null) 기준으로 내 물품인지·내 신청이 있는지를 함께 내려준다 (#168).
 	 * 쿼리: 물품+등록자+캠페인 1번, 사진 1번, 거래 방식 1번, 등록자 전달 완료 횟수 1번
 	 * (+ 등록자가 아닌 회원이 보면 내 신청 1번).
 	 */
 	public ItemDetailResponse getItem(Long itemId, Long viewerId) {
 		Item item = itemRepository.findWithOwnerAndCampaignById(itemId)
+				.filter(found -> !found.isDeleted())
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 		// 관리자가 숨긴 물품은 등록자 본인을 포함해 누구에게도 보여주지 않는다 (#214)
 		if (item.isHidden()) {
@@ -184,14 +185,7 @@ public class ItemService {
 				? campaign.getApplicationEndDate().atTime(END_OF_DAY)
 				: today.plusDays(DIRECT_APPLICATION_DAYS).atTime(END_OF_DAY);
 		ItemType itemType = request.itemType();
-		if (itemType != null && itemType.getCategoryGroup() != request.categoryGroup()) {
-			throw new BusinessException(ItemErrorCode.ITEM_TYPE_CATEGORY_MISMATCH);
-		}
-		int carbonReduction = itemType != null
-				? itemType.getCarbonReductionKg()
-				: categoryCarbonReferenceRepository.findByCategoryGroup(request.categoryGroup())
-						.orElseThrow(() -> new IllegalStateException("탄소 참조값이 없는 카테고리: " + request.categoryGroup()))
-						.getCarbonReductionKg();
+		int carbonReduction = carbonReductionOf(request);
 		boolean defect = Boolean.TRUE.equals(request.defectYn());
 
 		Item item = itemRepository.save(Item.builder()
@@ -217,19 +211,119 @@ public class ItemService {
 				.applicationDeadline(applicationDeadline)
 				.status(ItemStatus.OPEN)
 				.build());
-		List<ItemImage> images = itemImageRepository.saveAll(IntStream.range(0, request.imageUrls().size())
+		List<ItemImage> images = saveImagesAndTradeMethods(item, request.imageUrls(), tradeMethods);
+
+		long givenCount = reservationRepository.countCompletedByItemOwnerId(owner.getId());
+		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount, true, null);
+	}
+
+	/**
+	 * 물품 수정 — 등록자 본인이, 신청을 받는 중이고 아직 아무도 신청하지 않은 물품만 (Item.isModifiable).
+	 * 본문은 등록과 같고 같은 규칙으로 검증한다. 사진·거래 방식은 보낸 목록으로 통째로 바꾸고,
+	 * 탄소 절감량·신청 마감은 바뀐 값으로 다시 정한다.
+	 * - 직거래만이면 마감은 처음 등록한 날 + 3일 23:59:59 — 수정해도 신청 기간이 늘어나지 않는다
+	 * - 이미 연결된 캠페인으로 거점 거래를 유지하면 물품 등록 기간이 지났어도 수정할 수 있다 (등록 기간 안에 등록한 물품이라서).
+	 *   새로 거점 거래를 고르거나 다른 캠페인으로 바꾸면 등록과 똑같이 등록 기간 안이어야 한다
+	 */
+	@Transactional
+	public ItemDetailResponse updateItem(Long userId, Long itemId, ItemCreateRequest request) {
+		Item item = findModifiableItem(userId, itemId);
+
+		EnumSet<TradeMethod> tradeMethods = EnumSet.copyOf(request.tradeMethods());
+		Campaign campaign = null;
+		if (tradeMethods.contains(TradeMethod.CAMPAIGN)) {
+			Campaign current = item.getCampaign();
+			campaign = current != null && current.getId().equals(request.campaignId())
+					? current
+					: findCampaignAcceptingItems(request.campaignId(), LocalDate.now());
+			validateAvailablePeriodInCampaign(request, campaign);
+		}
+		LocalDateTime applicationDeadline = campaign != null
+				? campaign.getApplicationEndDate().atTime(END_OF_DAY)
+				: item.getCreatedAt().toLocalDate().plusDays(DIRECT_APPLICATION_DAYS).atTime(END_OF_DAY);
+		ItemType itemType = request.itemType();
+		int carbonReduction = carbonReductionOf(request);
+		boolean defect = Boolean.TRUE.equals(request.defectYn());
+
+		item.update(campaign,
+				request.name().strip(),
+				request.categoryGroup(),
+				itemType,
+				itemType != null ? itemType.getLabel() : request.category(),
+				request.description(),
+				request.conditionGrade(),
+				request.usagePeriod(),
+				defect,
+				defect ? request.defectDescription() : null,
+				request.workingStatus(),
+				request.size(),
+				request.transportDifficulty(),
+				carbonReduction,
+				request.availableFrom(),
+				request.availableUntil(),
+				request.disposalDeadline(),
+				applicationDeadline);
+		itemImageRepository.deleteByItemId(itemId);
+		itemTradeMethodRepository.deleteByItemId(itemId);
+		List<ItemImage> images = saveImagesAndTradeMethods(item, request.imageUrls(), tradeMethods);
+
+		long givenCount = reservationRepository.countCompletedByItemOwnerId(userId);
+		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount, true, null);
+	}
+
+	/**
+	 * 물품 삭제 — 수정과 같은 조건(등록자 본인, 신청자 0명인 신청 받는 중 물품)일 때만.
+	 * 취소한 신청 기록이 물품을 참조하고 있을 수 있어 행은 지우지 않고, 종료 상태 + 삭제 표시로 바꾼다 (Item.delete)
+	 */
+	@Transactional
+	public void deleteItem(Long userId, Long itemId) {
+		findModifiableItem(userId, itemId).delete();
+	}
+
+	// 수정·삭제할 물품. 물품 행을 잠그고 읽어서, 같은 물품에 동시에 들어온 신청(ApplicationService.apply도 같은 행을 잠근다)과
+	// 한 줄씩 처리된다 — 신청자 0명을 확인한 뒤에 신청이 끼어들지 않는다
+	private Item findModifiableItem(Long userId, Long itemId) {
+		Item item = itemRepository.findByIdForUpdate(itemId)
+				.filter(found -> !found.isDeleted())
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		if (item.isHidden()) {
+			throw new BusinessException(ItemErrorCode.ITEM_HIDDEN);
+		}
+		if (!item.getOwner().getId().equals(userId)) {
+			throw new BusinessException(ItemErrorCode.ITEM_NOT_OWNER);
+		}
+		if (!item.isModifiable()) {
+			throw new BusinessException(ItemErrorCode.ITEM_NOT_MODIFIABLE);
+		}
+		return item;
+	}
+
+	// 예상 탄소 절감량 — 품목 값(#284), 품목이 없으면 대분류 기준표 값. 품목은 고른 대분류에 속해야 한다
+	private int carbonReductionOf(ItemCreateRequest request) {
+		ItemType itemType = request.itemType();
+		if (itemType != null && itemType.getCategoryGroup() != request.categoryGroup()) {
+			throw new BusinessException(ItemErrorCode.ITEM_TYPE_CATEGORY_MISMATCH);
+		}
+		return itemType != null
+				? itemType.getCarbonReductionKg()
+				: categoryCarbonReferenceRepository.findByCategoryGroup(request.categoryGroup())
+						.orElseThrow(() -> new IllegalStateException("탄소 참조값이 없는 카테고리: " + request.categoryGroup()))
+						.getCarbonReductionKg();
+	}
+
+	// 사진은 보낸 순서대로(앞이 대표 사진) 저장한다
+	private List<ItemImage> saveImagesAndTradeMethods(Item item, List<String> imageUrls, EnumSet<TradeMethod> tradeMethods) {
+		List<ItemImage> images = itemImageRepository.saveAll(IntStream.range(0, imageUrls.size())
 				.mapToObj(order -> ItemImage.builder()
 						.item(item)
-						.imageUrl(request.imageUrls().get(order))
+						.imageUrl(imageUrls.get(order))
 						.displayOrder(order)
 						.build())
 				.toList());
 		itemTradeMethodRepository.saveAll(tradeMethods.stream()
 				.map(tradeMethod -> ItemTradeMethod.builder().item(item).tradeMethod(tradeMethod).build())
 				.toList());
-
-		long givenCount = reservationRepository.countCompletedByItemOwnerId(owner.getId());
-		return ItemDetailResponse.of(item, List.copyOf(tradeMethods), images, givenCount, true, null);
+		return images;
 	}
 
 	// 물품별 대표 사진 = 순서가 가장 앞인 사진

@@ -42,6 +42,19 @@ export function createItem(request: ItemCreateRequest) {
   return apiFetch<ItemDetail>('/items', { method: 'POST', body: JSON.stringify(request) })
 }
 
+/**
+ * 물품 수정 (PUT /items/{itemId}, 등록자 본인). 본문은 등록과 같고, 사진·거래 방식은 보낸 목록으로 통째로 바뀐다.
+ * 신청을 받는 중이고 신청자가 0명인 물품만 — 아니면 409 ITEM_NOT_MODIFIABLE, 남의 물품이면 403 ITEM_NOT_OWNER
+ */
+export function updateItem(itemId: number, request: ItemCreateRequest) {
+  return apiFetch<ItemDetail>(`/items/${itemId}`, { method: 'PUT', body: JSON.stringify(request) })
+}
+
+/** 물품 삭제 (DELETE /items/{itemId}, 등록자 본인). 수정과 같은 조건일 때만. 성공하면 204 */
+export function deleteItem(itemId: number) {
+  return apiFetch<void>(`/items/${itemId}`, { method: 'DELETE' })
+}
+
 const CONTENT_TYPE_BY_EXTENSION: Record<string, ItemImageContentType> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',

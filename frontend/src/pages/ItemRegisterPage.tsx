@@ -7,15 +7,17 @@ import MaterialIcon from '../components/icons/MaterialIcon'
 import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
 import TextField from '../components/TextField'
+import TopBar from '../components/TopBar'
 import { getActiveCampaign } from '../api/campaigns'
 import { ApiError } from '../api/client'
-import { createItem, getCategories, resolveItemImageContentType, uploadItemImage } from '../api/items'
+import { createItem, getCategories, resolveItemImageContentType, updateItem, uploadItemImage } from '../api/items'
 import { useContact } from '../contexts/ContactContext'
 import type {
   CategoryCarbon,
   CategoryGroup,
   ConditionGrade as Condition,
   ItemCreateRequest,
+  ItemDetail,
   TradeMethod,
   TransportDifficulty,
 } from '../types/item'
@@ -116,6 +118,51 @@ function clearDraft() {
     localStorage.removeItem(DRAFT_KEY)
   } catch {
     // 위와 같음
+  }
+}
+
+/** 수정할 물품의 값으로 채운 폼. 지금 고를 수 없는 옛 값(예: 예전 상태 등급 표기)은 비워서 다시 고르게 한다 */
+function formFromItem(item: ItemDetail): RegisterForm {
+  const methods = item.tradeMethods
+  return {
+    name: item.name,
+    categoryGroup: item.categoryGroup,
+    // 품목 없이 등록된 물품은 "기타 품목"을 고른 것으로 본다
+    itemType: item.itemType ?? OTHER_ITEM_TYPE,
+    condition: CONDITION_OPTIONS.find((c) => c === item.conditionGrade) ?? null,
+    usagePeriod: item.usagePeriod ?? '',
+    description: item.description ?? '',
+    defect: item.defectYn ? (item.defectDescription ?? '') : '',
+    size: item.size ?? '',
+    transport: TRANSPORT_OPTIONS.find((t) => t === item.transportDifficulty) ?? null,
+    pickupStart: item.availableFrom ?? '',
+    pickupEnd: item.availableUntil ?? '',
+    disposeBy: item.disposalDeadline ?? '',
+    trade:
+      methods.includes('DIRECT') && methods.includes('CAMPAIGN')
+        ? 'BOTH'
+        : methods.includes('CAMPAIGN')
+          ? 'CAMPAIGN'
+          : 'DIRECT',
+  }
+}
+
+/** 수정할 물품의 사진 — 이미 올라가 있으니 서버 주소(imageUrl)로 보여준다 */
+function photosFromItem(item: ItemDetail): UploadedFile[] {
+  return [...item.images]
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((image, i) => ({ id: `saved-${i}`, name: `사진 ${i + 1}`, size: 0, status: 'done', imageUrl: image.imageUrl }))
+}
+
+/**
+ * 등록 화면에 입력 칸이 없어 수정 때 그대로 보내야 하는 값 — 비워 보내면 서버가 지운다.
+ * 세부 카테고리는 품목 없이 등록된 물품이 대분류·품목을 그대로 둘 때만 지킨다 (품목을 고르면 서버가 품목 이름으로 채운다)
+ */
+function preservedFields(item: ItemDetail, form: RegisterForm): Pick<ItemCreateRequest, 'category' | 'workingStatus'> {
+  const keepCategory = !item.itemType && form.categoryGroup === item.categoryGroup && form.itemType === OTHER_ITEM_TYPE
+  return {
+    category: keepCategory ? (item.category ?? undefined) : undefined,
+    workingStatus: item.workingStatus ?? undefined,
   }
 }
 
@@ -250,14 +297,35 @@ function DateField({
   )
 }
 
-/** 물품 등록 (4d, /register). 연락 수단이 없으면 4a 시트를 띄운다. */
-export default function ItemRegisterPage() {
+interface ItemRegisterPageProps {
+  /** 수정할 물품. 있으면 그 값으로 채운 수정 화면이 되고(/items/:id/edit), 임시저장은 쓰지 않는다 */
+  editing?: ItemDetail
+}
+
+/** 물품 등록 (4d, /register). 연락 수단이 없으면 4a 시트를 띄운다. editing을 주면 같은 폼으로 물품을 수정한다. */
+export default function ItemRegisterPage({ editing }: ItemRegisterPageProps) {
   const navigate = useNavigate()
   const { contact, loading: contactLoading } = useContact()
 
-  const [form, setForm] = useState<RegisterForm>(loadDraft)
-  // 사진은 화면 밖 보관소에 둔다 — 연락 수단 설정 화면에 다녀와도 그대로 남는다 (#161)
-  const files = useRegisterPhotos()
+  const [form, setForm] = useState<RegisterForm>(() => (editing ? formFromItem(editing) : loadDraft()))
+  // 사진은 화면 밖 보관소에 둔다 — 연락 수단 설정 화면에 다녀와도 그대로 남는다 (#161).
+  // 수정할 때는 이 화면 state에만 둔다 — 작성하다 만 등록 사진과 섞이지 않게
+  const storedPhotos = useRegisterPhotos()
+  const [editPhotos, setEditPhotos] = useState<UploadedFile[]>(() => (editing ? photosFromItem(editing) : []))
+  const files = editing ? editPhotos : storedPhotos
+  const photos: Pick<typeof registerPhotoStore, 'add' | 'update' | 'remove'> = editing
+    ? {
+        add: (entries) => setEditPhotos((prev) => [...prev, ...entries]),
+        update: (id, patch) => setEditPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p))),
+        remove: (id) => {
+          const removed = editPhotos.find((p) => p.id === id)
+          if (removed?.url) URL.revokeObjectURL(removed.url)
+          setEditPhotos((prev) => prev.filter((p) => p.id !== id))
+        },
+      }
+    : registerPhotoStore
+  // 수정할 때 이미 연결된 캠페인은 물품 등록 기간이 지났어도 그대로 쓸 수 있다 (서버 ItemService.updateItem과 같은 기준)
+  const keptCampaignId = editing?.campaign?.id
   const [submitting, setSubmitting] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -288,7 +356,7 @@ export default function ItemRegisterPage() {
       if (ignore) return
       setCampaign(loaded)
       // 임시저장에 거점 거래가 남아 있는데 지금은 고를 수 없으면 선택을 푼다
-      if (hubUnavailableReason(loaded, todayIso())) {
+      if (keptCampaignId === undefined && hubUnavailableReason(loaded, todayIso())) {
         setForm((prev) => (usesHub(prev.trade) ? { ...prev, trade: null } : prev))
       }
     }
@@ -298,7 +366,7 @@ export default function ItemRegisterPage() {
     return () => {
       ignore = true
     }
-  }, [])
+  }, [keptCampaignId])
 
   const today = todayIso()
   const photosUploading = files.some((f) => f.status === 'uploading')
@@ -306,22 +374,27 @@ export default function ItemRegisterPage() {
   // 사진은 전부 올라간 뒤에만 등록할 수 있다 (올리지 못한 사진은 지우고 다시 첨부)
   const hasPhoto = files.length > 0 && !photosUploading && !photosFailed
   // 거점 거래를 고를 수 없는 이유 — 캠페인을 불러오는 동안은 null이지만 그동안은 아래 hubReady로 막는다
-  const hubBlocked = campaign === undefined ? null : hubUnavailableReason(campaign, today)
-  const hubReady = campaign !== undefined && !hubBlocked
-  // 거점 거래를 할 수 있는 기간 — 전달 가능 기간이 이 안인지 확인한다 (#256)
-  const hubError = hubPeriodError(form, campaign ? hubPeriodOf(campaign) : null)
+  const hubBlocked =
+    keptCampaignId !== undefined || campaign === undefined ? null : hubUnavailableReason(campaign, today)
+  const hubReady = keptCampaignId !== undefined || (campaign !== undefined && !hubBlocked)
+  // 거점 거래로 보낼 캠페인 — 수정할 때 이미 연결된 캠페인이 있으면 그것
+  const hubCampaignId = keptCampaignId ?? campaign?.id
+  // 거점 거래를 할 수 있는 기간 — 전달 가능 기간이 이 안인지 확인한다 (#256). 기간을 아는 캠페인일 때만
+  const hubError = hubPeriodError(form, campaign && campaign.id === hubCampaignId ? hubPeriodOf(campaign) : null)
   // 고른 대분류의 품목. 품목 기능 이전 서버이거나 목록을 못 불러오면 빈 배열 — 품목 없이 등록한다
   const category = categories?.find((c) => c.categoryGroup === form.categoryGroup) ?? null
   const itemTypes = category?.itemTypes ?? []
   const itemTypeMissing = itemTypes.length > 0 && form.itemType === null
   const valid =
     isFormValid(form, hasPhoto) && !itemTypeMissing && !hubError && (!usesHub(form.trade) || hubReady)
-  // 연락 수단이 없으면 들어오자마자 안내한다 — 사진을 다 올린 뒤에야 막히지 않도록 (#161)
-  const showSheet = !contactLoading && !contact
+  // 연락 수단이 없으면 들어오자마자 안내한다 — 사진을 다 올린 뒤에야 막히지 않도록 (#161). 수정은 이미 등록한 물품이라 묻지 않는다
+  const showSheet = !editing && !contactLoading && !contact
+  // 수정할 때 이미 지난 날짜가 들어 있으면 그대로 둘 수 있게 그 날짜부터 고를 수 있다 (min보다 이르면 폼 제출이 막힌다)
+  const minDate = (saved: string | null | undefined) => (saved && saved < today ? saved : today)
 
   useEffect(() => {
-    saveDraft(form)
-  }, [form])
+    if (!editing) saveDraft(form)
+  }, [form, editing])
 
   const set = <K extends keyof RegisterForm>(key: K, value: RegisterForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -347,14 +420,14 @@ export default function ItemRegisterPage() {
       }
       return [{ entry, file, contentType }]
     })
-    registerPhotoStore.add(uploads.map((u) => u.entry))
+    photos.add(uploads.map((u) => u.entry))
 
     // 결과는 보관소에 반영한다 — 올리는 중에 다른 화면에 가 있어도 돌아오면 끝난 상태로 보인다
     for (const { entry, file, contentType } of uploads) {
       uploadItemImage(file, contentType)
-        .then((imageUrl) => registerPhotoStore.update(entry.id, { status: 'done', imageUrl }))
+        .then((imageUrl) => photos.update(entry.id, { status: 'done', imageUrl }))
         .catch((e) => {
-          registerPhotoStore.update(entry.id, { status: 'error' })
+          photos.update(entry.id, { status: 'error' })
           setPhotoError(
             e instanceof ApiError && e.code === 'ITEM_IMAGE_UPLOAD_UNAVAILABLE'
               ? '지금은 사진을 올릴 수 없어요. 잠시 후 다시 시도해 주세요'
@@ -364,20 +437,36 @@ export default function ItemRegisterPage() {
     }
   }
 
-  const handleRemoveFile = (id: string) => registerPhotoStore.remove(id)
+  const handleRemoveFile = (id: string) => photos.remove(id)
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (submitting) return
     // 연락 수단이 없으면 안내 시트가 떠 있어 제출할 수 없지만, 불러오는 중에 누른 경우를 막는다
-    if (!contact || !valid || !form.trade) return
+    if ((!editing && !contact) || !valid || !form.trade) return
 
     setSubmitting(true)
     setSubmitError(null)
+    const imageUrls = files.flatMap((f) => (f.imageUrl ? [f.imageUrl] : []))
+    const request = toCreateRequest(form, imageUrls, hubCampaignId)
+
+    if (editing) {
+      try {
+        await updateItem(editing.id, { ...request, ...preservedFields(editing, form) })
+      } catch (err) {
+        setSubmitError(err instanceof ApiError ? err.message : '수정하지 못했어요. 잠시 후 다시 시도해 주세요.')
+        return
+      } finally {
+        setSubmitting(false)
+      }
+      // 수정한 물품 상세로 간다. 뒤로가기로 수정 폼에 돌아오지 않게 수정 화면 기록을 바꿔 끼운다
+      navigate(`/items/${editing.id}`, { replace: true, state: { updated: true } })
+      return
+    }
+
     let created: { id: number }
     try {
-      const imageUrls = files.flatMap((f) => (f.imageUrl ? [f.imageUrl] : []))
-      created = await createItem(toCreateRequest(form, imageUrls, campaign?.id))
+      created = await createItem(request)
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : '등록하지 못했어요. 잠시 후 다시 시도해 주세요.')
       return
@@ -419,9 +508,13 @@ export default function ItemRegisterPage() {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col pb-2">
-        <header className="flex h-14 flex-none items-center px-5">
-          <h1 className="font-hand text-[24px] font-bold text-label">물품 등록</h1>
-        </header>
+        {editing ? (
+          <TopBar title="물품 수정" onBack={() => navigate(-1)} />
+        ) : (
+          <header className="flex h-14 flex-none items-center px-5">
+            <h1 className="font-hand text-[24px] font-bold text-label">물품 등록</h1>
+          </header>
+        )}
 
         <PhotoUploadGrid
           label="물품 사진"
@@ -548,14 +641,14 @@ export default function ItemRegisterPage() {
               id="pickup-start"
               label="전달 가능 기간 (시작)"
               value={form.pickupStart}
-              min={today}
+              min={minDate(editing?.availableFrom)}
               onChange={(v) => set('pickupStart', v)}
             />
             <DateField
               id="pickup-end"
               label="전달 가능 기간 (종료)"
               value={form.pickupEnd}
-              min={form.pickupStart || today}
+              min={form.pickupStart || minDate(editing?.availableUntil)}
               onChange={(v) => set('pickupEnd', v)}
             />
           </div>
@@ -563,7 +656,7 @@ export default function ItemRegisterPage() {
             id="dispose-by"
             label="처분 필요일"
             value={form.disposeBy}
-            min={today}
+            min={minDate(editing?.disposalDeadline)}
             onChange={(v) => set('disposeBy', v)}
           />
         </div>
@@ -617,10 +710,10 @@ export default function ItemRegisterPage() {
           )}
           <PrimaryButton
             type="submit"
-            label="등록하기"
+            label={editing ? '수정하기' : '등록하기'}
             disabled={!valid}
             loading={submitting}
-            loadingLabel="등록 중…"
+            loadingLabel={editing ? '수정 중…' : '등록 중…'}
           />
         </BottomActionBar>
       </form>

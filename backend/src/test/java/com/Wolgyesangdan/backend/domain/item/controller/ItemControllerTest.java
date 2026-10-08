@@ -2,9 +2,12 @@ package com.Wolgyesangdan.backend.domain.item.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -297,6 +300,69 @@ class ItemControllerTest {
 	@Test
 	void 비로그인으로_물품을_등록하면_401() throws Exception {
 		mockMvc.perform(post("/items").contentType(MediaType.APPLICATION_JSON).content(VALID_CREATE_BODY))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 물품을_수정하면_수정된_상세를_내려준다() throws Exception {
+		given(itemService.updateItem(eq(1L), eq(10L), any(ItemCreateRequest.class))).willReturn(detail(10L));
+
+		mockMvc.perform(put("/items/10")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CREATE_BODY))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(10));
+	}
+
+	@Test
+	void 수정도_등록과_같은_규칙으로_본문을_검증한다() throws Exception {
+		mockMvc.perform(put("/items/10")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CREATE_BODY.replace("상태 좋음", "매우 좋음")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("conditionGrade"));
+	}
+
+	@Test
+	void 신청자가_있는_물품을_수정하면_409_ITEM_NOT_MODIFIABLE() throws Exception {
+		given(itemService.updateItem(eq(1L), eq(10L), any(ItemCreateRequest.class)))
+				.willThrow(new BusinessException(ItemErrorCode.ITEM_NOT_MODIFIABLE));
+
+		mockMvc.perform(put("/items/10")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_CREATE_BODY))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("ITEM_NOT_MODIFIABLE"));
+	}
+
+	@Test
+	void 물품을_삭제하면_204() throws Exception {
+		mockMvc.perform(delete("/items/10")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(1L)))
+				.andExpect(status().isNoContent());
+
+		verify(itemService).deleteItem(1L, 10L);
+	}
+
+	@Test
+	void 남의_물품을_삭제하면_403_ITEM_NOT_OWNER() throws Exception {
+		willThrow(new BusinessException(ItemErrorCode.ITEM_NOT_OWNER))
+				.given(itemService).deleteItem(2L, 10L);
+
+		mockMvc.perform(delete("/items/10")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(2L)))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("ITEM_NOT_OWNER"));
+	}
+
+	@Test
+	void 비로그인으로_물품을_수정하거나_삭제하면_401() throws Exception {
+		mockMvc.perform(put("/items/10").contentType(MediaType.APPLICATION_JSON).content(VALID_CREATE_BODY))
+				.andExpect(status().isUnauthorized());
+		mockMvc.perform(delete("/items/10"))
 				.andExpect(status().isUnauthorized());
 	}
 
