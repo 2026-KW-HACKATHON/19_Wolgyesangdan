@@ -39,7 +39,7 @@ public class VerificationService {
 	private final UserRepository userRepository;
 
 	/**
-	 * 우선배정 인증 신청 (신입생·기초수급자). 항상 PENDING으로 접수하고, 서류 확인·승인은 운영진이 앱 밖에서 한다.
+	 * 우선배정 인증 신청 (신입생·기초수급자). 항상 PENDING으로 접수하고, 관리자가 서류를 확인해 승인·반려한다.
 	 * 같은 유형에 심사 중인 신청이나 유효한 승인이 있으면 거절한다 (반려·만료된 뒤에는 다시 신청 가능).
 	 */
 	@Transactional
@@ -52,6 +52,8 @@ public class VerificationService {
 		PriorityVerification verification = PriorityVerification.builder()
 				.verificationType(type)
 				.documentType(request.documentType())
+				.fileKey(request.fileKey())
+				.applicantName(request.applicantName().strip())
 				.status(VerificationStatus.PENDING)
 				.submittedAt(now)
 				.user(findUser(userId))

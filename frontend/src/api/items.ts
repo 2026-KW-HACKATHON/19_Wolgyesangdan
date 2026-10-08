@@ -9,6 +9,7 @@ import type {
   MyItemSummary,
   PageResponse,
 } from '../types/item'
+import { putToS3 } from '../lib/s3Upload'
 import { apiFetch } from './client'
 
 /** 물품 목록 (GET /items, 비회원 허용). 조건은 모두 선택이고, 비운 조건은 보내지 않는다. */
@@ -65,15 +66,12 @@ export function resolveItemImageContentType(file: File): ItemImageContentType | 
 /**
  * 물품 사진 업로드. 업로드 URL을 발급받아(POST /items/images/upload-url) S3에 바로 PUT 하고,
  * 물품 등록 때 imageUrls에 담을 URL을 돌려준다.
- * Content-Type이 서명에 포함되므로 발급 요청과 같은 값으로 PUT 해야 한다 (다르면 S3가 403).
  */
 export async function uploadItemImage(file: File, contentType: ItemImageContentType): Promise<string> {
   const { uploadUrl, imageUrl } = await apiFetch<ImageUploadUrlResponse>('/items/images/upload-url', {
     method: 'POST',
     body: JSON.stringify({ fileName: file.name, contentType }),
   })
-  // S3로 바로 보내는 요청이라 apiFetch(우리 서버 주소·Authorization 헤더)를 쓰지 않는다
-  const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file })
-  if (!response.ok) throw new Error(`S3 업로드 실패 (${response.status})`)
+  await putToS3(uploadUrl, file, contentType)
   return imageUrl
 }

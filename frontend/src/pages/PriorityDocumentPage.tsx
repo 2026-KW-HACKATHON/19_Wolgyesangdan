@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api/client'
-import { createVerification } from '../api/verification'
+import { createVerification, resolveDocumentContentType, uploadVerificationDocument } from '../api/verification'
 import BottomActionBar from '../components/BottomActionBar'
 import ChoiceChips from '../components/ChoiceChips'
 import MaterialIcon from '../components/icons/MaterialIcon'
@@ -9,13 +9,22 @@ import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
 import ProgressSteps from '../components/ProgressSteps'
 import Screen from '../components/Screen'
+import TextField from '../components/TextField'
 import TopBar from '../components/TopBar'
 import { PRIORITY_OPTIONS, toDocumentType } from '../data/priorityVerification'
 import type { PrioritySubmitMeta, PriorityType, UploadedFile } from '../types/verification'
 
-const MAX_FILES = 3
+// 서류는 한 파일만 받는다 — 관리자가 한 장을 보고 승인·반려한다
+const MAX_FILES = 1
 const MAX_FILE_BYTES = 10 * 1024 * 1024
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
+const MAX_NAME = 50
+const DOCUMENT_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf'
+
+interface DocumentUpload {
+  meta: UploadedFile
+  /** 업로드가 끝나면 채워지는 S3 위치 — 인증 신청에 담는다 */
+  fileKey?: string
+}
 
 const COPY: Record<PriorityType, { heading: [string, string]; description: string; review: string; thumbClassName: string }> = {
   freshman: {
@@ -44,39 +53,74 @@ export default function PriorityDocumentPage({ type, onBack, onSubmitSuccess }: 
   const copy = COPY[type]
   // 서류 종류가 하나뿐이면(기초수급자) 기본 선택
   const [docType, setDocType] = useState<string | null>(option.docTypes.length === 1 ? option.docTypes[0] : null)
-  const [uploads, setUploads] = useState<{ meta: UploadedFile; file: File }[]>([])
+  const [applicantName, setApplicantName] = useState('')
+  const [upload, setUpload] = useState<DocumentUpload | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 사진 미리보기용 로컬 주소 — 지우거나 화면을 떠나면 해제한다
+  const previewUrlRef = useRef<string | undefined>(undefined)
+  const replacePreviewUrl = (url: string | undefined) => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    previewUrlRef.current = url
+  }
+  useEffect(() => () => replacePreviewUrl(undefined), [])
+
+  // 고르자마자 S3에 올린다. 서류는 공개 URL 없이 저장 위치(fileKey)만 받는다
   const handleAddFiles = (fileList: FileList) => {
-    const picked = Array.from(fileList)
-    const valid = picked.filter((f) => ACCEPTED_TYPES.includes(f.type) && f.size <= MAX_FILE_BYTES)
-    setFileError(
-      valid.length < picked.length ? 'JPG · PNG · PDF 파일만, 한 장에 10MB까지 올릴 수 있어요.' : null,
-    )
-    const next = valid.slice(0, MAX_FILES - uploads.length).map((file) => ({
-      file,
-      meta: { id: crypto.randomUUID(), name: file.name, size: file.size, status: 'done' as const },
-    }))
-    setUploads((prev) => [...prev, ...next])
+    const file = fileList[0]
+    const contentType = resolveDocumentContentType(file)
+    if (!contentType || file.size > MAX_FILE_BYTES) {
+      setFileError('사진(JPG · PNG · HEIC 등) 또는 PDF 파일만, 10MB까지 올릴 수 있어요.')
+      return
+    }
+    setFileError(null)
+
+    const url = contentType === 'application/pdf' ? undefined : URL.createObjectURL(file)
+    replacePreviewUrl(url)
+    const id = crypto.randomUUID()
+    setUpload({ meta: { id, name: file.name, size: file.size, status: 'uploading', url } })
+
+    // 올리는 동안 지우거나 다른 파일로 바꿨으면 결과를 반영하지 않는다
+    const updateIfCurrent = (patch: Partial<DocumentUpload> & { status: UploadedFile['status'] }) =>
+      setUpload((prev) =>
+        prev?.meta.id === id ? { meta: { ...prev.meta, status: patch.status }, fileKey: patch.fileKey } : prev,
+      )
+    uploadVerificationDocument(file, contentType)
+      .then((fileKey) => updateIfCurrent({ status: 'done', fileKey }))
+      .catch((e) => {
+        updateIfCurrent({ status: 'error' })
+        setFileError(
+          e instanceof ApiError && e.code === 'VERIFICATION_DOCUMENT_UPLOAD_UNAVAILABLE'
+            ? '지금은 서류를 올릴 수 없어요. 잠시 후 다시 시도해 주세요.'
+            : '서류를 올리지 못했어요. 지우고 다시 첨부해 주세요.',
+        )
+      })
   }
 
-  const handleRemoveFile = (id: string) => {
-    setUploads((prev) => prev.filter((u) => u.meta.id !== id))
+  const handleRemoveFile = () => {
+    replacePreviewUrl(undefined)
+    setUpload(null)
+    setFileError(null)
   }
 
-  const canSubmit = Boolean(docType) && uploads.length > 0
+  const fileKey = upload?.meta.status === 'done' ? upload.fileKey : undefined
+  const canSubmit = Boolean(docType) && applicantName.trim().length > 0 && Boolean(fileKey)
 
   const handleSubmit = async () => {
     const documentType = docType ? toDocumentType(docType) : null
-    if (!canSubmit || !documentType || submitting) return
+    if (!canSubmit || !documentType || !fileKey || submitting) return
     setSubmitting(true)
     setError(null)
     try {
-      // 서류 사진은 서버로 보내지 않고 종류만 보낸다 (운영진이 앱 밖에서 확인)
-      const response = await createVerification({ verificationType: option.verificationType, documentType })
-      onSubmitSuccess({ type, submittedAt: new Date(response.submittedAt), docCount: uploads.length })
+      const response = await createVerification({
+        verificationType: option.verificationType,
+        documentType,
+        fileKey,
+        applicantName: applicantName.trim(),
+      })
+      onSubmitSuccess({ type, submittedAt: new Date(response.submittedAt), docCount: 1 })
     } catch (e) {
       // 실패해도 입력은 유지한다
       setError(
@@ -104,15 +148,26 @@ export default function PriorityDocumentPage({ type, onBack, onSubmitSuccess }: 
 
       <ChoiceChips label="서류 종류" required options={option.docTypes} value={docType} onChange={setDocType} />
 
+      <div className="px-5 pt-4.5">
+        <TextField
+          label="서류에 적힌 이름"
+          required
+          value={applicantName}
+          onChange={(v) => setApplicantName(v.slice(0, MAX_NAME))}
+          placeholder="예) 김하늘"
+        />
+      </div>
+
       <PhotoUploadGrid
         label="서류 사진"
-        files={uploads.map((u) => u.meta)}
+        files={upload ? [upload.meta] : []}
         max={MAX_FILES}
         thumbIcon="description"
         thumbClassName={copy.thumbClassName}
         onAdd={handleAddFiles}
         onRemove={handleRemoveFile}
-        helperText="JPG · PNG · PDF, 한 장에 10MB까지"
+        accept={DOCUMENT_ACCEPT}
+        helperText="사진 또는 PDF 1장, 10MB까지"
       />
       {fileError && <p className="mx-5 mt-1.5 text-[12px] font-semibold text-terracotta">{fileError}</p>}
 

@@ -57,10 +57,29 @@ export type DocumentType = 'ADMISSION_LETTER' | 'STUDENT_ID_CARD' | 'RECIPIENT_C
 /** 조회 시점 기준 상태. 만료일이 지난 승인은 서버가 EXPIRED로 내려준다. */
 export type VerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED'
 
-/** POST /verifications 요청 — 서류 파일은 보내지 않고 종류만 보낸다 */
+/** 우선배정 서류로 받는 형식 — 사진 또는 PDF 한 파일 */
+export type DocumentContentType =
+  | 'image/jpeg'
+  | 'image/png'
+  | 'image/webp'
+  | 'image/heic'
+  | 'image/heif'
+  | 'application/pdf'
+
+/** POST /verifications/documents/upload-url 응답. 서류는 공개 URL이 없어 저장 위치(fileKey)만 받는다 */
+export interface DocumentUploadUrlResponse {
+  uploadUrl: string
+  fileKey: string
+}
+
+/** POST /verifications 요청 — 서류 파일은 먼저 S3에 올리고 fileKey만 보낸다 */
 export interface VerificationCreateRequest {
   verificationType: PriorityVerificationType
   documentType: DocumentType
+  /** 서류 업로드 URL 발급 응답의 fileKey (S3 위치, 공개 URL 아님) */
+  fileKey: string
+  /** 서류에 적힌 이름 — 관리자가 서류와 대조한다 */
+  applicantName: string
 }
 
 /** POST /verifications, POST /verifications/neighborhood 응답 */

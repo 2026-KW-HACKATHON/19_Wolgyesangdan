@@ -55,6 +55,14 @@ public class PriorityVerification {
 	@Column(length = 30)
 	private DocumentType documentType;
 
+	/** 서류 파일의 S3 위치 (공개 URL 없음). 동네 인증과 이 기능 전에 만든 신청은 null */
+	@Column(length = 255)
+	private String fileKey;
+
+	/** 서류에 적힌 이름 — 관리자가 서류와 대조한다. 동네 인증은 null */
+	@Column(length = 50)
+	private String applicantName;
+
 	@Builder.Default
 	@Column(nullable = false)
 	private LocalDateTime submittedAt = LocalDateTime.now();

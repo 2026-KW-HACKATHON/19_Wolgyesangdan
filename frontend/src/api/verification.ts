@@ -1,5 +1,8 @@
+import { putToS3 } from '../lib/s3Upload'
 import type {
   Coords,
+  DocumentContentType,
+  DocumentUploadUrlResponse,
   LocationCheckResult,
   MyVerification,
   VerificationCreateRequest,
@@ -8,9 +11,11 @@ import type {
 import { ApiError, apiFetch } from './client'
 
 // 로그인·인증 플로우 v2(GPS 동네 인증 + 우선배정 서류) API.
-//   POST /verifications/neighborhood   (본문 없음)                      → 동네 인증, 바로 APPROVED
-//   POST /verifications                { verificationType, documentType } → 우선배정 인증 신청, PENDING
-//   GET  /verifications/me                                               → 유형별 내 인증 상태
+//   POST /verifications/neighborhood          (본문 없음)                 → 동네 인증, 바로 APPROVED
+//   POST /verifications/documents/upload-url  { fileName, contentType }   → 서류 업로드 URL + fileKey
+//   POST /verifications                       { verificationType, documentType, fileKey, applicantName }
+//                                                                         → 우선배정 인증 신청, PENDING
+//   GET  /verifications/me                                                → 유형별 내 인증 상태
 
 const fakeLatency = () => new Promise((resolve) => setTimeout(resolve, 500))
 
@@ -59,6 +64,41 @@ export function createVerification(request: VerificationCreateRequest) {
     method: 'POST',
     body: JSON.stringify(request),
   })
+}
+
+const DOCUMENT_CONTENT_TYPE_BY_EXTENSION: Record<string, DocumentContentType> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  pdf: 'application/pdf',
+}
+const DOCUMENT_CONTENT_TYPES = new Set<string>(Object.values(DOCUMENT_CONTENT_TYPE_BY_EXTENSION))
+
+/**
+ * 서류 업로드 URL 발급에 쓸 contentType. 받지 않는 형식이면 null.
+ * heic·heif는 브라우저에 따라 file.type이 빈 문자열이라 확장자로 보정한다.
+ */
+export function resolveDocumentContentType(file: File): DocumentContentType | null {
+  if (DOCUMENT_CONTENT_TYPES.has(file.type)) return file.type as DocumentContentType
+  if (file.type) return null
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return DOCUMENT_CONTENT_TYPE_BY_EXTENSION[extension] ?? null
+}
+
+/**
+ * 우선배정 서류 업로드. 업로드 URL을 발급받아(POST /verifications/documents/upload-url) S3에 바로 PUT 하고,
+ * 인증 신청 때 담을 fileKey를 돌려준다. 서류는 공개 URL이 없다 (관리자만 열람).
+ */
+export async function uploadVerificationDocument(file: File, contentType: DocumentContentType): Promise<string> {
+  const { uploadUrl, fileKey } = await apiFetch<DocumentUploadUrlResponse>('/verifications/documents/upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ fileName: file.name, contentType }),
+  })
+  await putToS3(uploadUrl, file, contentType)
+  return fileKey
 }
 
 /** 내 인증 현황 (GET /verifications/me). 신청한 유형만, 유형마다 가장 최근 건 기준으로 내려온다. */

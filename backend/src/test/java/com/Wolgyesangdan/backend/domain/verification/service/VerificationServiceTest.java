@@ -37,9 +37,11 @@ class VerificationServiceTest {
 	private static final LocalDateTime SUBMITTED_AT = LocalDateTime.of(2026, 9, 10, 9, 0);
 
 	private static final VerificationCreateRequest FRESHMAN_REQUEST =
-			new VerificationCreateRequest(VerificationType.FRESHMAN, DocumentType.ADMISSION_LETTER);
+			new VerificationCreateRequest(VerificationType.FRESHMAN, DocumentType.ADMISSION_LETTER,
+					"verifications/2026/10/08/0b6f3c2e-5d1a-4c8e-9f7a-1234567890ab.jpg", " 김하늘 ");
 	private static final VerificationCreateRequest LOW_INCOME_REQUEST =
-			new VerificationCreateRequest(VerificationType.LOW_INCOME, DocumentType.RECIPIENT_CERTIFICATE);
+			new VerificationCreateRequest(VerificationType.LOW_INCOME, DocumentType.RECIPIENT_CERTIFICATE,
+					"verifications/2026/10/08/1c7f4d3f-6e2b-4d9f-8a8b-2345678901bc.pdf", "이도윤");
 
 	private final PriorityVerificationRepository priorityVerificationRepository = Mockito
 			.mock(PriorityVerificationRepository.class);
@@ -48,7 +50,7 @@ class VerificationServiceTest {
 			userRepository);
 
 	@Test
-	void 신입생_인증을_신청하면_서류_종류와_함께_PENDING으로_저장한다() {
+	void 신입생_인증을_신청하면_서류_파일과_실명을_함께_PENDING으로_저장한다() {
 		givenUserExists();
 
 		VerificationCreateResponse response = verificationService.createVerification(USER_ID, FRESHMAN_REQUEST, NOW);
@@ -57,6 +59,8 @@ class VerificationServiceTest {
 		assertThat(saved.getUser().getId()).isEqualTo(USER_ID);
 		assertThat(saved.getVerificationType()).isEqualTo(VerificationType.FRESHMAN);
 		assertThat(saved.getDocumentType()).isEqualTo(DocumentType.ADMISSION_LETTER);
+		assertThat(saved.getFileKey()).isEqualTo("verifications/2026/10/08/0b6f3c2e-5d1a-4c8e-9f7a-1234567890ab.jpg");
+		assertThat(saved.getApplicantName()).isEqualTo("김하늘");
 		assertThat(saved.getStatus()).isEqualTo(VerificationStatus.PENDING);
 		assertThat(saved.getSubmittedAt()).isEqualTo(NOW);
 		assertThat(response.id()).isEqualTo(10L);

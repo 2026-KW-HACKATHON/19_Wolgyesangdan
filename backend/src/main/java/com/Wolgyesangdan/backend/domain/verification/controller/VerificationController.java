@@ -2,9 +2,12 @@ package com.Wolgyesangdan.backend.domain.verification.controller;
 
 import java.util.List;
 
+import com.Wolgyesangdan.backend.domain.verification.dto.DocumentUploadUrlRequest;
+import com.Wolgyesangdan.backend.domain.verification.dto.DocumentUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
+import com.Wolgyesangdan.backend.domain.verification.service.VerificationDocumentUploadService;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
 
 import jakarta.validation.Valid;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VerificationController {
 
 	private final VerificationService verificationService;
+	private final VerificationDocumentUploadService verificationDocumentUploadService;
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
@@ -37,6 +41,15 @@ public class VerificationController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public VerificationCreateResponse verifyNeighborhood(@AuthenticationPrincipal Long userId) {
 		return verificationService.verifyNeighborhood(userId);
+	}
+
+	/**
+	 * 서류 파일 업로드용 presigned URL 발급. 받은 fileKey를 인증 신청(POST /verifications)에 담는다.
+	 * S3 설정이 비어 있으면 503.
+	 */
+	@PostMapping("/documents/upload-url")
+	public DocumentUploadUrlResponse issueDocumentUploadUrl(@Valid @RequestBody DocumentUploadUrlRequest request) {
+		return verificationDocumentUploadService.issueUploadUrl(request);
 	}
 
 	@GetMapping("/me")
