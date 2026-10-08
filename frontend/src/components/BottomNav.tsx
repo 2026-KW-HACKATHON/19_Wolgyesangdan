@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useTodo } from '../contexts/TodoContext'
 import { isLoggedIn } from '../lib/authStorage'
 import { loginPath } from '../lib/loginRedirect'
 import LoginRequiredDialog from './LoginRequiredDialog'
@@ -29,6 +30,9 @@ export default function BottomNav() {
   const navigate = useNavigate()
   // 로그인이 필요한 탭을 비로그인으로 눌렀을 때 — 지금 화면 위에 팝업을 띄운다
   const [loginPrompt, setLoginPrompt] = useState<NavItem | null>(null)
+  // 배정됐는데 할 일이 있으면 마이페이지 탭에 빨간 점 (#188)
+  const { todo } = useTodo()
+  const hasTodo = todo.reconfirms.length + todo.deliveries.length > 0
 
   return (
     <nav className="grid grid-cols-5 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-1 pt-2 pb-3.5">
@@ -51,11 +55,19 @@ export default function BottomNav() {
         >
           {({ isActive }) => (
             <>
-              <span
-                className="ms text-2xl"
-                style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
-              >
-                {item.icon}
+              <span className="relative">
+                <span
+                  className="ms text-2xl"
+                  style={{ fontVariationSettings: `'FILL' ${isActive ? 1 : 0}` }}
+                >
+                  {item.icon}
+                </span>
+                {item.to === '/mypage' && hasTodo && (
+                  <span
+                    aria-label="할 일 있음"
+                    className="absolute -top-0.5 -right-1 size-2.5 rounded-full border-2 border-[var(--color-surface)] bg-terracotta"
+                  />
+                )}
               </span>
               <span
                 className={`text-[11px] whitespace-nowrap ${isActive ? 'font-bold' : 'font-medium'}`}

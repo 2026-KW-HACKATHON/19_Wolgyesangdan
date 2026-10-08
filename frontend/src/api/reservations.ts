@@ -79,3 +79,32 @@ export interface CompleteResponse {
 export function completeReservation(reservationId: number) {
   return apiFetch<CompleteResponse>(`/reservations/${reservationId}/complete`, { method: 'PATCH' })
 }
+
+/** GET /users/me/todo 응답 — 신청자로서 수령 재확인할 것, 등록자로서 전달할 것 */
+export interface MyTodo {
+  /** 기한 빠른 순 (기한 없는 건 맨 뒤) */
+  reconfirms: {
+    applicationId: number
+    reservationId: number
+    itemId: number
+    itemName: string
+    reconfirmationDeadline: string | null
+  }[]
+  /** 배정된 순 */
+  deliveries: {
+    itemId: number
+    itemName: string
+    reservationId: number
+    applicationId: number
+    tradeMethod: TradeMethod
+    status: ReservationStatus
+    reconfirmationDeadline: string | null
+    /** 신청자가 수령 재확인했는지 */
+    reconfirmed: boolean
+  }[]
+}
+
+/** 내가 지금 해야 할 일 (GET /users/me/todo, 로그인 필요) — 홈 배너·탭 빨간 점용 */
+export function getMyTodo() {
+  return apiFetch<MyTodo>('/users/me/todo')
+}

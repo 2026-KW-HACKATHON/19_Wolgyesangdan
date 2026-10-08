@@ -5,6 +5,7 @@ import { TRADE_METHOD_LABEL } from '../../lib/item'
 import { RESERVATION_STATUS_LABEL, formatDateTime } from '../../lib/reservation'
 import MaterialIcon from '../icons/MaterialIcon'
 import ContactTile from './ContactTile'
+import { useTodo } from '../../contexts/TodoContext'
 
 interface OwnerReservationSectionProps {
   /** 배정된 신청 id (GET /users/me/items 의 applicationId) */
@@ -20,6 +21,7 @@ interface OwnerReservationSectionProps {
  */
 export default function OwnerReservationSection({ applicationId, onCompleted }: OwnerReservationSectionProps) {
   // undefined = 받는 중, null = 예약을 찾지 못함
+  const { refreshTodo } = useTodo()
   const [reservation, setReservation] = useState<ReservationDetail | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
@@ -49,6 +51,7 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
     try {
       const result = await completeReservation(reservation.id)
       setReservation({ ...reservation, status: result.status })
+      refreshTodo()
       onCompleted()
     } catch (e) {
       setCompleteError(e instanceof ApiError ? e.message : '전달 완료로 처리하지 못했어요. 잠시 후 다시 시도해 주세요.')

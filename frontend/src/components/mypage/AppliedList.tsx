@@ -13,6 +13,7 @@ import {
   reconfirmReservation,
   type ReservationDetail,
 } from '../../api/reservations'
+import { useTodo } from '../../contexts/TodoContext'
 import { isLoggedIn } from '../../lib/authStorage'
 import { TRADE_METHOD_LABEL } from '../../lib/item'
 import { RESERVATION_STATUS_LABEL, formatDateTime, formatMonthDay } from '../../lib/reservation'
@@ -53,6 +54,7 @@ function ReservationSection({ application }: { application: MyApplicationSummary
   // undefined = 받는 중, null = 예약이 아직 없음(배정 직후 등)
   const [reservation, setReservation] = useState<ReservationDetail | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
+  const { refreshTodo } = useTodo()
   const [reconfirming, setReconfirming] = useState(false)
   const [reconfirmError, setReconfirmError] = useState<string | null>(null)
 
@@ -83,6 +85,7 @@ function ReservationSection({ application }: { application: MyApplicationSummary
     try {
       const result = await reconfirmReservation(reservation.id)
       setReservation({ ...reservation, status: result.status, reconfirmedAt: result.reconfirmedAt })
+      refreshTodo()
     } catch (e) {
       setReconfirmError(e instanceof ApiError ? e.message : '재확인하지 못했어요. 잠시 후 다시 시도해 주세요.')
     } finally {
