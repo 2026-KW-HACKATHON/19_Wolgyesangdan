@@ -15,6 +15,7 @@ import com.Wolgyesangdan.backend.domain.user.dto.ContactResponse;
 import com.Wolgyesangdan.backend.domain.user.dto.ContactUpdateRequest;
 import com.Wolgyesangdan.backend.domain.user.dto.MyInfoResponse;
 import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
+import com.Wolgyesangdan.backend.domain.user.entity.Role;
 import com.Wolgyesangdan.backend.domain.user.service.UserService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
@@ -48,7 +49,7 @@ class UserControllerTest {
 	@Test
 	void 로그인한_사용자의_정보를_조회한다() throws Exception {
 		given(userService.getMyInfo(1L)).willReturn(new MyInfoResponse(1L, "월계1동 이웃", "user@example.com",
-				ContactType.OPENCHAT, null, "https://open.kakao.com/o/xxxxxxx",
+				ContactType.OPENCHAT, null, "https://open.kakao.com/o/xxxxxxx", Role.USER,
 				LocalDateTime.of(2026, 9, 10, 12, 0)));
 
 		mockMvc.perform(get("/users/me").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
@@ -59,13 +60,14 @@ class UserControllerTest {
 				.andExpect(jsonPath("$.contactType").value("OPENCHAT"))
 				.andExpect(jsonPath("$.phone").isEmpty())
 				.andExpect(jsonPath("$.openchatLink").value("https://open.kakao.com/o/xxxxxxx"))
+				.andExpect(jsonPath("$.role").value("USER"))
 				.andExpect(jsonPath("$.createdAt").value("2026-09-10T12:00:00"));
 	}
 
 	@Test
 	void 연락_수단을_설정하지_않았으면_null로_내려준다() throws Exception {
 		given(userService.getMyInfo(2L)).willReturn(new MyInfoResponse(2L, "카카오사용자1234", null, null, null, null,
-				LocalDateTime.of(2026, 9, 10, 12, 0)));
+				Role.USER, LocalDateTime.of(2026, 9, 10, 12, 0)));
 
 		mockMvc.perform(get("/users/me").header(HttpHeaders.AUTHORIZATION, bearer(2L)))
 				.andExpect(status().isOk())
