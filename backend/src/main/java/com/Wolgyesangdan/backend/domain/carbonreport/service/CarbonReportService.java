@@ -36,6 +36,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CarbonReportService {
 
+	/** 전체 범위(campaignId = null)에서는 기간 조건이 쓰이지 않는다 — 쿼리 파라미터를 채우기만 하는 값 */
+	private static final LocalDateTime NO_PERIOD = LocalDate.EPOCH.atStartOfDay();
+
 	private final ReservationRepository reservationRepository;
 	private final CampaignService campaignService;
 
@@ -63,8 +66,11 @@ public class CarbonReportService {
 
 	private CarbonReportResponse buildReport(ReportScope scope, Campaign campaign, Long userId, LocalDate today) {
 		Long campaignId = campaign == null ? null : campaign.getId();
+		// 캠페인 범위는 그 캠페인 물품(거점 거래) + 캠페인 기간 안에 완료된 직거래 (#248)
+		LocalDateTime from = campaign == null ? NO_PERIOD : campaign.periodStartAt();
+		LocalDateTime to = campaign == null ? NO_PERIOD : campaign.periodEndExclusive();
 		// 대분류별 합을 더해 전체 물품 수·탄소 합계를 구한다 (같은 행을 두 번 집계하지 않도록)
-		List<CategoryCarbonSum> sums = reservationRepository.sumCompletedByCategoryGroup(campaignId);
+		List<CategoryCarbonSum> sums = reservationRepository.sumCompletedByCategoryGroup(campaignId, from, to);
 		long reusedCount = sums.stream().mapToLong(CategoryCarbonSum::count).sum();
 		long totalKg = sums.stream().mapToLong(CategoryCarbonSum::carbonReductionKg).sum();
 
@@ -73,7 +79,7 @@ public class CarbonReportService {
 				reusedCount,
 				totalKg,
 				categoryBreakdown(sums, totalKg),
-				myCarbonReductionKg(userId, campaignId),
+				myCarbonReductionKg(userId, campaignId, from, to),
 				campaign == null ? since() : null,
 				campaign == null ? null : ReportCampaign.of(campaign, today),
 				campaign == null ? List.of() : dailyTrend(campaign, today));
@@ -99,7 +105,8 @@ public class CarbonReportService {
 			return List.of();
 		}
 		Map<LocalDate, Long> countByDate = reservationRepository
-				.findCompletedAtSince(start.atStartOfDay(), campaign.getId()).stream()
+				.findCompletedAtInCampaign(campaign.getId(), campaign.periodStartAt(), campaign.periodEndExclusive())
+				.stream()
 				.collect(Collectors.groupingBy(LocalDateTime::toLocalDate, Collectors.counting()));
 		return start.datesUntil(last.plusDays(1))
 				.map(date -> new DailyTrade(date, countByDate.getOrDefault(date, 0L)))
@@ -119,8 +126,8 @@ public class CarbonReportService {
 	}
 
 	/** 내가 등록해서(나눔) 거래 완료된 물품의 탄소 합계 — 비회원이면 null */
-	private Long myCarbonReductionKg(Long userId, Long campaignId) {
-		return userId == null ? null : reservationRepository.sumGivenCarbonByUserId(userId, campaignId);
+	private Long myCarbonReductionKg(Long userId, Long campaignId, LocalDateTime from, LocalDateTime to) {
+		return userId == null ? null : reservationRepository.sumGivenCarbonByUserId(userId, campaignId, from, to);
 	}
 
 	/** 소수 둘째 자리 반올림, 전체가 0이면 0 */

@@ -13,7 +13,6 @@ import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.entity.CampaignStatus;
 import com.Wolgyesangdan.backend.domain.campaign.exception.CampaignErrorCode;
 import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
-import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,6 @@ public class AdminCampaignService {
 
 	private final CampaignRepository campaignRepository;
 	private final CampaignService campaignService;
-	private final ItemRepository itemRepository;
 
 	public AdminCampaignListResponse getCampaigns() {
 		return getCampaigns(LocalDate.now());
@@ -45,8 +43,7 @@ public class AdminCampaignService {
 		List<PastCampaign> past = campaignRepository.findAll().stream()
 				.filter(campaign -> campaign.statusOn(today) == CampaignStatus.ENDED)
 				.sorted(Comparator.comparing(Campaign::periodEnd).thenComparing(Campaign::getId).reversed())
-				.map(campaign -> PastCampaign.of(campaign,
-						itemRepository.summarizeCompletedByCampaignId(campaign.getId())))
+				.map(campaign -> PastCampaign.of(campaign, campaignService.summarizeTrades(campaign)))
 				.toList();
 		return new AdminCampaignListResponse(current, past);
 	}
