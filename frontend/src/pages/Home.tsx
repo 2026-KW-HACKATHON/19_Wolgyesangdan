@@ -32,7 +32,8 @@ export default function Home() {
 
   useEffect(() => {
     let ignore = false
-    getItems({ size: PREVIEW_COUNT })
+    // "새로운 주인을 기다려요"라서 신청 가능한 물건만 (#191)
+    getItems({ size: PREVIEW_COUNT, availability: 'OPEN' })
       .then((res) => {
         if (!ignore) setPreviewItems(res.content)
       })

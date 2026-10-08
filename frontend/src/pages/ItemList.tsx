@@ -29,15 +29,18 @@ function toCategoryFilter(value: string | null): CategoryFilter {
 type TradeMethodFilter = TradeMethod | '전체'
 
 // 검색·필터·정렬은 서버가 처리한다 (GET /items). 빈 검색어와 '전체'는 조건을 보내지 않는다
+// 기본은 거래가 끝난 물건(배정·거래 완료)을 숨기고, "거래 끝난 물건도 보기"면 전부 (#191)
 function fetchItems(
   keyword: string,
   category: CategoryFilter,
   tradeMethod: TradeMethodFilter,
   sort: ItemSort,
+  showFinished: boolean,
   page: number,
 ) {
   return getItems({
     keyword: keyword || undefined,
+    availability: showFinished ? 'ALL' : 'ACTIVE',
     categoryGroup: category === '전체' ? undefined : category,
     tradeMethod: tradeMethod === '전체' ? undefined : tradeMethod,
     sort,
@@ -74,6 +77,8 @@ export default function ItemList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const keyword = searchParams.get('keyword')?.trim() ?? ''
   const category = toCategoryFilter(searchParams.get('category'))
+  // 거래 끝난 물건(배정·거래 완료)도 볼지 — 주소(?finished=1)에 둬서 뒤로가기·새로고침에도 유지 (#191)
+  const showFinished = searchParams.get('finished') === '1'
   // 입력 중인 검색어. 뒤로가기 등으로 주소의 검색어가 바뀌면 그 값으로 다시 맞춘다
   const [draft, setDraft] = useState({ keyword, text: keyword })
   const draftText = draft.keyword === keyword ? draft.text : keyword
@@ -92,10 +97,10 @@ export default function ItemList() {
     ? ['전체', 'DIRECT', 'CAMPAIGN']
     : ['전체', 'DIRECT']
 
-  const query = `${keyword}|${category}|${tradeMethod}|${sortBy}`
+  const query = `${keyword}|${category}|${tradeMethod}|${sortBy}|${showFinished}`
 
   /** 주소의 조건 하나만 바꾼다. 빈 값이면 지운다 */
-  const changeParam = (key: 'keyword' | 'category', value: string) => {
+  const changeParam = (key: 'keyword' | 'category' | 'finished', value: string) => {
     setSearchParams(
       (prev) => {
         const params = new URLSearchParams(prev)
@@ -108,6 +113,11 @@ export default function ItemList() {
   }
 
   const setCategory = (next: CategoryFilter) => changeParam('category', next === '전체' ? '' : next)
+  const setShowFinished = (next: boolean) => changeParam('finished', next ? '1' : '')
+  // 빈 결과일 때 거래 끝난 물건을 숨기고 있으면 함께 볼 수 있게 안내한다
+  const finishedAction = showFinished
+    ? undefined
+    : { label: '거래 끝난 물건도 보기', onClick: () => setShowFinished(true) }
 
   const handleSearch = () => {
     const next = draftText.trim()
@@ -122,9 +132,9 @@ export default function ItemList() {
 
   // 조건이 바뀔 때마다 첫 페이지를 다시 받는다
   useEffect(() => {
-    const query = `${keyword}|${category}|${tradeMethod}|${sortBy}`
+    const query = `${keyword}|${category}|${tradeMethod}|${sortBy}|${showFinished}`
     let ignore = false
-    fetchItems(keyword, category, tradeMethod, sortBy, 0)
+    fetchItems(keyword, category, tradeMethod, sortBy, showFinished, 0)
       .then((res) => {
         if (!ignore) setLoaded({ query, items: res.content, total: res.totalElements, page: res.number, last: res.last })
       })
@@ -134,7 +144,7 @@ export default function ItemList() {
     return () => {
       ignore = true
     }
-  }, [keyword, category, tradeMethod, sortBy])
+  }, [keyword, category, tradeMethod, sortBy, showFinished])
 
   // 조건을 바꾼 직후에는 이전 조건의 결과·오류를 보여주지 않는다
   const current = loaded?.query === query ? loaded : null
@@ -146,7 +156,7 @@ export default function ItemList() {
     if (!current || current.last || loadingMore) return
     setLoadingMore(true)
     try {
-      const res = await fetchItems(keyword, category, tradeMethod, sortBy, current.page + 1)
+      const res = await fetchItems(keyword, category, tradeMethod, sortBy, showFinished, current.page + 1)
       // 받는 사이 조건이 바뀌었으면 버린다
       setLoaded((prev) =>
         prev && prev.query === current.query
@@ -194,6 +204,20 @@ export default function ItemList() {
         <span className="flex-1 text-[13px] font-medium text-[var(--color-label-alt)]">
           {current ? `${current.total}개의 물품` : ''}
         </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showFinished}
+          onClick={() => setShowFinished(!showFinished)}
+          className={`inline-flex items-center gap-0.5 text-[13px] font-semibold ${
+            showFinished ? 'text-[var(--color-accent)]' : 'text-[var(--color-label-alt)]'
+          }`}
+        >
+          <span className="ms text-base" style={{ fontVariationSettings: `'FILL' ${showFinished ? 1 : 0}` }}>
+            {showFinished ? 'check_box' : 'check_box_outline_blank'}
+          </span>
+          거래 끝난 물건도 보기
+        </button>
         <button
           type="button"
           onClick={() => setSortMenuOpen((open) => !open)}
@@ -254,9 +278,14 @@ export default function ItemList() {
                 ? '카테고리나 거래 방식을 전체로 바꿔 보세요'
                 : '다른 이름으로 찾아보거나 나중에 다시 들러 주세요'
             }
+            action={finishedAction}
           />
         ) : category !== '전체' || tradeMethod !== '전체' ? (
-          <EmptyState title="이 조건의 물건은 아직 없어요" description="다른 카테고리나 거래 방식도 둘러보세요" />
+          <EmptyState
+            title="이 조건의 물건은 아직 없어요"
+            description="다른 카테고리나 거래 방식도 둘러보세요"
+            action={finishedAction}
+          />
         ) : (
           <EmptyState
             title="장터가 아직 조용해요"
