@@ -22,10 +22,11 @@ function readMockStatus(): MockStatus | null {
 }
 
 /**
- * 시연용 고정 좌표 모드 (#280) — VITE_LOCATION_MODE=demo면 GPS를 쓰지 않고 위치 권한도 묻지 않는다.
- * 발표장처럼 실내라 GPS가 안 잡히는 곳에서 쓴다. 판정은 이 모드에서도 서버가 한다.
+ * 고정 좌표 모드 — 기본값 (#288). 실제 GPS는 실내·PC에서 오차가 너무 커서 인증이 막히므로,
+ * GPS와 위치 권한을 쓰지 않고 월계1동 안의 고정 좌표를 보낸다. 판정은 이 모드에서도 서버가 한다.
+ * VITE_LOCATION_MODE=gps로 설정했을 때만 실제 GPS를 쓴다 (#280).
  */
-const DEMO_MODE = import.meta.env.VITE_LOCATION_MODE === 'demo'
+const DEMO_MODE = import.meta.env.VITE_LOCATION_MODE !== 'gps'
 const DEMO_LOCATING_MS = 1200
 const DEMO_COORDS: Coords = MOCK_COORDS.inside
 
@@ -62,7 +63,7 @@ export interface NeighborhoodLocation {
 
 /**
  * 현재 위치를 찾고 월계1동 안인지 판정한다. 화면에 들어오자마자 한 번 측위한다.
- * 측위는 브라우저 GPS(시연 모드면 고정 좌표), 판정은 서버가 카카오 행정동 조회로 한다 (#278, #280).
+ * 측위는 고정 좌표(기본, #288) 또는 브라우저 GPS(VITE_LOCATION_MODE=gps), 판정은 서버가 카카오 행정동 조회로 한다 (#278, #280).
  */
 export function useNeighborhoodLocation(): NeighborhoodLocation {
   const [status, setStatus] = useState<LocationStatus>('locating')
