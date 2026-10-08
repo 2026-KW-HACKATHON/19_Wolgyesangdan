@@ -6,6 +6,7 @@ import { getItem } from '../api/items'
 import ApplyProcessGuide from '../components/ApplyProcessGuide'
 import Badge from '../components/Badge'
 import ItemThumb from '../components/ItemThumb'
+import LoginRequiredDialog from '../components/LoginRequiredDialog'
 import Toast from '../components/Toast'
 import { isLoggedIn } from '../lib/authStorage'
 import { loginPath } from '../lib/loginRedirect'
@@ -71,6 +72,8 @@ export default function ItemDetail() {
   const [reloadKey, setReloadKey] = useState(0)
 
   const [applying, setApplying] = useState(false)
+  // "로그인이 필요해요" 팝업을 띄운 물품. 다른 물품으로 넘어가면 닫히도록 id로 둔다
+  const [loginPromptId, setLoginPromptId] = useState<string | null>(null)
   // 이 화면에서 신청을 마친 물품 / 신청이 막힌 사유. 다른 물품으로 넘어가면 쓰지 않도록 id와 함께 둔다
   const [appliedId, setAppliedId] = useState<string | null>(null)
   const [applyError, setApplyError] = useState<{ id: string; code: string; message: string } | null>(null)
@@ -129,8 +132,9 @@ export default function ItemDetail() {
   // 물품 신청 (POST /items/{itemId}/applications). 신청은 로그인이 필요하다
   const handleApply = async (itemId: number) => {
     if (applying) return
+    // 비로그인이면 바로 로그인 화면으로 넘기지 않고 팝업부터 띄운다 (#194) — 다른 화면과 같은 동작
     if (!isLoggedIn()) {
-      navigate(loginPath(`/items/${id}`))
+      setLoginPromptId(id)
       return
     }
     setApplying(true)
@@ -383,6 +387,14 @@ export default function ItemDetail() {
       </div>
 
       <Toast visible={toast.visible}>{toast.message}</Toast>
+
+      {loginPromptId === id && (
+        <LoginRequiredDialog
+          description="신청하려면 로그인해 주세요. 로그인하면 이 물품으로 돌아와요."
+          onLogin={() => navigate(loginPath(`/items/${id}`))}
+          onCancel={() => setLoginPromptId(null)}
+        />
+      )}
     </div>
   )
 }
