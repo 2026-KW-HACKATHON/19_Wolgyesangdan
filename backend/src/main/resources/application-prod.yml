@@ -23,3 +23,8 @@ kakao:
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+# 로컬 기본값(admin / 1234)을 운영에서 쓰지 않도록 기본값 없이 환경변수로만 받는다
+admin:
+  login-id: ${ADMIN_LOGIN_ID}
+  password: ${ADMIN_PASSWORD}

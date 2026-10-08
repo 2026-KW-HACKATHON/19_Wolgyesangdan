@@ -19,6 +19,7 @@ public enum AuthErrorCode implements BaseErrorCode {
 	AUTH_REFRESH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "refresh token이 만료되었습니다. 다시 로그인해주세요."),
 	// 토큰은 유효한데 회원이 없음 — 회원 탈퇴 기능이 없어서 운영진이 DB에서 직접 지운 경우뿐. 다시 로그인하게 401 (#171)
 	AUTH_USER_NOT_FOUND(HttpStatus.UNAUTHORIZED, "회원 정보를 찾을 수 없습니다. 다시 로그인해주세요."),
+	AUTH_INVALID_ADMIN_CREDENTIALS(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다."),
 	// 로그인은 했지만 권한이 없음 — 일반 회원이 관리자 API(/admin/**)를 호출한 경우
 	AUTH_FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
 

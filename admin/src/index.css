@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/* 회원 앱(frontend/src/index.css)과 같은 이름·값을 쓰고, 관리자 전용 토큰만 아래에 더한다 */
+@theme {
+  --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --font-hand: "Gaegu", cursive;
+
+  --color-screen: #f6f1e4;
+  --color-surface: #fffdf6;
+  --color-sunken: #ebe4d1;
+  --color-border: #e3dbc6;
+  --color-border-deep: #cfc5a9;
+  --color-primary: #5e7f35;
+  --color-primary-dark: #3f5a21;
+  --color-accent: #4f6b2a;
+  --color-primary-soft: #c9d7a8;
+  --color-primary-tint: #e7ebd8;
+  --color-label: #1f2419;
+  --color-label-alt: #6b6857;
+  --color-body: #3f4436;
+  --color-ink-2: #4a4a40;
+  --color-terracotta: #b9603a;
+  --color-terracotta-ink: #8a4a28;
+  --color-amber-tint: #f6e9d8;
+  --color-amber-badge: #f7e6c9;
+  --color-amber-badge-ink: #7a4e14;
+
+  /* 관리자 전용 */
+  --color-admin-sidebar: #2f4520;
+  --color-admin-sidebar-active: rgb(231 235 216 / 0.16);
+  --color-table-head: #f3eedf;
+  --color-row-line: #efe9da;
+  --color-row-selected: #eef1e0;
+}
+
+.ms {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* 데스크톱 전용 — 이보다 좁으면 가로 스크롤 */
+  min-width: 1024px;
+  background: var(--color-screen);
+  font-family: var(--font-sans);
+  color: var(--color-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 회원 앱과 같이, 누를 수 있는 것은 손가락 커서로 통일한다 */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}

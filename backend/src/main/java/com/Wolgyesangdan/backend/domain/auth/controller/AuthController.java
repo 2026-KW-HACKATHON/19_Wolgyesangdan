@@ -1,5 +1,6 @@
 package com.Wolgyesangdan.backend.domain.auth.controller;
 
+import com.Wolgyesangdan.backend.domain.auth.dto.AdminLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.KakaoLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.LoginResponse;
 import com.Wolgyesangdan.backend.domain.auth.dto.TokenRefreshRequest;
@@ -23,6 +24,12 @@ public class AuthController {
 	@PostMapping("/kakao")
 	public LoginResponse kakaoLogin(@Valid @RequestBody KakaoLoginRequest request) {
 		return authService.kakaoLogin(request);
+	}
+
+	/** 관리자 웹 로그인 (아이디·비밀번호). 응답은 카카오 로그인과 같은 형식 */
+	@PostMapping("/admin/login")
+	public LoginResponse adminLogin(@Valid @RequestBody AdminLoginRequest request) {
+		return authService.adminLogin(request);
 	}
 
 	@PostMapping("/token/refresh")

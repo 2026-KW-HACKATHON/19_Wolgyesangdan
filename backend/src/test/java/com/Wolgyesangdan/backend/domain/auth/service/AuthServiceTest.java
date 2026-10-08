@@ -13,6 +13,8 @@ import java.util.Optional;
 
 import com.Wolgyesangdan.backend.domain.auth.client.KakaoOAuthClient;
 import com.Wolgyesangdan.backend.domain.auth.client.KakaoUser;
+import com.Wolgyesangdan.backend.domain.auth.config.AdminAccountProperties;
+import com.Wolgyesangdan.backend.domain.auth.dto.AdminLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.KakaoLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.LoginResponse;
 import com.Wolgyesangdan.backend.domain.auth.dto.TokenRefreshRequest;
@@ -28,6 +30,7 @@ import com.Wolgyesangdan.backend.global.security.JwtProvider;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -48,7 +51,7 @@ class AuthServiceTest {
 		userRepository = Mockito.mock(UserRepository.class);
 		refreshTokenRepository = Mockito.mock(RefreshTokenRepository.class);
 		authService = new AuthService(kakaoOAuthClient, userRepository, refreshTokenRepository, jwtProvider,
-				jwtProperties);
+				jwtProperties, new AdminAccountProperties("admin", "1234"));
 		given(userRepository.save(any(User.class))).willAnswer(invocation -> withId(invocation.getArgument(0), 1L));
 	}
 
@@ -115,6 +118,43 @@ class AuthServiceTest {
 		assertThatThrownBy(() -> authService.refresh(new TokenRefreshRequest(jwtProvider.createAccessToken(1L))))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+	}
+
+	@Test
+	void 관리자_아이디_비밀번호가_맞으면_처음엔_관리자_회원을_만들고_ADMIN_토큰을_준다() {
+		given(userRepository.findByKakaoId("admin:admin")).willReturn(Optional.empty());
+
+		LoginResponse response = authService.adminLogin(new AdminLoginRequest("admin", "1234"));
+
+		ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+		verify(userRepository).save(saved.capture());
+		assertThat(saved.getValue().getRole()).isEqualTo(Role.ADMIN);
+		assertThat(saved.getValue().getNickname()).isEqualTo("운영자");
+		assertThat(response.isNewUser()).isTrue();
+		assertThat(jwtProvider.parseAccessToken(response.accessToken())).isEqualTo(new AccessTokenPayload(1L, Role.ADMIN));
+	}
+
+	@Test
+	void 관리자_회원이_이미_있으면_그_회원으로_로그인한다() {
+		User admin = withId(User.builder().kakaoId("admin:admin").nickname("운영자").role(Role.ADMIN).build(), 3L);
+		given(userRepository.findByKakaoId("admin:admin")).willReturn(Optional.of(admin));
+
+		LoginResponse response = authService.adminLogin(new AdminLoginRequest("admin", "1234"));
+
+		verify(userRepository, never()).save(any(User.class));
+		assertThat(response.isNewUser()).isFalse();
+		assertThat(jwtProvider.parseAccessToken(response.accessToken())).isEqualTo(new AccessTokenPayload(3L, Role.ADMIN));
+	}
+
+	@Test
+	void 관리자_아이디나_비밀번호가_틀리면_AUTH_INVALID_ADMIN_CREDENTIALS() {
+		assertThatThrownBy(() -> authService.adminLogin(new AdminLoginRequest("admin", "12345")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_INVALID_ADMIN_CREDENTIALS);
+		assertThatThrownBy(() -> authService.adminLogin(new AdminLoginRequest("root", "1234")))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_INVALID_ADMIN_CREDENTIALS);
+		verify(userRepository, never()).save(any(User.class));
 	}
 
 	private static User withId(User user, Long id) {
