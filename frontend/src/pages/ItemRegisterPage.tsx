@@ -12,6 +12,7 @@ import { ApiError } from '../api/client'
 import { createItem, getCategories, resolveItemImageContentType, uploadItemImage } from '../api/items'
 import { useContact } from '../contexts/ContactContext'
 import type {
+  CategoryCarbon,
   CategoryGroup,
   ConditionGrade as Condition,
   ItemCreateRequest,
@@ -23,6 +24,14 @@ import { registerPhotoStore, useRegisterPhotos } from '../lib/registerPhotoStore
 import type { UploadedFile } from '../types/verification'
 
 const CATEGORY_OPTIONS: CategoryGroup[] = ['가구', '가전', '주방', '생활', '기타']
+
+/** 품목 목록에 없는 물건 — 품목 없이 대분류 값으로 계산한다 (#285) */
+const OTHER_ITEM_TYPE = 'OTHER'
+
+/** "기타 품목" 칩 이름. 대분류가 기타면 "그 외 물건" */
+function otherItemTypeLabel(categoryGroup: CategoryGroup) {
+  return categoryGroup === '기타' ? '그 외 물건' : `기타 ${categoryGroup}`
+}
 const CONDITION_OPTIONS: Condition[] = ['거의 새것', '상태 좋음', '사용감 있음']
 const TRANSPORT_OPTIONS: TransportDifficulty[] = ['쉬움', '보통', '어려움']
 
@@ -51,6 +60,8 @@ const DRAFT_KEY = 'draft:register'
 interface RegisterForm {
   name: string
   categoryGroup: CategoryGroup | null
+  /** 품목 코드(예: REFRIGERATOR), 목록에 없는 물건이면 OTHER_ITEM_TYPE, 아직 안 골랐으면 null */
+  itemType: string | null
   condition: Condition | null
   usagePeriod: string
   description: string
@@ -68,6 +79,7 @@ interface RegisterForm {
 const INITIAL_FORM: RegisterForm = {
   name: '',
   categoryGroup: null,
+  itemType: null,
   condition: null,
   usagePeriod: '',
   description: '',
@@ -123,6 +135,7 @@ function toCreateRequest(form: RegisterForm, imageUrls: string[], campaignId: nu
   return {
     name: form.name.trim(),
     categoryGroup: form.categoryGroup!,
+    itemType: form.itemType && form.itemType !== OTHER_ITEM_TYPE ? form.itemType : undefined,
     conditionGrade: form.condition!,
     description: optional(form.description),
     usagePeriod: optional(form.usagePeriod),
@@ -250,18 +263,22 @@ export default function ItemRegisterPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   // 거점 거래로 등록할 때 보낼 캠페인. undefined: 불러오는 중, null: 진행 중·예정 캠페인이 없거나 불러오지 못함
   const [campaign, setCampaign] = useState<ActiveCampaign | null | undefined>(undefined)
-  // 카테고리별 탄소 절감 예상치(kg CO₂e). 등록 시 서버가 저장하는 값과 같은 참조표라 화면 숫자와 등록 결과가 맞는다.
-  // 불러오는 중이거나 실패하면 null — 예상치 박스를 숨긴다
-  const [carbonByCategory, setCarbonByCategory] = useState<Partial<Record<CategoryGroup, number>> | null>(null)
+  // 카테고리별 탄소 절감 예상치(kg CO₂e)와 품목 목록. 등록 시 서버가 저장하는 값과 같은 참조표라 화면 숫자와 등록 결과가 맞는다.
+  // 불러오는 중이거나 실패하면 null — 예상치 박스와 품목 선택을 숨긴다
+  const [categories, setCategories] = useState<CategoryCarbon[] | null>(null)
 
   useEffect(() => {
     let ignore = false
     getCategories()
-      .then((categories) => {
+      .then((loaded) => {
         if (ignore) return
-        setCarbonByCategory(
-          Object.fromEntries(categories.map((c) => [c.categoryGroup, c.carbonReductionKg])),
-        )
+        setCategories(loaded)
+        // 임시저장에 남은 품목이 지금 목록에 없으면 선택을 푼다
+        setForm((prev) => {
+          if (!prev.itemType || prev.itemType === OTHER_ITEM_TYPE) return prev
+          const itemTypes = loaded.find((c) => c.categoryGroup === prev.categoryGroup)?.itemTypes ?? []
+          return itemTypes.some((t) => t.itemType === prev.itemType) ? prev : { ...prev, itemType: null }
+        })
       })
       .catch(() => {
         // 예상치는 참고용이라 실패해도 등록은 그대로 진행할 수 있다
@@ -293,7 +310,12 @@ export default function ItemRegisterPage() {
   const hubReady = campaign !== undefined && !hubBlocked
   // 거점 거래를 할 수 있는 기간 — 전달 가능 기간이 이 안인지 확인한다 (#256)
   const hubError = hubPeriodError(form, campaign ? hubPeriodOf(campaign) : null)
-  const valid = isFormValid(form, hasPhoto) && !hubError && (!usesHub(form.trade) || hubReady)
+  // 고른 대분류의 품목. 품목 기능 이전 서버이거나 목록을 못 불러오면 빈 배열 — 품목 없이 등록한다
+  const category = categories?.find((c) => c.categoryGroup === form.categoryGroup) ?? null
+  const itemTypes = category?.itemTypes ?? []
+  const itemTypeMissing = itemTypes.length > 0 && form.itemType === null
+  const valid =
+    isFormValid(form, hasPhoto) && !itemTypeMissing && !hubError && (!usesHub(form.trade) || hubReady)
   // 연락 수단이 없으면 들어오자마자 안내한다 — 사진을 다 올린 뒤에야 막히지 않도록 (#161)
   const showSheet = !contactLoading && !contact
 
@@ -370,7 +392,29 @@ export default function ItemRegisterPage() {
     navigate(`/items/${created.id}`, { replace: true, state: { registered: true } })
   }
 
-  const carbonKg = (form.categoryGroup && carbonByCategory?.[form.categoryGroup]) ?? null
+  const selectedItemType = itemTypes.find((t) => t.itemType === form.itemType) ?? null
+  const carbonKg = selectedItemType?.carbonReductionKg ?? category?.carbonReductionKg ?? null
+  const carbonCaption = selectedItemType
+    ? `${selectedItemType.basis} 기준 예상치예요`
+    : itemTypes.length > 0 && form.itemType === null
+      ? `${form.categoryGroup} 평균 예상치예요. 품목을 고르면 더 정확해져요`
+      : `${form.categoryGroup} 평균 기준 예상치예요. 등록 후 자동으로 계산돼요`
+  const itemTypeLabels = form.categoryGroup
+    ? [...itemTypes.map((t) => t.label), otherItemTypeLabel(form.categoryGroup)]
+    : []
+  const selectedItemTypeLabel =
+    form.itemType === OTHER_ITEM_TYPE && form.categoryGroup
+      ? otherItemTypeLabel(form.categoryGroup)
+      : (selectedItemType?.label ?? null)
+
+  const handleCategoryChange = (categoryGroup: CategoryGroup) =>
+    // 대분류를 바꾸면 그 아래 품목도 다시 고른다
+    setForm((prev) => (prev.categoryGroup === categoryGroup ? prev : { ...prev, categoryGroup, itemType: null }))
+
+  const handleItemTypeChange = (label: string) => {
+    const picked = itemTypes.find((t) => t.label === label)
+    set('itemType', picked ? picked.itemType : OTHER_ITEM_TYPE)
+  }
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -412,8 +456,18 @@ export default function ItemRegisterPage() {
           required
           options={CATEGORY_OPTIONS}
           value={form.categoryGroup}
-          onChange={(v) => set('categoryGroup', v)}
+          onChange={handleCategoryChange}
         />
+
+        {itemTypes.length > 0 && (
+          <ChoiceChips
+            label="품목"
+            required
+            options={itemTypeLabels}
+            value={selectedItemTypeLabel}
+            onChange={handleItemTypeChange}
+          />
+        )}
 
         {carbonKg !== null && (
           <div className="mx-5 mt-3 flex items-center gap-2.5 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
@@ -421,7 +475,7 @@ export default function ItemRegisterPage() {
             <div>
               <div className="text-[17px] font-extrabold text-primary-dark">약 {carbonKg}kg CO₂e 절감</div>
               <div className="mt-0.5 text-[12px] font-medium text-primary-tint-ink opacity-80">
-                카테고리 기준 예상치예요. 등록 후 자동으로 계산돼요
+                {carbonCaption}
               </div>
             </div>
           </div>
