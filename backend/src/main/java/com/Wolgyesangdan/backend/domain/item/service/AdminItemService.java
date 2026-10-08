@@ -1,5 +1,8 @@
 package com.Wolgyesangdan.backend.domain.item.service;
 
+import java.time.LocalDateTime;
+
+import com.Wolgyesangdan.backend.domain.application.service.AssignmentService;
 import com.Wolgyesangdan.backend.domain.item.dto.AdminItemResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
@@ -26,6 +29,7 @@ public class AdminItemService {
 	private static final Sort LATEST = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
 
 	private final ItemRepository itemRepository;
+	private final AssignmentService assignmentService;
 
 	/**
 	 * 물품 목록 — 상태와 관계없이 전부, 최근 등록순 (요청의 sort는 쓰지 않는다). 한 페이지는 최대 100개.
@@ -51,6 +55,23 @@ public class AdminItemService {
 			item.show();
 		}
 		return AdminItemResponse.from(item);
+	}
+
+	/**
+	 * 신청 조기 마감 (#274) — 신청 마감을 지금으로 당기고 바로 1순위에게 배정한다. 신청자가 없으면 물품이 종료된다.
+	 * 시연·운영 중 스케줄러(1분 주기)를 기다리지 않고 배정 결과를 보여주기 위한 기능.
+	 */
+	@Transactional
+	public AdminItemResponse closeApplications(Long itemId) {
+		return closeApplications(itemId, LocalDateTime.now());
+	}
+
+	@Transactional
+	public AdminItemResponse closeApplications(Long itemId, LocalDateTime now) {
+		assignmentService.closeAndAssign(itemId, now);
+		return itemRepository.findById(itemId)
+				.map(AdminItemResponse::from)
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
 	}
 
 }

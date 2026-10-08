@@ -1,6 +1,7 @@
 package com.Wolgyesangdan.backend.domain.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,10 +15,12 @@ import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemTradeMethod;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
 import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.global.config.JpaAuditingConfig;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -187,6 +190,67 @@ class AssignmentServiceTest {
 
 		assertThat(ids).containsSubsequence(open.getId(), closed.getId());
 		assertThat(ids).doesNotContain(notYet.getId(), assigned.getId(), canceled.getId());
+	}
+
+	@Test
+	void 조기_마감하면_마감_전이어도_마감_시각을_지금으로_당기고_바로_배정한다() {
+		Item item = persist(item(ItemStatus.OPEN, NOW.plusDays(3)));
+		Application first = apply(item, 0);
+		Application prioritized = apply(item, 1);
+		flushAndClear();
+
+		assertThat(assignmentService.closeAndAssign(item.getId(), NOW)).isEqualTo(AssignmentService.Result.ASSIGNED);
+		flushAndClear();
+
+		Item closed = find(Item.class, item.getId());
+		assertThat(closed.getStatus()).isEqualTo(ItemStatus.ASSIGNED);
+		assertThat(closed.getApplicationDeadline()).isEqualTo(NOW);
+		assertThat(find(Application.class, prioritized.getId()).getStatus()).isEqualTo(ApplicationStatus.SELECTED);
+		assertThat(find(Application.class, first.getId()).getStatus()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(reservationOf(prioritized).getReconfirmationDeadline()).isEqualTo(NOW.plusHours(24));
+	}
+
+	@Test
+	void 조기_마감했는데_신청자가_없으면_물품을_종료한다() {
+		Item item = persist(item(ItemStatus.OPEN, NOW.plusDays(3)));
+		flushAndClear();
+
+		assertThat(assignmentService.closeAndAssign(item.getId(), NOW)).isEqualTo(AssignmentService.Result.CANCELED);
+		flushAndClear();
+
+		assertThat(find(Item.class, item.getId()).getStatus()).isEqualTo(ItemStatus.CANCELED);
+	}
+
+	@Test
+	void 정원이_차서_마감된_물품도_조기_마감할_수_있다() {
+		Item item = persist(item(ItemStatus.CLOSED, NOW.plusDays(3)));
+		Application application = apply(item, 0);
+		flushAndClear();
+
+		assertThat(assignmentService.closeAndAssign(item.getId(), NOW)).isEqualTo(AssignmentService.Result.ASSIGNED);
+		flushAndClear();
+
+		assertThat(find(Application.class, application.getId()).getStatus()).isEqualTo(ApplicationStatus.SELECTED);
+	}
+
+	@Test
+	void 이미_배정됐거나_끝난_물품은_조기_마감할_수_없다() {
+		for (ItemStatus status : List.of(ItemStatus.REGISTERED, ItemStatus.ASSIGNED, ItemStatus.COMPLETED, ItemStatus.CANCELED)) {
+			Item item = persist(item(status, NOW.plusDays(3)));
+			flushAndClear();
+
+			assertThatThrownBy(() -> assignmentService.closeAndAssign(item.getId(), NOW))
+					.isInstanceOf(BusinessException.class)
+					.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_NOT_ACCEPTING_APPLICATIONS);
+			assertThat(find(Item.class, item.getId()).getApplicationDeadline()).isEqualTo(NOW.plusDays(3));
+		}
+	}
+
+	@Test
+	void 없는_물품을_조기_마감하면_ITEM_NOT_FOUND() {
+		assertThatThrownBy(() -> assignmentService.closeAndAssign(Long.MAX_VALUE, NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_NOT_FOUND);
 	}
 
 	private Application apply(Item item, int priorityScore) {

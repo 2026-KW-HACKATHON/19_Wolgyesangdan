@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.Wolgyesangdan.backend.domain.application.entity.Application;
+import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
+import com.Wolgyesangdan.backend.domain.application.service.AssignmentService;
 import com.Wolgyesangdan.backend.domain.item.dto.AdminItemResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
@@ -34,7 +37,7 @@ import org.springframework.data.domain.Sort;
  */
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaAuditingConfig.class, AdminItemService.class})
+@Import({JpaAuditingConfig.class, AdminItemService.class, AssignmentService.class})
 class AdminItemServiceTest {
 
 	@Autowired
@@ -164,6 +167,31 @@ class AdminItemServiceTest {
 		assertThatThrownBy(() -> adminItemService.changeHidden(Long.MAX_VALUE, true))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_NOT_FOUND);
+	}
+
+	@Test
+	void 신청을_조기_마감하면_1순위에게_배정되고_바뀐_상태를_내려준다() {
+		Item item = persist(item("전자레인지", ItemStatus.OPEN));
+		User applicant = persist(User.builder().kakaoId("test-" + UUID.randomUUID()).nickname("신청자").build());
+		Application application = persist(Application.builder()
+				.item(item).applicant(applicant).priorityScore(0).status(ApplicationStatus.WAITING).build());
+		flushAndClear();
+
+		AdminItemResponse response = adminItemService.closeApplications(item.getId());
+		flushAndClear();
+
+		assertThat(response.status()).isEqualTo(ItemStatus.ASSIGNED);
+		assertThat(entityManager.find(Item.class, item.getId()).getStatus()).isEqualTo(ItemStatus.ASSIGNED);
+		assertThat(entityManager.find(Application.class, application.getId()).getStatus())
+				.isEqualTo(ApplicationStatus.SELECTED);
+	}
+
+	@Test
+	void 신청자가_없는_물품을_조기_마감하면_종료된_상태를_내려준다() {
+		Item item = persist(item("전자레인지", ItemStatus.OPEN));
+		flushAndClear();
+
+		assertThat(adminItemService.closeApplications(item.getId()).status()).isEqualTo(ItemStatus.CANCELED);
 	}
 
 	private <T> T persist(T entity) {
