@@ -22,7 +22,7 @@ export interface ReservationDetail {
   reconfirmedAt: string | null
   /**
    * 거래 상대 — 신청자가 보면 등록자, 등록자가 보면 신청자.
-   * 상대가 공개하기로 고른 연락 수단만 값이 있고, 노쇼·취소된 예약은 둘 다 null이다.
+   * 상대가 공개하기로 고른 연락 수단만 값이 있고, 노쇼·취소되거나 전달이 완료된 예약은 둘 다 null이다.
    */
   counterpart: {
     nickname: string

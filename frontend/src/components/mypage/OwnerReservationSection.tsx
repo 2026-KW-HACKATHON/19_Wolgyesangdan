@@ -54,7 +54,12 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
     setCompleteError(null)
     try {
       const result = await completeReservation(reservation.id)
-      setReservation({ ...reservation, status: result.status })
+      // 거래가 끝나면 서버가 연락 수단을 더 이상 내려주지 않는다 (#246) — 화면에 받아 둔 값도 바로 지운다
+      setReservation({
+        ...reservation,
+        status: result.status,
+        counterpart: { ...reservation.counterpart, phone: null, openchatLink: null },
+      })
       refreshTodo()
       onCompleted()
     } catch (e) {
@@ -76,7 +81,7 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
   }
   if (reservation === null) return null
 
-  // 노쇼·취소된 예약은 서버가 연락 수단을 내려주지 않는다
+  // 노쇼·취소되거나 전달이 완료된 예약은 서버가 연락 수단을 내려주지 않는다
   const broken = reservation.status === 'NO_SHOW' || reservation.status === 'CANCELED'
   const completed = reservation.status === 'COMPLETED'
   const hasContact = Boolean(reservation.counterpart.phone || reservation.counterpart.openchatLink)
@@ -118,7 +123,7 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
       {completed && (
         <p className="mt-3 flex items-center gap-1 border-t border-border pt-3 text-[12px] font-semibold text-accent">
           <MaterialIcon name="check_circle" size={15} />
-          전달을 완료했어요
+          전달을 완료했어요 · 연락 수단은 더 이상 공개되지 않아요
         </p>
       )}
 
