@@ -17,6 +17,7 @@ public enum VerificationErrorCode implements BaseErrorCode {
 
 	// GPS 동네 인증 (#278)
 	VERIFICATION_LOCATION_INACCURATE(HttpStatus.BAD_REQUEST, "위치 오차가 너무 큽니다."),
+	VERIFICATION_OUTSIDE_NEIGHBORHOOD(HttpStatus.BAD_REQUEST, "월계1동 안에서만 동네 인증을 할 수 있습니다."),
 	VERIFICATION_LOCATION_LOOKUP_FAILED(HttpStatus.BAD_GATEWAY, "현재 위치의 동네를 확인할 수 없습니다."),
 
 	// 관리자 심사

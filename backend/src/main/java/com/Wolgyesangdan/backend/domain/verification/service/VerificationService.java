@@ -12,6 +12,7 @@ import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
 import com.Wolgyesangdan.backend.domain.verification.entity.PriorityVerification;
@@ -37,6 +38,7 @@ public class VerificationService {
 
 	private final PriorityVerificationRepository priorityVerificationRepository;
 	private final UserRepository userRepository;
+	private final NeighborhoodLocationService neighborhoodLocationService;
 
 	/**
 	 * 우선배정 인증 신청 (신입생·기초수급자). 항상 PENDING으로 접수하고, 관리자가 서류를 확인해 승인·반려한다.
@@ -73,18 +75,22 @@ public class VerificationService {
 	}
 
 	/**
-	 * GPS 동네 인증. 월계1동 안인지는 프론트가 판정하고(2026-10-05 결정, #73), 서버는 심사 없이 바로 승인으로 기록한다.
-	 * 위치 좌표·주소는 받지도 저장하지도 않는다. 이미 유효한 동네 인증이 있으면 거절한다.
+	 * GPS 동네 인증. 브라우저가 측위한 좌표로 서버가 월계1동 안인지 판정하고(#279), 안이면 심사 없이 바로 승인으로 기록한다.
+	 * 좌표는 판정에만 쓰고 저장하지 않는다. 이미 유효한 동네 인증이 있으면 위치를 조회하지 않고 거절한다.
+	 * 월계1동 밖이면 400 VERIFICATION_OUTSIDE_NEIGHBORHOOD (오차가 크거나 조회 실패는 NeighborhoodLocationService 참고).
 	 */
 	@Transactional
-	public VerificationCreateResponse verifyNeighborhood(Long userId) {
-		return verifyNeighborhood(userId, LocalDateTime.now());
+	public VerificationCreateResponse verifyNeighborhood(Long userId, NeighborhoodLocationRequest location) {
+		return verifyNeighborhood(userId, location, LocalDateTime.now());
 	}
 
-	VerificationCreateResponse verifyNeighborhood(Long userId, LocalDateTime now) {
+	VerificationCreateResponse verifyNeighborhood(Long userId, NeighborhoodLocationRequest location, LocalDateTime now) {
 		User user = findUser(userId);
 		if (hasNeighborhoodVerification(userId, now)) {
 			throw new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+		}
+		if (!neighborhoodLocationService.check(location).inside()) {
+			throw new BusinessException(VerificationErrorCode.VERIFICATION_OUTSIDE_NEIGHBORHOOD);
 		}
 		return VerificationCreateResponse.from(priorityVerificationRepository.save(PriorityVerification.builder()
 				.user(user)
