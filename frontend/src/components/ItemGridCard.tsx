@@ -12,8 +12,8 @@ export default function ItemGridCard({ item, onClick }: ItemGridCardProps) {
   return (
     <button type="button" onClick={onClick} className="flex flex-col gap-2 text-left">
       <ItemThumb
-        // 목록 카드는 사진이 있어도 항상 카테고리 아이콘으로 보여준다 (사진은 상세 화면에서)
-        imageUrl={null}
+        // 대표 사진. 없거나 불러오지 못하면 카테고리 아이콘 (#244)
+        imageUrl={item.thumbnailImageUrl}
         categoryGroup={item.categoryGroup}
         alt={item.name}
         className="aspect-square w-full rounded-2xl"

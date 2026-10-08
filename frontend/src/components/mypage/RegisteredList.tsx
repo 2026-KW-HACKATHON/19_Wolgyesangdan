@@ -7,6 +7,7 @@ import { formatMonthDay } from '../../lib/reservation'
 import type { ItemStatus, MyItemSummary } from '../../types/item'
 import MaterialIcon from '../icons/MaterialIcon'
 import EmptyState from '../EmptyState'
+import MyItemThumb from './MyItemThumb'
 import OwnerReservationSection from './OwnerReservationSection'
 
 /** 한 번에 받아 오는 물품 수 */
@@ -95,9 +96,7 @@ export default function RegisteredList() {
               onClick={() => navigate(`/items/${item.id}`)}
               className="flex w-full cursor-pointer items-center gap-3 py-3.5 text-left"
             >
-              <span className="flex size-16 flex-none items-center justify-center rounded-[14px] bg-primary-tint text-accent">
-                <MaterialIcon name="inventory_2" size={26} />
-              </span>
+              <MyItemThumb imageUrl={item.thumbnailImageUrl} alt={item.name} className="size-16 rounded-[14px]" iconSize={26} />
               <span className="min-w-0 flex-1">
                 <span className={`inline-block rounded-[7px] px-[7px] py-[3px] text-[11px] font-bold ${badge.className}`}>
                   {badge.label}
