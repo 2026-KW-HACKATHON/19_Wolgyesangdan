@@ -16,3 +16,8 @@ export function setAdminItemHidden(itemId: number, hidden: boolean) {
     body: JSON.stringify({ hidden }),
   })
 }
+
+/** 신청 조기 마감 (POST /admin/items/{id}/close-applications). 지금 마감하고 바로 1순위에게 배정한다. 바뀐 물품을 돌려준다 */
+export function closeAdminItemApplications(itemId: number) {
+  return apiFetch<AdminItem>(`/admin/items/${itemId}/close-applications`, { method: 'POST' })
+}

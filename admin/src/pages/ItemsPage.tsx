@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
-import { getAdminItems, setAdminItemHidden } from '../api/items'
+import { closeAdminItemApplications, getAdminItems, setAdminItemHidden } from '../api/items'
 import Card from '../components/Card'
 import DataTable, { type Column } from '../components/DataTable'
 import FilterChips from '../components/FilterChips'
@@ -26,6 +26,11 @@ const STATUS: Record<ItemStatus, { label: string; tone: StatusTone }> = {
   CANCELED: { label: '취소됨', tone: 'muted' },
 }
 
+/** 신청 조기 마감을 할 수 있는 상태 — 신청 받는 중이거나 정원이 차서 배정을 기다리는 중 */
+function canCloseApplications(item: AdminItem) {
+  return item.status === 'OPEN' || item.status === 'CLOSED'
+}
+
 /** YYYY-MM-DDTHH:mm:ss → "2026.10.08" */
 function formatDate(dateTime: string) {
   return dateTime.slice(0, 10).split('-').join('.')
@@ -34,7 +39,10 @@ function formatDate(dateTime: string) {
 /** 어떤 조건의 조회 결과인지 함께 들고 있어서, 필터·페이지를 바꾸면 이전 결과를 쓰지 않는다 */
 type Result = { key: string; data: PageResponse<AdminItem> } | { key: string; data: null; message: string }
 
-/** 물품 관리 (#215) — 등록된 물품을 보고 숨기거나 다시 보이게 한다. 영구 삭제는 없다 */
+/**
+ * 물품 관리 (#215) — 등록된 물품을 보고 숨기거나 다시 보이게 한다. 영구 삭제는 없다.
+ * 신청 받는 중인 물품은 지금 마감하고 바로 1순위에게 배정할 수 있다 (#275).
+ */
 export default function ItemsPage() {
   const [filter, setFilter] = useState<Filter>('ALL')
   const [page, setPage] = useState(0)
@@ -43,6 +51,9 @@ export default function ItemsPage() {
   /** 숨기기/다시 보이기 요청 중인 물품 */
   const [pendingId, setPendingId] = useState<number | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionNotice, setActionNotice] = useState<string | null>(null)
+  /** 조기 마감 확인 팝업을 띄운 물품 */
+  const [closing, setClosing] = useState<AdminItem | null>(null)
 
   const key = `${filter}:${page}:${reloadKey}`
 
@@ -69,26 +80,53 @@ export default function ItemsPage() {
     setFilter(next)
     setPage(0)
     setActionError(null)
+    setActionNotice(null)
+  }
+
+  /** 목록에서 그 줄만 바꾼다 */
+  const replaceRow = (updated: AdminItem) => {
+    setResult((current) =>
+      current?.data
+        ? { ...current, data: { ...current.data, content: current.data.content.map((row) => (row.id === updated.id ? updated : row)) } }
+        : current,
+    )
   }
 
   const handleToggle = async (item: AdminItem) => {
     if (pendingId !== null) return
     setPendingId(item.id)
     setActionError(null)
+    setActionNotice(null)
     try {
-      const updated = await setAdminItemHidden(item.id, !item.hidden)
       // 그 줄만 바꾼다 — "숨긴 물품" 필터에서 다시 보이게 해도 바로 사라지지 않아서 잘못 눌렀을 때 되돌릴 수 있다
-      setResult((current) =>
-        current?.data
-          ? { ...current, data: { ...current.data, content: current.data.content.map((row) => (row.id === updated.id ? updated : row)) } }
-          : current,
-      )
+      replaceRow(await setAdminItemHidden(item.id, !item.hidden))
     } catch (e) {
       setActionError(
         e instanceof ApiError
           ? e.message
           : `${item.hidden ? '다시 보이게 하지' : '숨기지'} 못했어요. 잠시 후 다시 시도해 주세요.`,
       )
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  const handleCloseApplications = async (item: AdminItem) => {
+    setClosing(null)
+    if (pendingId !== null) return
+    setPendingId(item.id)
+    setActionError(null)
+    setActionNotice(null)
+    try {
+      const updated = await closeAdminItemApplications(item.id)
+      replaceRow(updated)
+      setActionNotice(
+        updated.status === 'ASSIGNED'
+          ? `'${updated.name}' 신청을 마감하고 1순위 신청자에게 배정했어요.`
+          : `'${updated.name}'에 신청자가 없어 물품을 종료했어요.`,
+      )
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : '신청을 마감하지 못했어요. 잠시 후 다시 시도해 주세요.')
     } finally {
       setPendingId(null)
     }
@@ -125,18 +163,30 @@ export default function ItemsPage() {
     {
       key: 'action',
       header: '',
-      width: '140px',
+      width: '240px',
       render: (item) => (
-        <button
-          type="button"
-          onClick={() => handleToggle(item)}
-          disabled={pendingId !== null}
-          className={`h-8 rounded-lg border border-border bg-surface px-3 text-[13px] font-bold disabled:opacity-50 ${
-            item.hidden ? 'text-primary-dark' : 'text-body'
-          }`}
-        >
-          {item.hidden ? '다시 보이기' : '숨기기'}
-        </button>
+        <div className="flex justify-end gap-2">
+          {canCloseApplications(item) && (
+            <button
+              type="button"
+              onClick={() => setClosing(item)}
+              disabled={pendingId !== null}
+              className="h-8 rounded-lg bg-primary px-3 text-[13px] font-bold whitespace-nowrap text-surface disabled:opacity-50"
+            >
+              마감하고 배정
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => handleToggle(item)}
+            disabled={pendingId !== null}
+            className={`h-8 rounded-lg border border-border bg-surface px-3 text-[13px] font-bold whitespace-nowrap disabled:opacity-50 ${
+              item.hidden ? 'text-primary-dark' : 'text-body'
+            }`}
+          >
+            {item.hidden ? '다시 보이기' : '숨기기'}
+          </button>
+        </div>
       ),
     },
   ]
@@ -152,6 +202,12 @@ export default function ItemsPage() {
         <FilterChips options={FILTERS} value={filter} onChange={handleFilterChange} label="물품 범위" />
         {data && <p className="text-[13px] text-label-alt">총 {data.totalElements.toLocaleString()}개</p>}
       </div>
+
+      {actionNotice && (
+        <p role="status" className="text-[13px] font-semibold text-primary-dark">
+          {actionNotice}
+        </p>
+      )}
 
       {actionError && (
         <p role="alert" className="text-[13px] font-semibold text-terracotta">
@@ -215,6 +271,44 @@ export default function ItemsPage() {
             </nav>
           )}
         </>
+      )}
+
+      {closing && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-label/40 px-6">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="close-applications-title"
+            className="w-[380px] rounded-2xl bg-surface p-6"
+          >
+            <h2 id="close-applications-title" className="text-[16px] font-extrabold text-label">
+              신청을 지금 마감하고 배정할까요?
+            </h2>
+            <p className="mt-1.5 truncate text-[13px] font-semibold text-body">
+              {closing.name} · {closing.ownerNickname}
+            </p>
+            <p className="mt-2 text-[13px] leading-[1.6] text-label-alt">
+              신청 마감을 지금으로 당기고, 우선배정 점수와 신청 순서에 따라 1순위 신청자에게 바로 배정해요. 신청자가
+              없으면 물품이 종료돼요. 되돌릴 수 없어요.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setClosing(null)}
+                className="h-10 rounded-[10px] border border-border bg-surface px-4 text-[14px] font-bold text-body"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCloseApplications(closing)}
+                className="h-10 rounded-[10px] bg-primary px-4 text-[14px] font-bold text-surface"
+              >
+                마감하고 배정
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -13,6 +13,6 @@ export const MENU: MenuItem[] = [
   { path: '/verifications', label: '인증 서류', subtitle: '신입생 · 기초수급자 우선배정 서류', icon: 'fact_check' },
   { path: '/campaigns', label: '캠페인', subtitle: '기간 · 거점 설정', icon: 'campaign' },
   { path: '/inquiries', label: '문의', subtitle: '회원 문의 확인과 답변', icon: 'forum' },
-  { path: '/items', label: '물품 관리', subtitle: '등록된 물품 확인 · 숨기기', icon: 'inventory_2' },
+  { path: '/items', label: '물품 관리', subtitle: '등록된 물품 확인 · 신청 조기 마감 · 숨기기', icon: 'inventory_2' },
   { path: '/hub-trades', label: '거점 거래', subtitle: '거점 입고 · 수령 처리', icon: 'warehouse' },
 ]
