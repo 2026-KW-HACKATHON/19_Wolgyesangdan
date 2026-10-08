@@ -7,7 +7,6 @@ import MaterialIcon from '../components/icons/MaterialIcon'
 import PhotoUploadGrid from '../components/PhotoUploadGrid'
 import PrimaryButton from '../components/PrimaryButton'
 import TextField from '../components/TextField'
-import Toast from '../components/Toast'
 import { getActiveCampaign } from '../api/campaigns'
 import { ApiError } from '../api/client'
 import { createItem, getCategories, resolveItemImageContentType, uploadItemImage } from '../api/items'
@@ -200,7 +199,6 @@ export default function ItemRegisterPage() {
   // 사진은 화면 밖 보관소에 둔다 — 연락 수단 설정 화면에 다녀와도 그대로 남는다 (#161)
   const files = useRegisterPhotos()
   const [submitting, setSubmitting] = useState(false)
-  const [toastVisible, setToastVisible] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   // 거점 거래로 등록할 때 보낼 캠페인. 없거나 못 불러오면 거점 거래 등록은 서버가 거절한다
@@ -297,9 +295,10 @@ export default function ItemRegisterPage() {
 
     setSubmitting(true)
     setSubmitError(null)
+    let created: { id: number }
     try {
       const imageUrls = files.flatMap((f) => (f.imageUrl ? [f.imageUrl] : []))
-      await createItem(toCreateRequest(form, imageUrls, campaignId))
+      created = await createItem(toCreateRequest(form, imageUrls, campaignId))
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : '등록하지 못했어요. 잠시 후 다시 시도해 주세요.')
       return
@@ -310,8 +309,8 @@ export default function ItemRegisterPage() {
     registerPhotoStore.clear()
     setPhotoError(null)
     clearDraft()
-    setToastVisible(true)
-    setTimeout(() => setToastVisible(false), 2000)
+    // 방금 등록한 물품 상세로 간다. 뒤로가기로 빈 등록 폼에 돌아오지 않게 등록 화면 기록을 바꿔 끼운다 (#193)
+    navigate(`/items/${created.id}`, { replace: true, state: { registered: true } })
   }
 
   const carbonKg = (form.categoryGroup && carbonByCategory?.[form.categoryGroup]) ?? null
@@ -511,8 +510,6 @@ export default function ItemRegisterPage() {
       {showSheet && (
         <ContactRequiredSheet onSetup={() => navigate('/settings/contact?next=/register')} />
       )}
-
-      <Toast visible={toastVisible}>물품을 등록했어요</Toast>
     </div>
   )
 }
