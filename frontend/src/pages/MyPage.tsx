@@ -5,6 +5,7 @@ import MaterialIcon from '../components/icons/MaterialIcon'
 import AppliedList from '../components/mypage/AppliedList'
 import RegisteredList from '../components/mypage/RegisteredList'
 import { useContact } from '../contexts/ContactContext'
+import { useTodo } from '../contexts/TodoContext'
 import { useLoginGate } from '../hooks/useLoginGate'
 import { useMyInfo } from '../hooks/useMyInfo'
 import { useMyVerifications } from '../hooks/useMyVerifications'
@@ -200,6 +201,12 @@ export default function MyPage() {
   const navigate = useNavigate()
   const loggedIn = isLoggedIn()
   const { go, dialog: loginDialog } = useLoginGate()
+  // 탭 옆 빨간 점 — 등록한 물품은 전달할 것, 신청한 물품은 재확인할 것이 있으면 (#188)
+  const { todo } = useTodo()
+  const tabHasTodo: Record<TabKey, boolean> = {
+    registered: todo.deliveries.length > 0,
+    applied: todo.reconfirms.length > 0,
+  }
 
   // 로그아웃 API는 MVP에서 만들지 않음 — 이 기기의 토큰만 지우고 홈으로 간다
   const handleLogout = () => {
@@ -256,7 +263,15 @@ export default function MyPage() {
                 selected ? 'font-bold text-accent shadow-[inset_0_-2px_0_0_var(--color-primary)]' : 'font-medium text-label-alt'
               }`}
             >
-              {t.label}
+              <span className="relative">
+                {t.label}
+                {tabHasTodo[t.key] && (
+                  <span
+                    aria-label="할 일 있음"
+                    className="absolute -top-0.5 -right-2.5 size-2 rounded-full bg-terracotta"
+                  />
+                )}
+              </span>
             </button>
           )
         })}

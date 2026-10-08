@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState'
 import SearchBar from '../components/SearchBar'
 import ItemCard from '../components/ItemCard'
 import InfoBanner from '../components/InfoBanner'
+import TodoBanner from '../components/TodoBanner'
 import type { ItemSummary } from '../types/item'
 import { useActiveCampaign } from '../hooks/useActiveCampaign'
 import { isLoggedIn } from '../lib/authStorage'
@@ -61,6 +62,9 @@ export default function Home() {
           </button>
         )}
       </header>
+
+      {/* 배정됐는데 놓치기 쉬운 일 — 재확인 기한 등 (#188) */}
+      <TodoBanner />
 
       {campaign !== undefined && (
         // 캠페인 상세 화면은 따로 없어서, 캠페인 기간·거래 현황을 보여주는 탄소 리포트 "이번 캠페인" 탭으로 보낸다

@@ -6,6 +6,7 @@ import Home from './pages/Home'
 import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
+import TodoProvider from './contexts/TodoProvider'
 import LoginRequiredDialog from './components/LoginRequiredDialog'
 import SessionExpiredDialog from './components/SessionExpiredDialog'
 import CarbonReportPage from './pages/CarbonReportPage'
@@ -79,6 +80,7 @@ function App() {
 
   return (
     <ContactProvider>
+      <TodoProvider>
       <SessionExpiredDialog />
       <Routes>
         <Route element={<AppLayout />}>
@@ -143,6 +145,7 @@ function App() {
           />
         </Route>
       </Routes>
+      </TodoProvider>
     </ContactProvider>
   )
 }
