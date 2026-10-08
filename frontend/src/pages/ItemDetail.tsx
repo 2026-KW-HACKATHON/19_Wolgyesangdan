@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { applyForItem } from '../api/applications'
 import { ApiError } from '../api/client'
 import { getItem } from '../api/items'
+import ApplyProcessGuide from '../components/ApplyProcessGuide'
 import Badge from '../components/Badge'
 import ItemThumb from '../components/ItemThumb'
 import Toast from '../components/Toast'
@@ -137,6 +138,7 @@ export default function ItemDetail() {
     try {
       const application = await applyForItem(itemId)
       setAppliedId(id)
+      // 이후 진행은 화면의 "신청하면 이렇게 진행돼요"에 "지금 여기"로 표시된다 (#189)
       showToast(application.waitlistRank ? `신청했어요 · 대기 ${application.waitlistRank}번` : '신청했어요')
       setReloadKey((key) => key + 1)
     } catch (e) {
@@ -318,6 +320,14 @@ export default function ItemDetail() {
               </div>
             )}
           </section>
+
+          {/* 등록자 본인에게는 신청 안내가 필요 없다 (#189) */}
+          {!item.isMine && (
+            <>
+              <div className="h-px bg-[var(--color-border)]" />
+              <ApplyProcessGuide item={item} />
+            </>
+          )}
 
           <div className="flex items-center gap-2.5 pt-1">
             <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-[#EBE4D1] text-base font-bold text-[#4A4A40]">
