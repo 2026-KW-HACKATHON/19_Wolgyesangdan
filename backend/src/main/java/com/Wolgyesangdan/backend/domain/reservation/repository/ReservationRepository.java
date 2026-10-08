@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Optional;
 
 import com.Wolgyesangdan.backend.domain.reservation.dto.CategoryCarbonSum;
+import com.Wolgyesangdan.backend.domain.reservation.dto.DeliveryTodo;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
+import com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmTodo;
 import com.Wolgyesangdan.backend.domain.reservation.dto.TradeCounts;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
 import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
@@ -147,5 +149,40 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 	/** 승계 처리 전에 물품부터 잠그기 위해 물품 id만 읽는다 */
 	@Query("select r.application.item.id from Reservation r where r.id = :id")
 	Optional<Long> findItemIdById(@Param("id") Long id);
+
+
+	/**
+	 * 신청자가 수령 재확인해야 할 예약 — 배정된 내 신청이고, 진행 중이며, 아직 재확인 안 했고, 기한이 남은 것.
+	 * 기한 빠른 순, 기한이 없는 예약은 맨 뒤 (#187)
+	 */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmTodo(
+				a.id, r.id, i.id, i.name, r.reconfirmationDeadline)
+			from Reservation r
+				join r.application a
+				join a.item i
+			where a.applicant.id = :userId
+				and a.status = com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus.SELECTED
+				and r.status in :statuses
+				and r.reconfirmedAt is null
+				and (r.reconfirmationDeadline is null or r.reconfirmationDeadline > :now)
+			order by case when r.reconfirmationDeadline is null then 1 else 0 end, r.reconfirmationDeadline, r.id
+			""")
+	List<ReconfirmTodo> findReconfirmTodos(@Param("userId") Long userId,
+			@Param("statuses") Collection<ReservationStatus> statuses, @Param("now") LocalDateTime now);
+
+	/** 등록자가 전달해야 할 예약 — 내 물품의 예약 중 끝나지 않은(완료·노쇼·취소 아님) 것, 배정된 순 (#187) */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.reservation.dto.DeliveryTodo(
+				i.id, i.name, r.id, a.id, r.tradeMethod, r.status, r.reconfirmationDeadline)
+			from Reservation r
+				join r.application a
+				join a.item i
+			where i.owner.id = :userId
+				and r.status in :statuses
+			order by r.createdAt, r.id
+			""")
+	List<DeliveryTodo> findDeliveryTodos(@Param("userId") Long userId,
+			@Param("statuses") Collection<ReservationStatus> statuses);
 
 }
