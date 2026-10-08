@@ -81,6 +81,15 @@ class CampaignServiceTest {
 	}
 
 	@Test
+	void 운영진이_끝낸_캠페인은_기간이_남아_있어도_내려주지_않는다() {
+		Campaign closed = campaign(1L, TODAY.minusDays(10), TODAY.plusDays(5));
+		closed.end();
+		given(campaignRepository.findAll()).willReturn(List.of(closed));
+
+		assertThat(campaignService.getActiveCampaign(TODAY)).isNull();
+	}
+
+	@Test
 	void 거래완료_물품_집계를_함께_내려준다() {
 		given(campaignRepository.findAll()).willReturn(List.of(campaign(1L, TODAY.minusDays(1), TODAY.plusDays(1))));
 		given(itemRepository.summarizeCompletedByCampaignId(1L)).willReturn(new CompletedItemSummary(128, 3420));

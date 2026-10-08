@@ -108,6 +108,17 @@ class ItemCreateTest {
 	}
 
 	@Test
+	void 운영진이_끝낸_캠페인이면_등록_기간이_남아_있어도_거점_거래_불가() {
+		Campaign closed = campaign(TODAY.minusDays(1), TODAY.plusDays(5), TODAY.plusDays(7));
+		closed.end();
+
+		assertThatThrownBy(() -> itemService.createItem(owner.getId(),
+				request(List.of(TradeMethod.CAMPAIGN), closed.getId(), List.of("https://img/1.jpg"))))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_TRADE_METHOD_INVALID);
+	}
+
+	@Test
 	void 거점_거래인데_캠페인을_안_보내면_불가() {
 		assertThatThrownBy(() -> itemService.createItem(owner.getId(),
 				request(List.of(TradeMethod.CAMPAIGN), null, List.of("https://img/1.jpg"))))

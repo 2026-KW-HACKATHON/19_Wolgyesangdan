@@ -33,4 +33,29 @@ class CampaignTest {
 		assertThat(campaign.statusOn(LocalDate.of(2026, 10, 7))).isEqualTo(CampaignStatus.ENDED);
 	}
 
+	@Test
+	void 운영_중을_끄면_기간이_남아_있어도_끝난_캠페인이다() {
+		campaign.end();
+
+		assertThat(campaign.statusOn(LocalDate.of(2026, 9, 14))).isEqualTo(CampaignStatus.ENDED);
+		assertThat(campaign.statusOn(LocalDate.of(2026, 10, 1))).isEqualTo(CampaignStatus.ENDED);
+	}
+
+	@Test
+	void 운영_중을_다시_켜면_날짜로_판단한다() {
+		campaign.end();
+
+		campaign.resume(LocalDate.of(2026, 9, 14));
+
+		assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.PLANNED);
+		assertThat(campaign.statusOn(LocalDate.of(2026, 9, 14))).isEqualTo(CampaignStatus.PLANNED);
+		assertThat(campaign.statusOn(LocalDate.of(2026, 10, 1))).isEqualTo(CampaignStatus.ACTIVE);
+		assertThat(campaign.statusOn(LocalDate.of(2026, 10, 7))).isEqualTo(CampaignStatus.ENDED);
+
+		campaign.end();
+		campaign.resume(LocalDate.of(2026, 10, 1));
+
+		assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.ACTIVE);
+	}
+
 }

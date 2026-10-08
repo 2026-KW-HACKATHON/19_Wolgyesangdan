@@ -87,10 +87,14 @@ public class Campaign extends BaseTimeEntity {
 	}
 
 	/**
-	 * 날짜 기준 진행 상태. DB의 status 컬럼은 운영진이 바꾸는 걸 잊을 수 있어서 쓰지 않는다 (#43).
+	 * 날짜 기준 진행 상태. DB의 status 컬럼은 운영진이 바꾸는 걸 잊을 수 있어서 예정/진행 중 구분에는 쓰지 않는다 (#43).
 	 * 시작일·종료일 당일은 진행 중으로 본다.
+	 * 단, 운영진이 관리자 화면에서 운영 중을 끈(status = ENDED) 캠페인은 날짜와 관계없이 끝난 것으로 본다 (#209).
 	 */
 	public CampaignStatus statusOn(LocalDate date) {
+		if (status == CampaignStatus.ENDED) {
+			return CampaignStatus.ENDED;
+		}
 		if (date.isBefore(periodStart())) {
 			return CampaignStatus.PLANNED;
 		}
@@ -98,5 +102,34 @@ public class Campaign extends BaseTimeEntity {
 			return CampaignStatus.ENDED;
 		}
 		return CampaignStatus.ACTIVE;
+	}
+
+	/** 관리자 수정 — 바꾸지 않는 값은 지금 값을 그대로 넘긴다 */
+	public void update(String name, String description,
+			LocalDate registrationStartDate, LocalDate registrationEndDate,
+			LocalDate applicationStartDate, LocalDate applicationEndDate,
+			LocalDate pickupStartDate, LocalDate pickupEndDate,
+			String locationName, String locationAddress, String hubHours) {
+		this.name = name;
+		this.description = description;
+		this.registrationStartDate = registrationStartDate;
+		this.registrationEndDate = registrationEndDate;
+		this.applicationStartDate = applicationStartDate;
+		this.applicationEndDate = applicationEndDate;
+		this.pickupStartDate = pickupStartDate;
+		this.pickupEndDate = pickupEndDate;
+		this.locationName = locationName;
+		this.locationAddress = locationAddress;
+		this.hubHours = hubHours;
+	}
+
+	/** 운영 중 끄기 — 기간이 남아 있어도 끝난 캠페인이 된다 */
+	public void end() {
+		this.status = CampaignStatus.ENDED;
+	}
+
+	/** 운영 중 켜기 — 예정/진행 중은 다시 날짜로 판단한다 */
+	public void resume(LocalDate today) {
+		this.status = today.isBefore(periodStart()) ? CampaignStatus.PLANNED : CampaignStatus.ACTIVE;
 	}
 }
