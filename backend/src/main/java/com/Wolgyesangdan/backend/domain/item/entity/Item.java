@@ -111,6 +111,15 @@ public class Item extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean hidden;
 
+	/**
+	 * 아직 배정 전인지 — 신청을 받는 중이거나, 마감됐지만 배정을 기다리는 중.
+	 * 이때는 신청자에게 대기 순번을 알려주지 않는다 (#265) — 우선배정 인증으로 순번이 앞서는 것이
+	 * 신청 도중에 드러나지 않도록, 순번은 배정이 끝난 뒤에만 공개한다.
+	 */
+	public boolean isBeforeAssignment() {
+		return status == ItemStatus.REGISTERED || status == ItemStatus.OPEN || status == ItemStatus.CLOSED;
+	}
+
 	/** 신청 접수 — 신청자 수를 늘리고, 정원(MAX_APPLICANTS)에 도달하면 더 이상 받지 않도록 CLOSED로 전환한다. */
 	public void increaseApplicantCount() {
 		this.applicantCount++;

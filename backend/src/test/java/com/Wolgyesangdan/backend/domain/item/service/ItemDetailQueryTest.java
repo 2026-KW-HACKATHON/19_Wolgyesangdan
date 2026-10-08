@@ -150,7 +150,7 @@ class ItemDetailQueryTest {
 	}
 
 	@Test
-	void 신청한_사람이_보면_내_신청_상태와_대기_순번을_내려준다() {
+	void 신청한_사람이_보면_내_신청_상태를_내려주고_배정_전에는_대기_순번을_알려주지_않는다() {
 		Item item = persist(item(owner, null, ItemStatus.OPEN));
 		Application application = persist(Application.builder()
 				.item(item).applicant(applicant).priorityScore(0).status(ApplicationStatus.WAITING).waitlistRank(2).build());
@@ -161,7 +161,18 @@ class ItemDetailQueryTest {
 		assertThat(response.isMine()).isFalse();
 		assertThat(response.myApplication().id()).isEqualTo(application.getId());
 		assertThat(response.myApplication().status()).isEqualTo(ApplicationStatus.WAITING);
-		assertThat(response.myApplication().waitlistRank()).isEqualTo(2);
+		// 신청을 받는 중이라 순번은 내려주지 않는다 (#265)
+		assertThat(response.myApplication().waitlistRank()).isNull();
+	}
+
+	@Test
+	void 배정이_끝난_물품은_대기_중인_신청자에게_대기_순번을_내려준다() {
+		Item item = persist(item(owner, null, ItemStatus.ASSIGNED));
+		persist(Application.builder()
+				.item(item).applicant(applicant).priorityScore(0).status(ApplicationStatus.WAITING).waitlistRank(2).build());
+		flushAndClear();
+
+		assertThat(itemService.getItem(item.getId(), applicant.getId()).myApplication().waitlistRank()).isEqualTo(2);
 	}
 
 	@Test

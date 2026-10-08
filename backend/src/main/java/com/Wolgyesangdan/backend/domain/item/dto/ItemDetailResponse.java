@@ -95,11 +95,14 @@ public record ItemDetailResponse(
 	public record OwnerInfo(String nickname, int givenCount) {
 	}
 
-	/** 보는 사람이 이 물품에 넣은 신청 — 신청한 적 없거나 취소했으면 null */
+	/**
+	 * 보는 사람이 이 물품에 넣은 신청 — 신청한 적 없거나 취소했으면 null.
+	 * waitlistRank는 물품이 아직 배정 전이면 null이다 — 순번은 배정이 끝난 뒤에만 공개한다 (#265).
+	 */
 	public record MyApplication(Long id, ApplicationStatus status, Integer waitlistRank) {
 
 		public static MyApplication from(Application application) {
-			return new MyApplication(application.getId(), application.getStatus(), application.getWaitlistRank());
+			return new MyApplication(application.getId(), application.getStatus(), application.visibleWaitlistRank());
 		}
 	}
 

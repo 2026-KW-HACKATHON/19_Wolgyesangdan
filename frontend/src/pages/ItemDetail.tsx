@@ -24,6 +24,7 @@ const CLOSED_BUTTON_LABEL: Partial<Record<ItemStatus, string>> = {
 function myApplicationLabel({ status, waitlistRank }: NonNullable<ItemDetailData['myApplication']>) {
   if (status === 'SELECTED') return '나에게 배정됐어요 · 내 신청 보기'
   if (status === 'COMPLETED') return '받은 물건이에요 · 내 신청 보기'
+  // 배정 전에는 서버가 순번을 내려주지 않는다 (#265)
   return waitlistRank ? `신청 완료 · 대기 ${waitlistRank}번` : '신청 완료 · 내 신청 보기'
 }
 
@@ -152,10 +153,11 @@ export default function ItemDetail() {
     setApplying(true)
     setApplyError(null)
     try {
-      const application = await applyForItem(itemId)
+      await applyForItem(itemId)
       setAppliedId(id)
       // 이후 진행은 화면의 "신청하면 이렇게 진행돼요"에 "지금 여기"로 표시된다 (#189)
-      showToast(application.waitlistRank ? `신청했어요 · 대기 ${application.waitlistRank}번` : '신청했어요')
+      // 순번은 배정이 끝난 뒤에만 공개한다 (#265) — 신청 직후에는 알려주지 않는다
+      showToast('신청했어요 · 결과는 마감 뒤에 알려드려요')
       setReloadKey((key) => key + 1)
     } catch (e) {
       // 로그인이 풀린 경우 — apiFetch가 로그인을 정리하고 "로그인이 필요해요" 팝업(SessionExpiredDialog)을 띄운다

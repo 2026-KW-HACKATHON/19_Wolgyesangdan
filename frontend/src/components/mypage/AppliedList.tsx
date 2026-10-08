@@ -287,6 +287,19 @@ export default function AppliedList() {
               </div>
             </div>
 
+            {/* 배정 전에는 서버가 순번을 내려주지 않는다 (#265) — 순번 대신 언제 알 수 있는지만 알려준다 */}
+            {item.status === 'WAITING' && !item.waitlistRank && (
+              <div className="mt-3 flex gap-2 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
+                <MaterialIcon name="hourglass_top" size={18} className="mt-px flex-none text-accent" />
+                <div>
+                  <div className="text-[14px] font-bold text-primary-tint-ink">신청이 접수됐어요</div>
+                  <p className="mt-1 text-[12px] leading-normal font-medium text-primary-tint-ink">
+                    순번은 신청 마감 뒤 배정이 끝나면 알려드려요.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {item.status === 'WAITING' && item.waitlistRank && (
               <div className="mt-3 rounded-[14px] bg-primary-tint px-3.5 py-[13px]">
                 <div className="flex items-baseline gap-1.5">
@@ -301,7 +314,7 @@ export default function AppliedList() {
                 <p className="mt-2.5 text-[12px] leading-normal font-medium text-primary-tint-ink">
                   {item.waitlistRank >= MAX_APPLICANTS
                     ? '대기는 5번까지만 받아요. 마지막 순번이라 배정이 어려울 수 있어요.'
-                    : '앞 순번이 취소하면 자동으로 올라가요. 우선배정 인증을 하면 순번이 앞당겨질 수 있어요.'}
+                    : '배정된 분이 받지 못하면 순번대로 넘어가요.'}
                 </p>
               </div>
             )}
