@@ -5,8 +5,11 @@ import java.util.List;
 import com.Wolgyesangdan.backend.domain.verification.dto.DocumentUploadUrlRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.DocumentUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationRequest;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
+import com.Wolgyesangdan.backend.domain.verification.service.NeighborhoodLocationService;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationDocumentUploadService;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
 
@@ -28,6 +31,7 @@ public class VerificationController {
 
 	private final VerificationService verificationService;
 	private final VerificationDocumentUploadService verificationDocumentUploadService;
+	private final NeighborhoodLocationService neighborhoodLocationService;
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
@@ -41,6 +45,15 @@ public class VerificationController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public VerificationCreateResponse verifyNeighborhood(@AuthenticationPrincipal Long userId) {
 		return verificationService.verifyNeighborhood(userId);
+	}
+
+	/**
+	 * 현재 위치가 월계1동 안인지 확인 (#278). 인증을 기록하지 않고 판정 결과만 돌려준다 — 동네 인증 화면의 결과 표시용.
+	 * 좌표가 URL·로그에 남지 않도록 POST 본문으로 받는다.
+	 */
+	@PostMapping("/neighborhood/check")
+	public NeighborhoodLocationResponse checkNeighborhood(@Valid @RequestBody NeighborhoodLocationRequest request) {
+		return neighborhoodLocationService.check(request);
 	}
 
 	/**
