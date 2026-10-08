@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import MaterialIcon from './icons/MaterialIcon'
 import PrimaryButton from './PrimaryButton'
 
@@ -11,9 +12,18 @@ interface ContactRequiredSheetProps {
  * 등록을 그만두려면 바텀 탭으로 다른 화면에 가면 되고, 작성 중인 내용은 임시 저장돼 있다.
  */
 export default function ContactRequiredSheet({ onSetup }: ContactRequiredSheetProps) {
+  const sheetRef = useRef<HTMLDivElement>(null)
+
+  // 시트는 등록 폼 맨 아래에 붙는데 폼이 한 화면보다 길어서, 들어오자마자는 화면 밖(아래)에 있다.
+  // 뜨는 즉시 맨 아래로 스크롤해서 안내와 버튼이 바로 보이게 한다 (#269)
+  useEffect(() => {
+    sheetRef.current?.scrollIntoView({ block: 'end' })
+  }, [])
+
   return (
     <div className="absolute inset-0 z-10 flex flex-col justify-end bg-label/50">
       <div
+        ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="contact-sheet-title"
