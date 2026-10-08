@@ -126,7 +126,7 @@ const ROW_COPY: Record<Exclude<LocationStatus, 'denied'>, { title: string; capti
   locating: { title: '위치를 찾는 중이에요' },
   inside: { title: '' },
   outside: { title: '', caption: '월계1동이 아니에요' },
-  inaccurate: { title: '위치가 정확하지 않아요', caption: '건물 밖이나 창가에서 다시 찾아보세요' },
+  inaccurate: { title: '위치가 정확하지 않아요', caption: '창가나 건물 밖에서, 휴대폰으로 다시 찾아보세요' },
   unavailable: { title: '위치를 찾지 못했어요', caption: '잠시 후 다시 찾아보세요' },
 }
 

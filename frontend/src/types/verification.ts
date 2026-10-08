@@ -31,8 +31,8 @@ export interface Coords {
 
 export interface LocationCheckResult {
   inside: boolean
-  /** 예: "서울 노원구 월계1동" */
-  dongName: string
+  /** 예: "서울 노원구 월계1동". 행정동이 없는 좌표(바다 등)면 null */
+  dongName: string | null
 }
 
 /** 우선배정 인증 유형 — 신입생 / 기초수급자 */
