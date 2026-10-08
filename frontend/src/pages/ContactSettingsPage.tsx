@@ -12,6 +12,20 @@ import type { ContactType } from '../types/contact'
 const OPENCHAT_PATTERN = /^https:\/\/open\.kakao\.com\/o\/[A-Za-z0-9]+$/
 const PHONE_PATTERN = /^010-\d{4}-\d{4}$/
 
+// 글 안에 들어 있는 오픈채팅 링크 (형식은 OPENCHAT_PATTERN과 같다)
+const OPENCHAT_LINK_IN_TEXT = /https:\/\/open\.kakao\.com\/o\/[A-Za-z0-9]+/
+// 한글(완성형 글자·자모)과 공백
+const HANGUL_OR_SPACE = /[ᄀ-ᇿ㄰-㆏ꥠ-꥿가-퟿\s]/g
+
+/**
+ * 붙여넣은 글에서 오픈채팅 링크만 남긴다 (#262). 카카오톡에서 링크를 복사하면 방 이름·안내 문구 같은
+ * 한글이 함께 딸려 와서, 그대로 넣으면 형식 오류가 난다.
+ * 링크가 들어 있으면 그 링크만, 못 찾으면 한글과 공백만 뺀 글을 돌려준다.
+ */
+function cleanPastedLink(text: string) {
+  return text.match(OPENCHAT_LINK_IN_TEXT)?.[0] ?? text.replace(HANGUL_OR_SPACE, '')
+}
+
 /** 숫자만 받아서 010-XXXX-XXXX 형태로 맞춘다. */
 function formatPhone(raw: string) {
   const digits = raw.replace(/\D/g, '').slice(0, 11)
@@ -59,7 +73,7 @@ function ContactSettingsForm() {
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText()
-      setLink(text.trim())
+      setLink(cleanPastedLink(text))
       setPasteFailed(false)
     } catch {
       setPasteFailed(true)
@@ -145,6 +159,12 @@ function ContactSettingsForm() {
                 id="openchat-link"
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
+                // 입력칸에 직접 붙여넣을 때(길게 눌러 붙여넣기, Ctrl+V)도 버튼과 똑같이 링크만 남긴다
+                onPaste={(e) => {
+                  e.preventDefault()
+                  setLink(cleanPastedLink(e.clipboardData.getData('text')))
+                  setPasteFailed(false)
+                }}
                 placeholder="https://open.kakao.com/o/…"
                 className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-label outline-none placeholder:text-label-alt"
               />
