@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomActionBar from '../components/BottomActionBar'
 import ChoiceChips from '../components/ChoiceChips'
@@ -19,6 +19,7 @@ import type {
   TradeMethod,
   TransportDifficulty,
 } from '../types/item'
+import { registerPhotoStore, useRegisterPhotos } from '../lib/registerPhotoStore'
 import type { UploadedFile } from '../types/verification'
 
 const CATEGORY_OPTIONS: CategoryGroup[] = ['가구', '가전', '주방', '생활', '기타']
@@ -79,7 +80,7 @@ const INITIAL_FORM: RegisterForm = {
   trade: null,
 }
 
-/** 임시 저장. 사진(File)은 직렬화할 수 없어서 텍스트 필드만 저장한다. */
+/** 임시 저장 — 텍스트 필드. 사진은 lib/registerPhotoStore가 따로 보관한다. */
 function loadDraft(): RegisterForm {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
@@ -190,21 +191,14 @@ function DateField({
   )
 }
 
-/** 로컬 미리보기 주소(URL.createObjectURL)를 해제한다 — 해제하지 않으면 사진이 메모리에 계속 남는다 */
-function revokePreviews(files: UploadedFile[]) {
-  for (const file of files) {
-    if (file.url) URL.revokeObjectURL(file.url)
-  }
-}
-
 /** 물품 등록 (4d, /register). 연락 수단이 없으면 4a 시트를 띄운다. */
 export default function ItemRegisterPage() {
   const navigate = useNavigate()
-  const { contact } = useContact()
+  const { contact, loading: contactLoading } = useContact()
 
   const [form, setForm] = useState<RegisterForm>(loadDraft)
-  const [files, setFiles] = useState<UploadedFile[]>([])
-  const [sheetOpen, setSheetOpen] = useState(false)
+  // 사진은 화면 밖 보관소에 둔다 — 연락 수단 설정 화면에 다녀와도 그대로 남는다 (#161)
+  const files = useRegisterPhotos()
   const [submitting, setSubmitting] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
@@ -245,7 +239,8 @@ export default function ItemRegisterPage() {
   // 사진은 전부 올라간 뒤에만 등록할 수 있다 (올리지 못한 사진은 지우고 다시 첨부)
   const hasPhoto = files.length > 0 && !photosUploading && !photosFailed
   const valid = isFormValid(form, hasPhoto)
-  const showSheet = sheetOpen && !contact
+  // 연락 수단이 없으면 들어오자마자 안내한다 — 사진을 다 올린 뒤에야 막히지 않도록 (#161)
+  const showSheet = !contactLoading && !contact
 
   useEffect(() => {
     saveDraft(form)
@@ -253,16 +248,6 @@ export default function ItemRegisterPage() {
 
   const set = <K extends keyof RegisterForm>(key: K, value: RegisterForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
-
-  // 화면을 떠날 때 남아 있는 미리보기 주소를 정리한다. 정리 시점의 목록이 필요해서 ref로 따라간다
-  const filesRef = useRef(files)
-  useEffect(() => {
-    filesRef.current = files
-  }, [files])
-  useEffect(() => () => revokePreviews(filesRef.current), [])
-
-  const updateFile = (id: string, patch: Partial<UploadedFile>) =>
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
 
   // 고르자마자 한 장씩 S3에 올린다. 등록 요청에는 올라간 사진 주소만 담는다
   const handleAddFiles = (fileList: FileList) => {
@@ -280,18 +265,19 @@ export default function ItemRegisterPage() {
         name: file.name,
         size: file.size,
         status: 'uploading',
-        // 올리는 동안에도 바로 사진이 보이도록 로컬 미리보기 주소를 만든다 (지울 때·등록 후·화면을 떠날 때 정리)
+        // 올리는 동안에도 바로 사진이 보이도록 로컬 미리보기 주소를 만든다 (지울 때·등록 후에 보관소가 정리)
         url: URL.createObjectURL(file),
       }
       return [{ entry, file, contentType }]
     })
-    setFiles((prev) => [...prev, ...uploads.map((u) => u.entry)].slice(0, MAX_PHOTOS))
+    registerPhotoStore.add(uploads.map((u) => u.entry))
 
+    // 결과는 보관소에 반영한다 — 올리는 중에 다른 화면에 가 있어도 돌아오면 끝난 상태로 보인다
     for (const { entry, file, contentType } of uploads) {
       uploadItemImage(file, contentType)
-        .then((imageUrl) => updateFile(entry.id, { status: 'done', imageUrl }))
+        .then((imageUrl) => registerPhotoStore.update(entry.id, { status: 'done', imageUrl }))
         .catch((e) => {
-          updateFile(entry.id, { status: 'error' })
+          registerPhotoStore.update(entry.id, { status: 'error' })
           setPhotoError(
             e instanceof ApiError && e.code === 'ITEM_IMAGE_UPLOAD_UNAVAILABLE'
               ? '지금은 사진을 올릴 수 없어요. 잠시 후 다시 시도해 주세요'
@@ -301,20 +287,13 @@ export default function ItemRegisterPage() {
     }
   }
 
-  const handleRemoveFile = (id: string) => {
-    revokePreviews(files.filter((f) => f.id === id))
-    setFiles((prev) => prev.filter((f) => f.id !== id))
-  }
+  const handleRemoveFile = (id: string) => registerPhotoStore.remove(id)
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (submitting) return
-    // 제출 시점에도 연락 수단을 다시 확인한다
-    if (!contact) {
-      setSheetOpen(true)
-      return
-    }
-    if (!valid || !form.trade) return
+    // 연락 수단이 없으면 안내 시트가 떠 있어 제출할 수 없지만, 불러오는 중에 누른 경우를 막는다
+    if (!contact || !valid || !form.trade) return
 
     setSubmitting(true)
     setSubmitError(null)
@@ -328,8 +307,7 @@ export default function ItemRegisterPage() {
       setSubmitting(false)
     }
     setForm(INITIAL_FORM)
-    revokePreviews(files)
-    setFiles([])
+    registerPhotoStore.clear()
     setPhotoError(null)
     clearDraft()
     setToastVisible(true)
