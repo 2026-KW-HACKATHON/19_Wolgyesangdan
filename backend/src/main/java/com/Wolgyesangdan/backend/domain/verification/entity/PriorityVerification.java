@@ -88,4 +88,26 @@ public class PriorityVerification {
 		}
 		return status;
 	}
+
+	/** 관리자 승인. 심사 중인지는 서비스에서 확인한다 */
+	public void approve(User reviewer, LocalDateTime reviewedAt, LocalDateTime expiresAt) {
+		this.status = VerificationStatus.APPROVED;
+		this.reviewedBy = reviewer;
+		this.reviewedAt = reviewedAt;
+		this.expiresAt = expiresAt;
+	}
+
+	/** 관리자 반려. 회원 앱에 사유가 보이고, 회원은 다시 신청할 수 있다 */
+	public void reject(User reviewer, LocalDateTime reviewedAt, String rejectionReason) {
+		this.status = VerificationStatus.REJECTED;
+		this.reviewedBy = reviewer;
+		this.reviewedAt = reviewedAt;
+		this.rejectionReason = rejectionReason;
+	}
+
+	/** 검토 후 보관 기간이 지난 서류 정보를 지운다 (S3 파일은 호출하는 쪽에서 먼저 지운다). 심사 결과는 남긴다 */
+	public void purgeDocument() {
+		this.fileKey = null;
+		this.applicantName = null;
+	}
 }
