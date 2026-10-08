@@ -16,12 +16,15 @@ import java.util.List;
 import com.Wolgyesangdan.backend.domain.verification.dto.DocumentUploadUrlRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.DocumentUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationRequest;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
 import com.Wolgyesangdan.backend.domain.verification.entity.DocumentType;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
 import com.Wolgyesangdan.backend.domain.verification.exception.VerificationErrorCode;
+import com.Wolgyesangdan.backend.domain.verification.service.NeighborhoodLocationService;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationDocumentUploadService;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
@@ -59,6 +62,9 @@ class VerificationControllerTest {
 
 	@MockitoBean
 	private VerificationDocumentUploadService verificationDocumentUploadService;
+
+	@MockitoBean
+	private NeighborhoodLocationService neighborhoodLocationService;
 
 	@Test
 	void 내_인증_상태를_유형별로_조회한다() throws Exception {
@@ -252,6 +258,58 @@ class VerificationControllerTest {
 	}
 
 	@Test
+	void 현재_위치가_월계1동인지_확인한다() throws Exception {
+		given(neighborhoodLocationService.check(new NeighborhoodLocationRequest(37.6197, 127.059, 20.0)))
+				.willReturn(new NeighborhoodLocationResponse(true, "서울특별시 노원구 월계1동"));
+
+		checkNeighborhood("{\"lat\":37.6197,\"lng\":127.059,\"accuracy\":20}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.inside").value(true))
+				.andExpect(jsonPath("$.dongName").value("서울특별시 노원구 월계1동"));
+	}
+
+	@Test
+	void 좌표가_없거나_범위를_벗어나면_400() throws Exception {
+		checkNeighborhood("{\"lng\":127.059,\"accuracy\":20}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("lat"));
+		checkNeighborhood("{\"lat\":91,\"lng\":127.059,\"accuracy\":20}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("lat"));
+		checkNeighborhood("{\"lat\":37.6197,\"lng\":127.059,\"accuracy\":-1}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("accuracy"));
+	}
+
+	@Test
+	void 위치_오차가_크면_400_VERIFICATION_LOCATION_INACCURATE() throws Exception {
+		given(neighborhoodLocationService.check(any(NeighborhoodLocationRequest.class)))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_LOCATION_INACCURATE));
+
+		checkNeighborhood("{\"lat\":37.6197,\"lng\":127.059,\"accuracy\":340}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VERIFICATION_LOCATION_INACCURATE"));
+	}
+
+	@Test
+	void 동네를_조회하지_못하면_502_VERIFICATION_LOCATION_LOOKUP_FAILED() throws Exception {
+		given(neighborhoodLocationService.check(any(NeighborhoodLocationRequest.class)))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_LOCATION_LOOKUP_FAILED));
+
+		checkNeighborhood("{\"lat\":37.6197,\"lng\":127.059,\"accuracy\":20}")
+				.andExpect(status().isBadGateway())
+				.andExpect(jsonPath("$.code").value("VERIFICATION_LOCATION_LOOKUP_FAILED"));
+	}
+
+	@Test
+	void 토큰_없이_위치를_확인하면_401() throws Exception {
+		mockMvc.perform(post("/verifications/neighborhood/check")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"lat\":37.6197,\"lng\":127.059,\"accuracy\":20}"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void 서류_파일_없이_신청하면_400() throws Exception {
 		postVerification(1L, "{\"verificationType\":\"FRESHMAN\",\"documentType\":\"ADMISSION_LETTER\","
 				+ "\"applicantName\":\"김하늘\"}")
@@ -333,6 +391,13 @@ class VerificationControllerTest {
 
 	private String bearer(Long userId) {
 		return "Bearer " + jwtProvider.createAccessToken(userId);
+	}
+
+	private ResultActions checkNeighborhood(String body) throws Exception {
+		return mockMvc.perform(post("/verifications/neighborhood/check")
+				.header(HttpHeaders.AUTHORIZATION, bearer(1L))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body));
 	}
 
 }

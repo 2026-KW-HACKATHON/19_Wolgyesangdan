@@ -12,6 +12,11 @@ kakao:
   client-secret: ${KAKAO_CLIENT_SECRET}
   redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/oauth/kakao/callback}
 
+# GPS 동네 인증 (#278) — 카카오 로컬 API로 조회한 행정동 코드가 이 값이면 동네 안으로 본다. 기본값은 월계1동
+neighborhood:
+  region-code: ${NEIGHBORHOOD_REGION_CODE:1135056000}
+  max-accuracy-meters: 100
+
 # 회원 앱(5173)·관리자 웹(5174)
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
