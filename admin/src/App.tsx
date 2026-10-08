@@ -5,7 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import InquiriesPage from './pages/InquiriesPage'
 import ItemsPage from './pages/ItemsPage'
 import LoginPage from './pages/LoginPage'
-import PreparingPage from './pages/PreparingPage'
+import VerificationsPage from './pages/VerificationsPage'
 
 export default function App() {
   return (
@@ -13,7 +13,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<AdminGate />}>
         <Route index element={<DashboardPage />} />
-        <Route path="verifications" element={<PreparingPage issue="#208" />} />
+        <Route path="verifications" element={<VerificationsPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
         <Route path="inquiries" element={<InquiriesPage />} />
         <Route path="items" element={<ItemsPage />} />
