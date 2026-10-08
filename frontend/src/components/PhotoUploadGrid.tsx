@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import type { UploadedFile } from '../types/verification'
 import MaterialIcon from './icons/MaterialIcon'
 
@@ -7,7 +7,7 @@ interface PhotoUploadGridProps {
   label: string
   files: UploadedFile[]
   max?: number
-  /** 썸네일 플레이스홀더 아이콘/색 (주민: description, 학생: badge) */
+  /** 미리보기가 없는 파일(PDF 등)이나 미리보기를 못 그릴 때 보여주는 아이콘 */
   thumbIcon: string
   /** 썸네일 배경·글리프 색 Tailwind 클래스 (예: "bg-sunken text-label-alt") */
   thumbClassName: string
@@ -34,6 +34,8 @@ export default function PhotoUploadGrid({
   accept = 'image/*,application/pdf',
 }: PhotoUploadGridProps) {
   const canAddMore = files.length < max
+  // 미리보기를 그리지 못한 파일 (Chrome·Android가 못 여는 HEIC 등) — 아이콘으로 되돌린다
+  const [brokenPreviewIds, setBrokenPreviewIds] = useState<string[]>([])
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -55,37 +57,50 @@ export default function PhotoUploadGrid({
       </div>
 
       <div className="flex flex-wrap gap-2.5">
-        {files.map((file) => (
-          <div
-            key={file.id}
-            className={`relative flex h-32 w-26 flex-none items-center justify-center overflow-hidden rounded-2xl border border-border ${thumbClassName}`}
-          >
-            <MaterialIcon name={thumbIcon} size={34} />
-            {file.status === 'uploading' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface/80 text-[12px] font-bold text-label-alt">
-                <span className="size-[18px] animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
-                올리는 중
-              </div>
-            )}
-            {file.status === 'error' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface/85 text-[12px] font-bold text-terracotta">
-                <MaterialIcon name="error" size={22} />
-                올리지 못했어요
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => onRemove(file.id)}
-              aria-label={`${file.name} 삭제`}
-              className="absolute top-1.5 right-1.5 flex size-[22px] cursor-pointer items-center justify-center rounded-full bg-label/72"
+        {files.map((file) => {
+          // 방금 고른 사진은 로컬 미리보기(url), 그게 없으면 서버에 올라간 주소(imageUrl)로 보여준다
+          const previewUrl = brokenPreviewIds.includes(file.id) ? undefined : (file.url ?? file.imageUrl)
+          return (
+            <div
+              key={file.id}
+              className={`relative flex h-32 w-26 flex-none items-center justify-center overflow-hidden rounded-2xl border border-border ${thumbClassName}`}
             >
-              <MaterialIcon name="close" size={14} className="text-screen" />
-            </button>
-            <span className="absolute inset-x-0 bottom-0 truncate bg-label/72 py-1 text-center text-[11px] font-semibold text-screen">
-              {file.name}
-            </span>
-          </div>
-        ))}
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt=""
+                  onError={() => setBrokenPreviewIds((prev) => [...prev, file.id])}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              ) : (
+                <MaterialIcon name={thumbIcon} size={34} />
+              )}
+              {file.status === 'uploading' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface/80 text-[12px] font-bold text-label-alt">
+                  <span className="size-[18px] animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
+                  올리는 중
+                </div>
+              )}
+              {file.status === 'error' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface/85 text-[12px] font-bold text-terracotta">
+                  <MaterialIcon name="error" size={22} />
+                  올리지 못했어요
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemove(file.id)}
+                aria-label={`${file.name} 삭제`}
+                className="absolute top-1.5 right-1.5 flex size-[22px] cursor-pointer items-center justify-center rounded-full bg-label/72"
+              >
+                <MaterialIcon name="close" size={14} className="text-screen" />
+              </button>
+              <span className="absolute inset-x-0 bottom-0 truncate bg-label/72 py-1 text-center text-[11px] font-semibold text-screen">
+                {file.name}
+              </span>
+            </div>
+          )
+        })}
 
         {canAddMore && (
           <label className="relative flex h-32 w-26 flex-none cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-border-deep bg-surface text-accent">
