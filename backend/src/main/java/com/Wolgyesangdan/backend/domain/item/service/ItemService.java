@@ -54,9 +54,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class ItemService {
 
 	/** 목록에 보여주는 상태 — 취소(CANCELED)와 신청 기간 전(REGISTERED)은 제외 */
-	static final List<ItemStatus> LISTED_STATUSES =
-			List.of(ItemStatus.OPEN, ItemStatus.CLOSED, ItemStatus.ASSIGNED, ItemStatus.COMPLETED);
-
 	private final ItemRepository itemRepository;
 	private final ItemImageRepository itemImageRepository;
 	private final ItemTradeMethodRepository itemTradeMethodRepository;
@@ -78,7 +75,7 @@ public class ItemService {
 	 * 대표 사진과 거래 방식은 물품마다 따로 조회하지 않고 페이지에 담긴 물품 id로 한 번씩만 조회해서 붙인다 (N+1 방지).
 	 */
 	public Page<ItemSummaryResponse> getItems(ItemSearchCondition condition, int page, int size) {
-		Page<Item> items = itemRepository.findAll(ItemSpecifications.search(LISTED_STATUSES, condition),
+		Page<Item> items = itemRepository.findAll(ItemSpecifications.search(condition.availability().statuses(), condition),
 				PageRequest.of(page, size));
 		List<Long> itemIds = items.map(Item::getId).getContent();
 		if (itemIds.isEmpty()) {

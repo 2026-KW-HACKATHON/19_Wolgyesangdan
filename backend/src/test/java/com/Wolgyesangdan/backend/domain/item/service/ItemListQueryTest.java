@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.Wolgyesangdan.backend.domain.item.dto.ItemAvailability;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
@@ -56,7 +57,7 @@ class ItemListQueryTest {
 	}
 
 	@Test
-	void 취소와_등록대기_물품은_빼고_최신순으로_내려준다() {
+	void ALL이면_취소와_등록대기만_빼고_최신순으로_내려준다() {
 		Item open = persist(item("열림", ItemStatus.OPEN));
 		persist(item("등록대기", ItemStatus.REGISTERED));
 		Item closed = persist(item("마감", ItemStatus.CLOSED));
@@ -65,11 +66,52 @@ class ItemListQueryTest {
 		Item completed = persist(item("완료", ItemStatus.COMPLETED));
 		flushAndClear();
 
-		Page<ItemSummaryResponse> page = itemService.getItems(ItemSearchCondition.none(), 0, 20);
+		Page<ItemSummaryResponse> page = itemService.getItems(availability(ItemAvailability.ALL), 0, 20);
 
 		assertThat(page.getContent()).extracting(ItemSummaryResponse::id)
 				.containsExactly(completed.getId(), assigned.getId(), closed.getId(), open.getId());
 		assertThat(page.getTotalElements()).isEqualTo(4);
+	}
+
+	@Test
+	void 기본_ACTIVE는_거래가_끝난_물품을_빼고_신청_가능과_마감만_내려준다() {
+		Item open = persist(item("열림", ItemStatus.OPEN));
+		Item closed = persist(item("마감", ItemStatus.CLOSED));
+		persist(item("예약중", ItemStatus.ASSIGNED));
+		persist(item("완료", ItemStatus.COMPLETED));
+		persist(item("취소", ItemStatus.CANCELED));
+		flushAndClear();
+
+		Page<ItemSummaryResponse> page = itemService.getItems(ItemSearchCondition.none(), 0, 20);
+
+		assertThat(page.getContent()).extracting(ItemSummaryResponse::id).containsExactly(closed.getId(), open.getId());
+		assertThat(page.getTotalElements()).isEqualTo(2);
+	}
+
+	@Test
+	void OPEN이면_신청_가능한_물품만_내려준다() {
+		Item open = persist(item("열림", ItemStatus.OPEN));
+		persist(item("마감", ItemStatus.CLOSED));
+		persist(item("예약중", ItemStatus.ASSIGNED));
+		persist(item("완료", ItemStatus.COMPLETED));
+		flushAndClear();
+
+		Page<ItemSummaryResponse> page = itemService.getItems(availability(ItemAvailability.OPEN), 0, 20);
+
+		assertThat(page.getContent()).extracting(ItemSummaryResponse::id).containsExactly(open.getId());
+	}
+
+	@Test
+	void 상태_범위와_다른_검색_조건을_함께_적용한다() {
+		persist(item("의자 열림", ItemStatus.OPEN));
+		persist(item("의자 완료", ItemStatus.COMPLETED));
+		persist(item("책상 열림", ItemStatus.OPEN));
+		flushAndClear();
+
+		assertThat(names(new ItemSearchCondition("의자", null, null, ItemSort.LATEST, ItemAvailability.OPEN)))
+				.containsExactly("의자 열림");
+		assertThat(names(new ItemSearchCondition("의자", null, null, ItemSort.LATEST, ItemAvailability.ALL)))
+				.containsExactly("의자 완료", "의자 열림");
 	}
 
 	@Test
@@ -203,6 +245,10 @@ class ItemListQueryTest {
 	private static ItemSearchCondition search(String keyword, CategoryGroup categoryGroup, TradeMethod tradeMethod,
 			ItemSort sort) {
 		return new ItemSearchCondition(keyword, categoryGroup, tradeMethod, sort);
+	}
+
+	private static ItemSearchCondition availability(ItemAvailability availability) {
+		return new ItemSearchCondition(null, null, null, ItemSort.LATEST, availability);
 	}
 
 	private List<String> names(ItemSearchCondition condition) {
