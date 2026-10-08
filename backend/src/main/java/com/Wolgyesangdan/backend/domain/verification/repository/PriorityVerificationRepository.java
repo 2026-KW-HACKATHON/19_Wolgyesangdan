@@ -32,6 +32,9 @@ public interface PriorityVerificationRepository extends JpaRepository<PriorityVe
 	@EntityGraph(attributePaths = {"user", "reviewedBy"})
 	Optional<PriorityVerification> findWithUsersById(Long id);
 
+	/** 대시보드 요약용 — 그 유형들 중 해당 상태인 신청 수 (#216) */
+	long countByVerificationTypeInAndStatus(Collection<VerificationType> verificationTypes, VerificationStatus status);
+
 	/** 검토가 끝난 지 보관 기간이 지났는데 서류가 남아 있는 신청 */
 	@Query("select v.id from PriorityVerification v where v.fileKey is not null and v.reviewedAt < :cutoff order by v.id")
 	List<Long> findIdsWithDocumentReviewedBefore(@Param("cutoff") LocalDateTime cutoff);
