@@ -56,6 +56,10 @@ public class ApplicationService {
 	public ApplicationCreateResponse apply(Long userId, Long itemId) {
 		Item item = itemRepository.findByIdForUpdate(itemId)
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		// 관리자가 숨긴 물품에는 신청할 수 없다 (#214)
+		if (item.isHidden()) {
+			throw new BusinessException(ItemErrorCode.ITEM_HIDDEN);
+		}
 		boolean deadlinePassed = item.getApplicationDeadline().isBefore(LocalDateTime.now());
 		if (item.getStatus() != ItemStatus.OPEN || deadlinePassed) {
 			throw new BusinessException(ApplicationErrorCode.APPLICATION_ITEM_NOT_OPEN);

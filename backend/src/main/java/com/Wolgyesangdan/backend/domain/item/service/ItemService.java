@@ -15,6 +15,7 @@ import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.application.repository.ApplicationRepository;
 import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
+import com.Wolgyesangdan.backend.domain.campaign.entity.CampaignStatus;
 import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
@@ -131,6 +132,10 @@ public class ItemService {
 	public ItemDetailResponse getItem(Long itemId, Long viewerId) {
 		Item item = itemRepository.findWithOwnerAndCampaignById(itemId)
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		// 관리자가 숨긴 물품은 등록자 본인을 포함해 누구에게도 보여주지 않는다 (#214)
+		if (item.isHidden()) {
+			throw new BusinessException(ItemErrorCode.ITEM_HIDDEN);
+		}
 		List<TradeMethod> tradeMethods = itemTradeMethodRepository.findByItemId(itemId).stream()
 				.map(ItemTradeMethod::getTradeMethod)
 				.sorted()
@@ -227,7 +232,9 @@ public class ItemService {
 		}
 		Campaign campaign = campaignRepository.findById(campaignId)
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_TRADE_METHOD_INVALID));
-		boolean acceptingItems = !today.isBefore(campaign.getRegistrationStartDate())
+		// 운영진이 끝낸 캠페인은 등록 기간이 남아 있어도 받지 않는다 (#209)
+		boolean acceptingItems = campaign.statusOn(today) != CampaignStatus.ENDED
+				&& !today.isBefore(campaign.getRegistrationStartDate())
 				&& !today.isAfter(campaign.getRegistrationEndDate())
 				&& !today.isAfter(campaign.getApplicationEndDate());
 		if (!acceptingItems) {
