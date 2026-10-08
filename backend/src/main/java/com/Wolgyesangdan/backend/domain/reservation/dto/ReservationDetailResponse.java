@@ -23,9 +23,12 @@ public record ReservationDetailResponse(
 		LocalDateTime reconfirmedAt,
 		Counterpart counterpart) {
 
-	/** 거래가 깨진 예약 — 상태는 보여주되 상대 연락처는 더 이상 내려주지 않는다 (2026-10-05 결정, #63) */
+	/**
+	 * 연락처를 더 이상 내려주지 않는 예약 — 상태는 보여주되 상대 연락처는 뺀다.
+	 * 거래가 깨진 예약(노쇼·취소, 2026-10-05 결정 #63)과, 거래가 끝나 더 연락할 일이 없는 완료된 예약(#246).
+	 */
 	private static final Set<ReservationStatus> CONTACT_HIDDEN_STATUSES =
-			EnumSet.of(ReservationStatus.NO_SHOW, ReservationStatus.CANCELED);
+			EnumSet.of(ReservationStatus.NO_SHOW, ReservationStatus.CANCELED, ReservationStatus.COMPLETED);
 
 	public static ReservationDetailResponse of(Reservation reservation, User counterpart) {
 		boolean showContact = !CONTACT_HIDDEN_STATUSES.contains(reservation.getStatus());

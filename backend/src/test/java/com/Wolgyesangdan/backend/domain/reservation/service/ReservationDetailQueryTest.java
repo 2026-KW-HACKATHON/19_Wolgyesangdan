@@ -106,8 +106,8 @@ class ReservationDetailQueryTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = ReservationStatus.class, names = {"NO_SHOW", "CANCELED"})
-	void 노쇼_취소된_예약은_닉네임과_상태만_내려주고_연락처는_숨긴다(ReservationStatus status) {
+	@EnumSource(value = ReservationStatus.class, names = {"NO_SHOW", "CANCELED", "COMPLETED"})
+	void 노쇼_취소되거나_거래가_완료된_예약은_닉네임과_상태만_내려주고_연락처는_숨긴다(ReservationStatus status) {
 		// 노쇼 승계로 밀려난 이전 배정자의 예약
 		User previous = persist(user("이전 배정자", ContactType.PHONE));
 		Application broken = persist(Application.builder()

@@ -95,7 +95,7 @@ function ReservationSection({ application }: { application: MyApplicationSummary
     }
   }
 
-  // 노쇼·취소된 예약은 서버가 연락 수단을 내려주지 않는다
+  // 노쇼·취소된 예약은 서버가 연락 수단을 내려주지 않는다 (전달 완료된 신청은 이 영역을 아예 그리지 않는다)
   const broken = reservation?.status === 'NO_SHOW' || reservation?.status === 'CANCELED'
   const hasContact = Boolean(reservation?.counterpart.phone || reservation?.counterpart.openchatLink)
 

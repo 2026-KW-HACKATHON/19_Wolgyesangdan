@@ -58,6 +58,7 @@ public class ReservationService {
 	/**
 	 * 신청에 딸린 예약 상세. 그 신청의 신청자와 물품 등록자만 볼 수 있고, 서로 상대방의 닉네임·연락 수단을 받는다.
 	 * 연락 수단이 공개되는 유일한 API다 (물품 목록·상세에는 내려주지 않는다).
+	 * 거래가 진행 중일 때만 공개한다 — 노쇼·취소되거나 전달이 완료된 예약은 연락 수단을 빼고 내려준다.
 	 * 신청이 없거나 아직 배정 전이라 예약이 없으면 둘 다 RESERVATION_NOT_FOUND.
 	 */
 	public ReservationDetailResponse getReservation(Long userId, Long applicationId) {
