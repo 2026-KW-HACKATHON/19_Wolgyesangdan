@@ -4,7 +4,7 @@ interface PrimaryButtonProps {
   disabled?: boolean
   loading?: boolean
   loadingLabel?: string
-  variant?: 'primary' | 'text'
+  variant?: 'primary' | 'danger' | 'text'
   type?: 'button' | 'submit'
   /** 바깥 여백 등 배치용 추가 클래스 */
   className?: string
@@ -12,6 +12,7 @@ interface PrimaryButtonProps {
 
 const VARIANT_CLASS = {
   primary: 'h-13 bg-primary text-screen disabled:cursor-default disabled:bg-border-deep',
+  danger: 'h-13 bg-terracotta text-screen disabled:cursor-default disabled:bg-border-deep',
   text: 'h-[46px] bg-transparent text-accent',
 }
 
