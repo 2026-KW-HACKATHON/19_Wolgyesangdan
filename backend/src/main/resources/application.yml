@@ -12,8 +12,14 @@ kakao:
   client-secret: ${KAKAO_CLIENT_SECRET}
   redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/oauth/kakao/callback}
 
+# 회원 앱(5173)·관리자 웹(5174)
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
+
+# 관리자 웹 로그인 계정 (POST /auth/admin/login). 운영은 application-prod.yml에서 환경변수 필수
+admin:
+  login-id: ${ADMIN_LOGIN_ID:admin}
+  password: ${ADMIN_PASSWORD:1234}
 
 # 비어 있어도(로컬에 AWS 키가 없는 팀원 환경) 서버는 정상 기동하고, 이미지 업로드 URL 발급 API만 503을 응답한다
 s3:

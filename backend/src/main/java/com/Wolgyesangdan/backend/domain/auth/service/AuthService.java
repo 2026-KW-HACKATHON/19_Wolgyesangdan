@@ -9,6 +9,8 @@ import java.util.Optional;
 
 import com.Wolgyesangdan.backend.domain.auth.client.KakaoOAuthClient;
 import com.Wolgyesangdan.backend.domain.auth.client.KakaoUser;
+import com.Wolgyesangdan.backend.domain.auth.config.AdminAccountProperties;
+import com.Wolgyesangdan.backend.domain.auth.dto.AdminLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.DevLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.KakaoLoginRequest;
 import com.Wolgyesangdan.backend.domain.auth.dto.LoginResponse;
@@ -34,12 +36,16 @@ public class AuthService {
 
 	private static final String DEFAULT_NICKNAME_PREFIX = "카카오사용자";
 	private static final int NICKNAME_MAX_LENGTH = 50;
+	// 관리자 계정은 카카오 회원이 아니라서 kakao_id 자리에 이 접두사를 붙여 구분한다 (카카오 회원번호는 숫자뿐이라 겹치지 않음)
+	private static final String ADMIN_ACCOUNT_KEY_PREFIX = "admin:";
+	private static final String ADMIN_NICKNAME = "운영자";
 
 	private final KakaoOAuthClient kakaoOAuthClient;
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final JwtProvider jwtProvider;
 	private final JwtProperties jwtProperties;
+	private final AdminAccountProperties adminAccountProperties;
 
 	/**
 	 * 카카오 인가 코드로 로그인. kakao_id로 가입된 회원이 없으면 새로 만든다.
@@ -71,6 +77,34 @@ public class AuthService {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new BusinessException(AuthErrorCode.AUTH_INVALID_REFRESH_TOKEN));
 		return issueTokens(user);
+	}
+
+	/**
+	 * 관리자 웹 로그인. 설정의 관리자 아이디·비밀번호와 맞으면 관리자(ADMIN) 회원으로 토큰을 발급한다.
+	 * 관리자 회원은 처음 로그인할 때 만든다. 틀리면 아이디·비밀번호 중 무엇이 틀렸는지 구분하지 않고 401.
+	 */
+	@Transactional
+	public LoginResponse adminLogin(AdminLoginRequest request) {
+		boolean idMatches = constantTimeEquals(request.loginId(), adminAccountProperties.loginId());
+		boolean passwordMatches = constantTimeEquals(request.password(), adminAccountProperties.password());
+		if (!idMatches || !passwordMatches) {
+			throw new BusinessException(AuthErrorCode.AUTH_INVALID_ADMIN_CREDENTIALS);
+		}
+
+		String accountKey = ADMIN_ACCOUNT_KEY_PREFIX + adminAccountProperties.loginId();
+		Optional<User> existingUser = userRepository.findByKakaoId(accountKey);
+		User user = existingUser.orElseGet(() -> userRepository.save(User.builder()
+				.kakaoId(accountKey)
+				.nickname(ADMIN_NICKNAME)
+				.role(Role.ADMIN)
+				.build()));
+		return LoginResponse.of(issueTokens(user), existingUser.isEmpty(), user);
+	}
+
+	// 문자열 비교에 걸린 시간으로 맞은 글자 수를 추측하지 못하게 한다
+	private static boolean constantTimeEquals(String input, String expected) {
+		return expected != null && MessageDigest.isEqual(
+				input.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
 	}
 
 	/**

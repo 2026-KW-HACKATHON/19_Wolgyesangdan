@@ -54,7 +54,7 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						// 비회원 허용 API — API 명세서에 "인증 불필요"로 적힌 것들
-						.requestMatchers(HttpMethod.POST, "/auth/kakao", "/auth/token/refresh").permitAll()
+						.requestMatchers(HttpMethod.POST, "/auth/kakao", "/auth/admin/login", "/auth/token/refresh").permitAll()
 						.requestMatchers(HttpMethod.GET, "/items", "/items/*", "/campaigns/active", "/carbon-report")
 						.permitAll()
 						// 로컬 개발용 임시 로그인 (DevAuthController, local 프로필에서만 존재)

@@ -25,7 +25,8 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {
 		"KAKAO_REDIRECT_URI=https://wolgyesangdan.example/oauth/kakao/callback",
-		"CORS_ALLOWED_ORIGINS=https://wolgyesangdan.example"})
+		"CORS_ALLOWED_ORIGINS=https://wolgyesangdan.example",
+		"ADMIN_LOGIN_ID=prod-admin", "ADMIN_PASSWORD=prod-admin-password"})
 @AutoConfigureMockMvc
 @ActiveProfiles("prod")
 class ProdProfileTest {
