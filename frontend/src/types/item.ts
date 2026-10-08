@@ -7,10 +7,26 @@ export type CategoryGroup = '가구' | '가전' | '주방' | '생활' | '기타'
 
 export type TradeMethod = 'DIRECT' | 'CAMPAIGN'
 
-/** GET /items/categories 의 한 줄 — 카테고리별 예상 탄소 절감량 참조값 */
+/** GET /items/categories 의 한 줄 — 카테고리별 예상 탄소 절감량 참조값과 그 아래 품목 (#284) */
 export interface CategoryCarbon {
   categoryGroup: CategoryGroup
+  /** 품목을 고르지 않았을 때(목록에 없는 물건) 쓰는 대분류 값 */
   carbonReductionKg: number
+  /** 대분류 값의 근거. 품목 기능 이전 서버면 없다 */
+  basis?: string | null
+  /** 대분류에 속한 품목 (등록 화면 표시 순서). 품목 기능 이전 서버면 없다 */
+  itemTypes?: ItemTypeOption[]
+}
+
+/** 품목 하나 — 품목별 예상 탄소 절감량과 근거 */
+export interface ItemTypeOption {
+  /** 등록 요청에 보낼 값 (예: REFRIGERATOR) */
+  itemType: string
+  /** 화면 표시 이름 (예: 냉장고) */
+  label: string
+  carbonReductionKg: number
+  /** 예: "2도어 300L급 55kg · UK DESNZ 2024 냉장·냉동 기기" */
+  basis: string
 }
 
 /** 목록·상세에는 OPEN·CLOSED·ASSIGNED·COMPLETED만 내려온다 */
@@ -71,6 +87,10 @@ export interface ItemDetail {
   size: string | null
   transportDifficulty: string | null
   estimatedCarbonReduction: number
+  /** 품목 (#284). 품목 없이 등록한 물품이면 null */
+  itemType?: string | null
+  /** 절감량 근거. 품목 없이 등록한 물품이면 null */
+  carbonBasis?: string | null
   /** 전달 가능 기간 (YYYY-MM-DD) */
   availableFrom: string | null
   availableUntil: string | null
@@ -94,6 +114,8 @@ export interface ItemDetail {
 export interface ItemCreateRequest {
   name: string
   categoryGroup: CategoryGroup
+  /** 품목 (선택). 고르면 품목 값, 비우면 대분류 값으로 탄소 절감량을 계산한다 */
+  itemType?: string
   conditionGrade: ConditionGrade
   description?: string
   usagePeriod?: string

@@ -301,7 +301,10 @@ export default function ItemDetail() {
                 <span className="text-[15px] font-bold text-[var(--color-primary-dark)]">kg CO₂e 절감</span>
               </div>
               <p className="mt-0.5 text-xs font-medium text-[#57603F]">
-                재사용 시 예상치예요. 실제 절감량과 다를 수 있어요
+                {/* 품목을 고른 물품은 계산 근거를 보여준다 (#285) */}
+                {item.carbonBasis
+                  ? `${item.carbonBasis} 기준 예상치예요`
+                  : '재사용 시 예상치예요. 실제 절감량과 다를 수 있어요'}
               </p>
             </div>
           </div>

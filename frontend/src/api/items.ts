@@ -22,7 +22,7 @@ export function getItems(params: ItemSearchParams = {}) {
   return apiFetch<PageResponse<ItemSummary>>(queryString ? `/items?${queryString}` : '/items')
 }
 
-/** 카테고리별 예상 탄소 절감량 (GET /items/categories, 비회원 허용). 등록 시 서버가 저장하는 값과 같은 참조표 */
+/** 카테고리별 예상 탄소 절감량과 품목 목록 (GET /items/categories, 비회원 허용). 등록 시 서버가 저장하는 값과 같은 참조표 */
 export function getCategories() {
   return apiFetch<CategoryCarbon[]>('/items/categories')
 }
