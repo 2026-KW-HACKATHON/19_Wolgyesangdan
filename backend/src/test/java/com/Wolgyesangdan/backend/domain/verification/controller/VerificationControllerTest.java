@@ -51,6 +51,9 @@ class VerificationControllerTest {
 	/** 신청 본문의 서류 파일·실명 부분 */
 	private static final String DOCUMENT = ",\"fileKey\":\"" + FILE_KEY + "\",\"applicantName\":\"김하늘\"";
 
+	/** 월계1동 안 좌표 */
+	private static final String LOCATION_BODY = "{\"lat\":37.6197,\"lng\":127.059,\"accuracy\":20}";
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -228,11 +231,11 @@ class VerificationControllerTest {
 
 	@Test
 	void 동네_인증을_한다() throws Exception {
-		given(verificationService.verifyNeighborhood(1L)).willReturn(
-				new VerificationCreateResponse(20L, VerificationType.NEIGHBORHOOD, VerificationStatus.APPROVED,
+		given(verificationService.verifyNeighborhood(1L, new NeighborhoodLocationRequest(37.6197, 127.059, 20.0)))
+				.willReturn(new VerificationCreateResponse(20L, VerificationType.NEIGHBORHOOD, VerificationStatus.APPROVED,
 						LocalDateTime.of(2026, 10, 5, 9, 0)));
 
-		mockMvc.perform(post("/verifications/neighborhood").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+		verifyNeighborhood(LOCATION_BODY)
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.id").value(20))
 				.andExpect(jsonPath("$.verificationType").value("NEIGHBORHOOD"))
@@ -242,12 +245,31 @@ class VerificationControllerTest {
 
 	@Test
 	void 동네_인증이_이미_있으면_409() throws Exception {
-		given(verificationService.verifyNeighborhood(1L))
+		given(verificationService.verifyNeighborhood(eq(1L), any(NeighborhoodLocationRequest.class)))
 				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED));
 
-		mockMvc.perform(post("/verifications/neighborhood").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+		verifyNeighborhood(LOCATION_BODY)
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("VERIFICATION_ALREADY_APPROVED"));
+	}
+
+	@Test
+	void 월계1동_밖에서_동네_인증하면_400_VERIFICATION_OUTSIDE_NEIGHBORHOOD() throws Exception {
+		given(verificationService.verifyNeighborhood(eq(1L), any(NeighborhoodLocationRequest.class)))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_OUTSIDE_NEIGHBORHOOD));
+
+		verifyNeighborhood("{\"lat\":37.6542,\"lng\":127.0568,\"accuracy\":25}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VERIFICATION_OUTSIDE_NEIGHBORHOOD"));
+	}
+
+	@Test
+	void 좌표_없이_동네_인증하면_400() throws Exception {
+		mockMvc.perform(post("/verifications/neighborhood").header(HttpHeaders.AUTHORIZATION, bearer(1L)))
+				.andExpect(status().isBadRequest());
+		verifyNeighborhood("{\"lat\":37.6197,\"lng\":127.059}")
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("accuracy"));
 	}
 
 	@Test
@@ -391,6 +413,13 @@ class VerificationControllerTest {
 
 	private String bearer(Long userId) {
 		return "Bearer " + jwtProvider.createAccessToken(userId);
+	}
+
+	private ResultActions verifyNeighborhood(String body) throws Exception {
+		return mockMvc.perform(post("/verifications/neighborhood")
+				.header(HttpHeaders.AUTHORIZATION, bearer(1L))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body));
 	}
 
 	private ResultActions checkNeighborhood(String body) throws Exception {

@@ -15,6 +15,8 @@ import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.domain.verification.dto.MyVerificationResponse;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationRequest;
+import com.Wolgyesangdan.backend.domain.verification.dto.NeighborhoodLocationResponse;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateRequest;
 import com.Wolgyesangdan.backend.domain.verification.dto.VerificationCreateResponse;
 import com.Wolgyesangdan.backend.domain.verification.entity.DocumentType;
@@ -46,8 +48,12 @@ class VerificationServiceTest {
 	private final PriorityVerificationRepository priorityVerificationRepository = Mockito
 			.mock(PriorityVerificationRepository.class);
 	private final UserRepository userRepository = Mockito.mock(UserRepository.class);
+	private final NeighborhoodLocationService neighborhoodLocationService = Mockito.mock(NeighborhoodLocationService.class);
 	private final VerificationService verificationService = new VerificationService(priorityVerificationRepository,
-			userRepository);
+			userRepository, neighborhoodLocationService);
+
+	/** 월계1동 안 좌표 */
+	private static final NeighborhoodLocationRequest LOCATION = new NeighborhoodLocationRequest(37.6197, 127.059, 20.0);
 
 	@Test
 	void 신입생_인증을_신청하면_서류_파일과_실명을_함께_PENDING으로_저장한다() {
@@ -174,8 +180,9 @@ class VerificationServiceTest {
 	@Test
 	void 동네_인증을_하면_심사_없이_바로_APPROVED로_저장한다() {
 		givenUserExists();
+		givenInside(true);
 
-		VerificationCreateResponse response = verificationService.verifyNeighborhood(USER_ID, NOW);
+		VerificationCreateResponse response = verificationService.verifyNeighborhood(USER_ID, LOCATION, NOW);
 
 		PriorityVerification saved = savedVerification();
 		assertThat(saved.getUser().getId()).isEqualTo(USER_ID);
@@ -195,9 +202,33 @@ class VerificationServiceTest {
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
 				approved(1L, VerificationType.NEIGHBORHOOD, null)));
 
-		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, NOW))
+		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, LOCATION, NOW))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_ALREADY_APPROVED);
+		then(priorityVerificationRepository).should(never()).save(any());
+		then(neighborhoodLocationService).should(never()).check(any());
+	}
+
+	@Test
+	void 월계1동_밖이면_동네_인증을_거절하고_저장하지_않는다() {
+		givenUserExists();
+		givenInside(false);
+
+		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, LOCATION, NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_OUTSIDE_NEIGHBORHOOD);
+		then(priorityVerificationRepository).should(never()).save(any());
+	}
+
+	@Test
+	void 위치를_판정하지_못하면_그_에러를_그대로_내고_저장하지_않는다() {
+		givenUserExists();
+		given(neighborhoodLocationService.check(LOCATION))
+				.willThrow(new BusinessException(VerificationErrorCode.VERIFICATION_LOCATION_INACCURATE));
+
+		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, LOCATION, NOW))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(VerificationErrorCode.VERIFICATION_LOCATION_INACCURATE);
 		then(priorityVerificationRepository).should(never()).save(any());
 	}
 
@@ -206,8 +237,9 @@ class VerificationServiceTest {
 		givenUserExists();
 		given(priorityVerificationRepository.findByUserId(USER_ID)).willReturn(List.of(
 				approved(1L, VerificationType.FRESHMAN, null)));
+		givenInside(true);
 
-		verificationService.verifyNeighborhood(USER_ID, NOW);
+		verificationService.verifyNeighborhood(USER_ID, LOCATION, NOW);
 
 		assertThat(savedVerification().getVerificationType()).isEqualTo(VerificationType.NEIGHBORHOOD);
 	}
@@ -216,7 +248,7 @@ class VerificationServiceTest {
 	void 동네_인증_회원이_없으면_AUTH_USER_NOT_FOUND() {
 		given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, NOW))
+		assertThatThrownBy(() -> verificationService.verifyNeighborhood(USER_ID, LOCATION, NOW))
 				.isInstanceOf(BusinessException.class)
 				.extracting("errorCode").isEqualTo(AuthErrorCode.AUTH_USER_NOT_FOUND);
 	}
@@ -446,6 +478,11 @@ class VerificationServiceTest {
 			case FRESHMAN -> DocumentType.STUDENT_ID_CARD;
 			case LOW_INCOME -> DocumentType.RECIPIENT_CERTIFICATE;
 		};
+	}
+
+	private void givenInside(boolean inside) {
+		given(neighborhoodLocationService.check(LOCATION))
+				.willReturn(new NeighborhoodLocationResponse(inside, inside ? "서울특별시 노원구 월계1동" : "서울특별시 노원구 상계6.7동"));
 	}
 
 }

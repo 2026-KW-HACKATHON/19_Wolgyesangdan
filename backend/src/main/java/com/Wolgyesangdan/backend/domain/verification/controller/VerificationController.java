@@ -40,11 +40,12 @@ public class VerificationController {
 		return verificationService.createVerification(userId, request);
 	}
 
-	/** GPS 동네 인증 (본문 없음). 심사 없이 바로 APPROVED */
+	/** GPS 동네 인증. 현재 좌표로 서버가 월계1동 안인지 판정하고(#279), 안이면 심사 없이 바로 APPROVED */
 	@PostMapping("/neighborhood")
 	@ResponseStatus(HttpStatus.CREATED)
-	public VerificationCreateResponse verifyNeighborhood(@AuthenticationPrincipal Long userId) {
-		return verificationService.verifyNeighborhood(userId);
+	public VerificationCreateResponse verifyNeighborhood(@AuthenticationPrincipal Long userId,
+			@Valid @RequestBody NeighborhoodLocationRequest request) {
+		return verificationService.verifyNeighborhood(userId, request);
 	}
 
 	/**

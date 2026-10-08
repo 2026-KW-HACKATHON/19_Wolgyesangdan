@@ -24,6 +24,7 @@ import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.verification.entity.PriorityVerification;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationType;
+import com.Wolgyesangdan.backend.domain.verification.service.NeighborhoodLocationService;
 import com.Wolgyesangdan.backend.domain.verification.service.VerificationService;
 import com.Wolgyesangdan.backend.global.config.JpaAuditingConfig;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
@@ -35,6 +36,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.domain.Page;
 
 /**
@@ -44,6 +46,10 @@ import org.springframework.data.domain.Page;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaAuditingConfig.class, ApplicationService.class, VerificationService.class})
 class ApplicationServiceTest {
+
+	// VerificationService가 동네 인증 위치 판정에 쓰는 의존성 — 신청 테스트에서는 쓰지 않는다
+	@MockitoBean
+	private NeighborhoodLocationService neighborhoodLocationService;
 
 	@Autowired
 	private ApplicationService applicationService;
