@@ -5,9 +5,9 @@ import { ApiError } from '../api/client'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import PrimaryButton from '../components/PrimaryButton'
 import Screen from '../components/Screen'
-import { saveTokens } from '../lib/authStorage'
+import { isLoggedIn, saveTokens } from '../lib/authStorage'
 import { clearKakaoState, isValidKakaoState } from '../lib/kakao'
-import { loginPath, takeLoginNext } from '../lib/loginRedirect'
+import { leaveKakaoCallback, loginPath, takeLoginNext } from '../lib/loginRedirect'
 
 /**
  * 카카오 로그인 후 돌아오는 화면 (/oauth/kakao/callback).
@@ -25,11 +25,18 @@ export default function KakaoCallbackPage() {
   const cancelled = searchParams.get('error') !== null
   const invalidRequest = !cancelled && (!code || !isValidKakaoState(searchParams.get('state')))
   const errorMessage = invalidRequest ? '잘못된 로그인 요청이에요. 다시 시도해주세요.' : loginError
+  // 이미 로그인했는데 쓰고 난 콜백 주소로 다시 온 경우(뒤로가기로 카카오 페이지를 거쳐 돌아옴) — 오류 대신 그 전 화면으로 (#186)
+  const returnedAfterLogin = isLoggedIn() && (cancelled || invalidRequest)
 
   useEffect(() => {
     // 인가 코드는 한 번만 쓸 수 있다 — 개발 모드(StrictMode)에서 effect가 두 번 돌아도 요청은 한 번만.
     if (requested.current) return
     requested.current = true
+
+    if (returnedAfterLogin) {
+      leaveKakaoCallback(navigate)
+      return
+    }
 
     if (cancelled) {
       // 동의를 취소하고 다시 로그인 화면으로 — 돌아갈 화면은 이어서 넘긴다
@@ -50,7 +57,9 @@ export default function KakaoCallbackPage() {
           error instanceof ApiError ? error.message : '로그인 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.',
         )
       })
-  }, [cancelled, code, invalidRequest, navigate])
+  }, [cancelled, code, invalidRequest, navigate, returnedAfterLogin])
+
+  if (returnedAfterLogin) return null
 
   return (
     <Screen>
