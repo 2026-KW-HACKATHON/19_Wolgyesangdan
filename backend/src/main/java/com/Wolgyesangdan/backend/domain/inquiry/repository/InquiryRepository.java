@@ -35,4 +35,7 @@ public interface InquiryRepository extends JpaRepository<Inquiry, Long> {
 	@EntityGraph(attributePaths = "author")
 	Optional<Inquiry> findWithAuthorById(Long id);
 
+	/** 대시보드 요약용 (#216) */
+	long countByStatus(InquiryStatus status);
+
 }

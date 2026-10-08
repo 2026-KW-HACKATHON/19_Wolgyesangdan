@@ -55,4 +55,7 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 	@Query("select i from Item i where :hidden is null or i.hidden = :hidden")
 	Page<Item> findAllForAdmin(@Param("hidden") Boolean hidden, Pageable pageable);
 
+	/** 대시보드 요약용 — 숨긴 물품 수 (#216) */
+	long countByHiddenTrue();
+
 }
