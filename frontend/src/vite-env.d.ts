@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
   readonly VITE_KAKAO_JS_KEY: string
   readonly VITE_KAKAO_REDIRECT_URI: string
+  /** 동네 인증 위치 — 'demo'면 GPS 대신 월계1동 안의 고정 좌표를 쓴다 (시연용, #280). 비우면 실제 GPS */
+  readonly VITE_LOCATION_MODE?: 'gps' | 'demo'
 }
 
 interface ImportMeta {

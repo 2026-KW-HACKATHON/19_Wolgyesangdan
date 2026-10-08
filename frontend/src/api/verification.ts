@@ -11,48 +11,43 @@ import type {
 import { ApiError, apiFetch } from './client'
 
 // 로그인·인증 플로우 v2(GPS 동네 인증 + 우선배정 서류) API.
-//   POST /verifications/neighborhood          (본문 없음)                 → 동네 인증, 바로 APPROVED
+//   POST /verifications/neighborhood/check    { lat, lng, accuracy }      → 월계1동 안인지 (기록 안 함)
+//   POST /verifications/neighborhood          { lat, lng, accuracy }      → 서버가 판정 후 동네 인증, 바로 APPROVED
 //   POST /verifications/documents/upload-url  { fileName, contentType }   → 서류 업로드 URL + fileKey
 //   POST /verifications                       { verificationType, documentType, fileKey, applicantName }
 //                                                                         → 우선배정 인증 신청, PENDING
 //   GET  /verifications/me                                                → 유형별 내 인증 상태
 
-const fakeLatency = () => new Promise((resolve) => setTimeout(resolve, 500))
-
-// 월계1동 안인지는 프론트가 판정한다 (서버는 좌표를 받지 않는다).
-// 월계1동 중심(광운대 인근)에서 1km 안이면 월계1동으로 본다.
-const WOLGYE1_CENTER = { lat: 37.6235, lng: 127.0605 }
-const MOCK_RADIUS_M = 1000
-
-function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371000
-  const toRad = (deg: number) => (deg * Math.PI) / 180
-  const dLat = toRad(b.lat - a.lat)
-  const dLng = toRad(b.lng - a.lng)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(h))
-}
-
-/** 현재 좌표가 월계1동 안인지 확인 (결과 행 표시용) */
-export async function checkLocation(coords: Coords): Promise<LocationCheckResult> {
-  await fakeLatency()
-  const inside = distanceMeters(coords, WOLGYE1_CENTER) <= MOCK_RADIUS_M
-  return { inside, dongName: inside ? '서울 노원구 월계1동' : '다른 동네' }
+/** 카카오 행정동 이름의 시·도를 줄여 쓴다 — "서울특별시 노원구 월계1동" → "서울 노원구 월계1동" */
+function shortenDongName(dongName: string | null) {
+  return dongName?.replace(/^서울특별시/, '서울') ?? null
 }
 
 /**
- * "이 위치로 인증하기" — 월계1동 안이면 동네 인증을 기록한다 (POST /verifications/neighborhood).
+ * 현재 좌표가 월계1동 안인지 확인 (POST /verifications/neighborhood/check). 결과 행 표시용이라 인증은 기록하지 않는다.
+ * 서버가 카카오 행정동 조회로 판정한다 (#278). 오차가 크면 400 VERIFICATION_LOCATION_INACCURATE.
+ */
+export async function checkLocation(coords: Coords): Promise<LocationCheckResult> {
+  const result = await apiFetch<LocationCheckResult>('/verifications/neighborhood/check', {
+    method: 'POST',
+    body: JSON.stringify(coords),
+  })
+  return { ...result, dongName: shortenDongName(result.dongName) }
+}
+
+/**
+ * "이 위치로 인증하기" — 좌표를 보내 서버가 월계1동 안인지 다시 판정하고 동네 인증을 기록한다 (POST /verifications/neighborhood, #279).
  * 이미 동네 인증이 돼 있으면 실패가 아니라 인증된 것으로 본다.
  */
-export async function verifyLocation(coords: Coords): Promise<LocationCheckResult> {
-  const result = await checkLocation(coords)
-  if (!result.inside) throw new Error('월계1동 안에서 다시 시도해 주세요')
+export async function verifyLocation(coords: Coords) {
   try {
-    await apiFetch<VerificationCreateResponse>('/verifications/neighborhood', { method: 'POST' })
+    await apiFetch<VerificationCreateResponse>('/verifications/neighborhood', {
+      method: 'POST',
+      body: JSON.stringify(coords),
+    })
   } catch (e) {
     if (!(e instanceof ApiError && e.code === 'VERIFICATION_ALREADY_APPROVED')) throw e
   }
-  return result
 }
 
 /**

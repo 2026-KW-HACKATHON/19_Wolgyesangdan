@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiError } from '../api/client'
 import { checkLocation } from '../api/verification'
 import type { Coords, LocationStatus } from '../types/verification'
 
@@ -20,14 +21,35 @@ function readMockStatus(): MockStatus | null {
   return mock && MOCK_STATUSES.includes(mock) ? mock : null
 }
 
-// MVP에서는 실제 위치를 쓰지 않는다 (#108). GPS로 찾는 것처럼 잠깐 기다린 뒤 항상 월계1동 안의 좌표를 돌려준다.
-// 위치 권한도 요청하지 않는다. 실제 측위로 되돌리려면 이 함수에서 navigator.geolocation.getCurrentPosition을 쓰면 된다.
-const PRETEND_LOCATING_MS = 1200
-const PRETEND_COORDS: Coords = MOCK_COORDS.inside
+/**
+ * 시연용 고정 좌표 모드 (#280) — VITE_LOCATION_MODE=demo면 GPS를 쓰지 않고 위치 권한도 묻지 않는다.
+ * 발표장처럼 실내라 GPS가 안 잡히는 곳에서 쓴다. 판정은 이 모드에서도 서버가 한다.
+ */
+const DEMO_MODE = import.meta.env.VITE_LOCATION_MODE === 'demo'
+const DEMO_LOCATING_MS = 1200
+const DEMO_COORDS: Coords = MOCK_COORDS.inside
+
+/** 실제 GPS 측위. 실패하면 GeolocationPositionError(code 1 권한 거부, 2 위치 없음, 3 시간 초과)로 reject */
+function getGpsPosition(): Promise<Coords> {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject({ code: 2 })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy }),
+      reject,
+      // 동 경계 근처에서도 판정할 수 있게 고정밀로, 예전 위치를 다시 쓰지 않는다
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
+    )
+  })
+}
 
 async function getPosition(): Promise<Coords> {
-  await new Promise((resolve) => setTimeout(resolve, PRETEND_LOCATING_MS))
-  return PRETEND_COORDS
+  if (!DEMO_MODE) return getGpsPosition()
+  await new Promise((resolve) => setTimeout(resolve, DEMO_LOCATING_MS))
+  return DEMO_COORDS
 }
 
 export interface NeighborhoodLocation {
@@ -40,7 +62,7 @@ export interface NeighborhoodLocation {
 
 /**
  * 현재 위치를 찾고 월계1동 안인지 판정한다. 화면에 들어오자마자 한 번 측위한다.
- * MVP에서는 실제 GPS를 쓰지 않아서 항상 월계1동 안으로 나온다 (getPosition 참고).
+ * 측위는 브라우저 GPS(시연 모드면 고정 좌표), 판정은 서버가 카카오 행정동 조회로 한다 (#278, #280).
  */
 export function useNeighborhoodLocation(): NeighborhoodLocation {
   const [status, setStatus] = useState<LocationStatus>('locating')
@@ -77,6 +99,11 @@ export function useNeighborhoodLocation(): NeighborhoodLocation {
       setStatus(result.inside ? 'inside' : 'outside')
     } catch (error) {
       if (!isLatest()) return
+      // 서버가 오차가 크다고 판정한 경우 — 프론트 기준(100m)과 서버 기준이 어긋나도 같은 안내를 보여준다
+      if (error instanceof ApiError) {
+        setStatus(error.code === 'VERIFICATION_LOCATION_INACCURATE' ? 'inaccurate' : 'unavailable')
+        return
+      }
       const code = (error as { code?: number }).code
       setStatus(code === 1 ? 'denied' : 'unavailable')
     }
