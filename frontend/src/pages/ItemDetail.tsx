@@ -62,7 +62,7 @@ function formatAvailablePeriod(from: string | null, until: string | null) {
 /** 어떤 id의 조회 결과인지 함께 들고 있어서, 다른 물품으로 넘어가면 이전 결과를 쓰지 않는다 */
 type Result =
   | { id: string; item: ItemDetailData }
-  | { id: string; item: null; notFound: boolean; message: string }
+  | { id: string; item: null; notFound: boolean; hidden: boolean; message: string }
 
 export default function ItemDetail() {
   const { id = '' } = useParams()
@@ -122,6 +122,8 @@ export default function ItemDetail() {
           id,
           item: null,
           notFound,
+          // 관리자가 숨긴 물품 (404 ITEM_HIDDEN)
+          hidden: e instanceof ApiError && e.code === 'ITEM_HIDDEN',
           message: e instanceof ApiError ? e.message : '물품을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
         })
       })
@@ -181,9 +183,11 @@ export default function ItemDetail() {
   if (!current.item) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <span className="ms text-4xl text-[var(--color-label-alt)]">{current.notFound ? 'search_off' : 'error'}</span>
+        <span className="ms text-4xl text-[var(--color-label-alt)]">
+          {current.hidden ? 'visibility_off' : current.notFound ? 'search_off' : 'error'}
+        </span>
         <p className="text-base font-bold text-[var(--color-label)]">
-          {current.notFound ? '물품을 찾을 수 없어요' : current.message}
+          {current.hidden ? '볼 수 없는 물품이에요' : current.notFound ? '물품을 찾을 수 없어요' : current.message}
         </p>
         <button
           type="button"

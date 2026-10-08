@@ -131,6 +131,10 @@ public class ItemService {
 	public ItemDetailResponse getItem(Long itemId, Long viewerId) {
 		Item item = itemRepository.findWithOwnerAndCampaignById(itemId)
 				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		// 관리자가 숨긴 물품은 등록자 본인을 포함해 누구에게도 보여주지 않는다 (#214)
+		if (item.isHidden()) {
+			throw new BusinessException(ItemErrorCode.ITEM_HIDDEN);
+		}
 		List<TradeMethod> tradeMethods = itemTradeMethodRepository.findByItemId(itemId).stream()
 				.map(ItemTradeMethod::getTradeMethod)
 				.sorted()

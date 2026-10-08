@@ -68,6 +68,16 @@ class ApplicationServiceTest {
 	}
 
 	@Test
+	void 관리자가_숨긴_물품이면_404() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		item.changeHidden(true);
+
+		assertThatThrownBy(() -> applicationService.apply(applicant.getId(), item.getId()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_HIDDEN);
+	}
+
+	@Test
 	void 물품이_OPEN이_아니면_409() {
 		Item item = persist(item(owner, ItemStatus.CLOSED, LocalDateTime.now().plusDays(1), 0));
 

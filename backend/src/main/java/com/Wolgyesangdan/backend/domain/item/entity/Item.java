@@ -24,6 +24,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -104,6 +105,12 @@ public class Item extends BaseTimeEntity {
 	@Column(nullable = false)
 	private int applicantCount;
 
+	// 관리자가 숨긴 물품 — 회원 앱 목록·상세에서 빠진다 (#214).
+	// 운영 DB가 ddl-auto: update라 컬럼이 추가될 때 기존 물품 행에도 false가 들어가도록 DB 기본값을 둔다
+	@ColumnDefault("false")
+	@Column(nullable = false)
+	private boolean hidden;
+
 	/** 신청 접수 — 신청자 수를 늘리고, 정원(MAX_APPLICANTS)에 도달하면 더 이상 받지 않도록 CLOSED로 전환한다. */
 	public void increaseApplicantCount() {
 		this.applicantCount++;
@@ -136,5 +143,10 @@ public class Item extends BaseTimeEntity {
 	/** 거래 완료 — 탄소 절감량 집계에 들어간다 */
 	public void complete() {
 		this.status = ItemStatus.COMPLETED;
+	}
+
+	/** 관리자 숨기기 / 다시 보이기. 상태(status)는 건드리지 않는다 */
+	public void changeHidden(boolean hidden) {
+		this.hidden = hidden;
 	}
 }

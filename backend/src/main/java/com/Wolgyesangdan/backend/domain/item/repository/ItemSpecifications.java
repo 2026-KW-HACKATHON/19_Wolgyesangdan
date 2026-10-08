@@ -37,6 +37,8 @@ public final class ItemSpecifications {
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			predicates.add(root.get("status").in(statuses));
+			// 관리자가 숨긴 물품은 회원 목록·검색·홈에 나오지 않는다 (#214)
+			predicates.add(cb.isFalse(root.get("hidden")));
 			if (condition.keyword() != null) {
 				predicates.add(cb.like(root.get("name"), "%" + escapeLike(condition.keyword()) + "%", '\\'));
 			}

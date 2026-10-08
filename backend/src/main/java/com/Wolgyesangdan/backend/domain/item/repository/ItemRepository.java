@@ -50,4 +50,9 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 			""")
 	List<Long> findIdsToAssign(@Param("statuses") Collection<ItemStatus> statuses, @Param("now") LocalDateTime now);
 
+	/** 관리자 물품 목록 — 상태와 관계없이 전부. hidden이 null이면 숨긴 물품·보이는 물품 모두 */
+	@EntityGraph(attributePaths = "owner")
+	@Query("select i from Item i where :hidden is null or i.hidden = :hidden")
+	Page<Item> findAllForAdmin(@Param("hidden") Boolean hidden, Pageable pageable);
+
 }
