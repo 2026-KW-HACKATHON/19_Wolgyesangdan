@@ -225,6 +225,21 @@ class ItemListQueryTest {
 	}
 
 	@Test
+	void 관리자가_숨긴_물품은_어느_상태_범위에도_나오지_않는다() {
+		Item shown = persist(item("보임", ItemStatus.OPEN));
+		Item hidden = persist(item("숨김", ItemStatus.OPEN));
+		hidden.hide();
+		flushAndClear();
+
+		for (ItemAvailability availability : ItemAvailability.values()) {
+			Page<ItemSummaryResponse> page = itemService.getItems(availability(availability), 0, 20);
+
+			assertThat(page.getContent()).extracting(ItemSummaryResponse::id).containsExactly(shown.getId());
+			assertThat(page.getTotalElements()).isEqualTo(1);
+		}
+	}
+
+	@Test
 	void 필터를_걸어도_쿼리는_최대_4번만_나간다() {
 		for (int i = 0; i < 10; i++) {
 			Item item = persist(item("의자" + i, ItemStatus.OPEN, CategoryGroup.FURNITURE, "좋음", 30));

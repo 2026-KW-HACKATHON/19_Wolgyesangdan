@@ -195,6 +195,20 @@ class ItemDetailQueryTest {
 				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_NOT_FOUND);
 	}
 
+	@Test
+	void 관리자가_숨긴_물품은_등록자가_봐도_ITEM_HIDDEN() {
+		Item item = persist(item(owner, null, ItemStatus.OPEN));
+		item.hide();
+		flushAndClear();
+
+		assertThatThrownBy(() -> itemService.getItem(item.getId(), null))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_HIDDEN);
+		assertThatThrownBy(() -> itemService.getItem(item.getId(), owner.getId()))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_HIDDEN);
+	}
+
 	private void reservation(Item item, ReservationStatus status) {
 		Application application = persist(Application.builder()
 				.item(item).applicant(applicant).priorityScore(0).status(ApplicationStatus.SELECTED).build());

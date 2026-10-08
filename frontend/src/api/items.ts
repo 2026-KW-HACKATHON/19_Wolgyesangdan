@@ -26,7 +26,7 @@ export function getCategories() {
   return apiFetch<CategoryCarbon[]>('/items/categories')
 }
 
-/** 물품 상세 (GET /items/{itemId}, 비회원 허용). 없는 물품이면 404 ITEM_NOT_FOUND */
+/** 물품 상세 (GET /items/{itemId}, 비회원 허용). 없는 물품이면 404 ITEM_NOT_FOUND, 관리자가 숨긴 물품이면 404 ITEM_HIDDEN */
 export function getItem(itemId: number | string) {
   return apiFetch<ItemDetail>(`/items/${encodeURIComponent(itemId)}`)
 }
