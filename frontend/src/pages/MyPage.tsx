@@ -175,7 +175,6 @@ function MenuRows({ go }: { go: GoWithLogin }) {
   const rows: { label: string; value?: string; onClick: () => void }[] = [
     { label: '연락 수단 설정', value: contactLabel, onClick: () => go('/settings/contact?next=/mypage', CONTACT_LOGIN_MESSAGE) },
     { label: '인증하기', value: '주민 · 학생 · 우선배정', onClick: () => go('/mypage/verification', VERIFY_LOGIN_MESSAGE) },
-    { label: '이용 안내', onClick: () => {} },
     { label: '문의하기', onClick: () => go('/mypage/inquiries', INQUIRY_LOGIN_MESSAGE) },
   ]
   return (
