@@ -19,6 +19,7 @@ import { TRADE_METHOD_LABEL } from '../../lib/item'
 import { RESERVATION_STATUS_LABEL, formatDateTime, formatMonthDay } from '../../lib/reservation'
 import MaterialIcon from '../icons/MaterialIcon'
 import EmptyState from '../EmptyState'
+import MyItemThumb from './MyItemThumb'
 import ContactTile from './ContactTile'
 import ConfirmDialog from '../ConfirmDialog'
 
@@ -271,9 +272,12 @@ export default function AppliedList() {
             } ${closed ? 'opacity-85' : ''}`}
           >
             <div className="flex gap-3">
-              <span className="flex size-[72px] flex-none items-center justify-center rounded-2xl bg-primary-tint text-accent">
-                <MaterialIcon name="inventory_2" size={30} />
-              </span>
+              <MyItemThumb
+                imageUrl={item.itemThumbnailImageUrl}
+                alt={item.itemName}
+                className="size-[72px] rounded-2xl"
+                iconSize={30}
+              />
               <div className="min-w-0 flex-1">
                 <span className={`inline-block rounded-[7px] px-[7px] py-[3px] text-[11px] font-bold ${badge.className}`}>
                   {badge.label}
