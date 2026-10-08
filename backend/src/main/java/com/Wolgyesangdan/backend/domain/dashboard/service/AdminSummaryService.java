@@ -48,7 +48,7 @@ public class AdminSummaryService {
 		return new AdminSummaryResponse(
 				priorityVerificationRepository.countByVerificationTypeInAndStatus(PRIORITY_TYPES, VerificationStatus.PENDING),
 				inquiryRepository.countByStatus(InquiryStatus.OPEN),
-				itemRepository.countByHiddenTrue(),
+				itemRepository.countByHiddenTrueAndDeletedFalse(),
 				currentCampaign);
 	}
 

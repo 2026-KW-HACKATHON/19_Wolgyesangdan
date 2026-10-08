@@ -23,7 +23,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -77,6 +79,23 @@ public class ItemController {
 			@Valid @RequestBody ItemCreateRequest request) {
 		ItemDetailResponse created = itemService.createItem(userId, request);
 		return ResponseEntity.created(URI.create("/items/" + created.id())).body(created);
+	}
+
+	/**
+	 * 물품 수정 (등록자 본인). 신청을 받는 중이고 신청자가 0명인 물품만 — 아니면 409 ITEM_NOT_MODIFIABLE.
+	 * 본문은 등록과 같고(사진·거래 방식은 보낸 목록으로 통째로 바뀐다), 응답은 상세 조회와 같은 형태
+	 */
+	@PutMapping("/{itemId}")
+	public ItemDetailResponse updateItem(@AuthenticationPrincipal Long userId, @PathVariable Long itemId,
+			@Valid @RequestBody ItemCreateRequest request) {
+		return itemService.updateItem(userId, itemId, request);
+	}
+
+	/** 물품 삭제 (등록자 본인). 수정과 같은 조건일 때만 — 204 No Content */
+	@DeleteMapping("/{itemId}")
+	public ResponseEntity<Void> deleteItem(@AuthenticationPrincipal Long userId, @PathVariable Long itemId) {
+		itemService.deleteItem(userId, itemId);
+		return ResponseEntity.noContent().build();
 	}
 
 	/**

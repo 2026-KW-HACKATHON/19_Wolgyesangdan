@@ -24,8 +24,8 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 	@EntityGraph(attributePaths = {"owner", "campaign"})
 	Optional<Item> findWithOwnerAndCampaignById(Long id);
 
-	/** 내가 등록한 물품 — 상태와 관계없이 전부 */
-	Page<Item> findByOwnerId(Long ownerId, Pageable pageable);
+	/** 내가 등록한 물품 — 상태와 관계없이 전부. 삭제한 물품만 뺀다 */
+	Page<Item> findByOwnerIdAndDeletedFalse(Long ownerId, Pageable pageable);
 
 	/** 물품 신청용 — 같은 물품에 동시에 신청해도 한 줄씩 처리되도록 행을 잠그고 읽는다 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -40,12 +40,12 @@ public interface ItemRepository extends JpaRepository<Item, Long>, JpaSpecificat
 			""")
 	List<Long> findIdsToAssign(@Param("statuses") Collection<ItemStatus> statuses, @Param("now") LocalDateTime now);
 
-	/** 관리자 물품 목록 — 상태와 관계없이 전부. hidden이 null이면 숨긴 물품·보이는 물품 모두 */
+	/** 관리자 물품 목록 — 상태와 관계없이 전부(등록자가 삭제한 물품은 뺀다). hidden이 null이면 숨긴 물품·보이는 물품 모두 */
 	@EntityGraph(attributePaths = "owner")
-	@Query("select i from Item i where :hidden is null or i.hidden = :hidden")
+	@Query("select i from Item i where i.deleted = false and (:hidden is null or i.hidden = :hidden)")
 	Page<Item> findAllForAdmin(@Param("hidden") Boolean hidden, Pageable pageable);
 
-	/** 대시보드 요약용 — 숨긴 물품 수 (#216) */
-	long countByHiddenTrue();
+	/** 대시보드 요약용 — 숨긴 물품 수 (#216). 등록자가 삭제한 물품은 세지 않는다 */
+	long countByHiddenTrueAndDeletedFalse();
 
 }

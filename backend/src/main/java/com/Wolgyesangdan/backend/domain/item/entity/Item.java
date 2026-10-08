@@ -117,6 +117,20 @@ public class Item extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean hidden;
 
+	// 등록자가 삭제한 물품 — 신청 기록이 물품을 참조하고 있어 행은 남기고, 목록·상세·마이페이지에서 뺀다.
+	// hidden과 같은 이유로 DB 기본값을 둔다
+	@ColumnDefault("false")
+	@Column(nullable = false)
+	private boolean deleted;
+
+	/**
+	 * 등록자가 수정·삭제할 수 있는지 — 신청을 받는 중이고 아직 아무도 신청하지 않았을 때만.
+	 * 신청자가 있으면 신청한 뒤에 물건 내용이 바뀌거나 사라지는 셈이라 막는다.
+	 */
+	public boolean isModifiable() {
+		return status == ItemStatus.OPEN && applicantCount == 0;
+	}
+
 	/**
 	 * 아직 배정 전인지 — 신청을 받는 중이거나, 마감됐지만 배정을 기다리는 중.
 	 * 이때는 신청자에게 대기 순번을 알려주지 않는다 (#265) — 우선배정 인증으로 순번이 앞서는 것이
@@ -173,5 +187,37 @@ public class Item extends BaseTimeEntity {
 	/** 숨긴 물품 다시 보이기 */
 	public void show() {
 		this.hidden = false;
+	}
+
+	/** 등록자 수정 — 등록 때 받은 값 전부와, 그 값으로 서버가 다시 정한 탄소 절감량·신청 마감을 바꾼다 */
+	public void update(Campaign campaign, String name, CategoryGroup categoryGroup, ItemType itemType, String category,
+			String description, String conditionGrade, String usagePeriod, boolean defectYn, String defectDescription,
+			String workingStatus, String size, String transportDifficulty, int estimatedCarbonReduction,
+			LocalDate availableFrom, LocalDate availableUntil, LocalDate disposalDeadline,
+			LocalDateTime applicationDeadline) {
+		this.campaign = campaign;
+		this.name = name;
+		this.categoryGroup = categoryGroup;
+		this.itemType = itemType;
+		this.category = category;
+		this.description = description;
+		this.conditionGrade = conditionGrade;
+		this.usagePeriod = usagePeriod;
+		this.defectYn = defectYn;
+		this.defectDescription = defectDescription;
+		this.workingStatus = workingStatus;
+		this.size = size;
+		this.transportDifficulty = transportDifficulty;
+		this.estimatedCarbonReduction = estimatedCarbonReduction;
+		this.availableFrom = availableFrom;
+		this.availableUntil = availableUntil;
+		this.disposalDeadline = disposalDeadline;
+		this.applicationDeadline = applicationDeadline;
+	}
+
+	/** 등록자 삭제 — 종료 상태로 바꿔 배정·신청 대상에서 빠지게 하고, 목록·상세에서도 뺀다 */
+	public void delete() {
+		this.status = ItemStatus.CANCELED;
+		this.deleted = true;
 	}
 }
