@@ -12,6 +12,7 @@ import { useMyVerifications } from '../hooks/useMyVerifications'
 import type { MyVerification } from '../types/verification'
 import { clearTokens, isLoggedIn } from '../lib/authStorage'
 import { formatJoinedPeriod, nicknameInitial } from '../lib/profile'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 type TabKey = 'registered' | 'applied'
 
@@ -208,9 +209,10 @@ export default function MyPage() {
     applied: todo.reconfirms.length > 0,
   }
 
-  // 로그아웃 API는 MVP에서 만들지 않음 — 이 기기의 토큰만 지우고 홈으로 간다
+  // 로그아웃 API는 MVP에서 만들지 않음 — 확인 팝업 뒤 이 기기의 토큰만 지우고 홈으로 간다
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const handleLogout = () => {
-    if (!window.confirm('로그아웃할까요?')) return
+    setLogoutOpen(false)
     clearTokens()
     navigate('/', { replace: true })
   }
@@ -236,7 +238,7 @@ export default function MyPage() {
         {loggedIn && (
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => setLogoutOpen(true)}
             className="flex cursor-pointer items-center gap-1 rounded-full px-2 py-1.5 text-[13px] font-semibold text-ink-2"
           >
             <MaterialIcon name="logout" size={18} />
@@ -289,6 +291,16 @@ export default function MyPage() {
         )}
       </div>
       {loginDialog}
+      {logoutOpen && (
+        <ConfirmDialog
+          icon="logout"
+          title="로그아웃할까요?"
+          description="이 기기에서 로그아웃해요. 다시 들어오려면 카카오로 로그인하면 돼요."
+          confirmLabel="로그아웃"
+          onConfirm={handleLogout}
+          onCancel={() => setLogoutOpen(false)}
+        />
+      )}
     </div>
   )
 }

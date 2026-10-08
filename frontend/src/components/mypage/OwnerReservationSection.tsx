@@ -6,6 +6,7 @@ import { RESERVATION_STATUS_LABEL, formatDateTime } from '../../lib/reservation'
 import MaterialIcon from '../icons/MaterialIcon'
 import ContactTile from './ContactTile'
 import { useTodo } from '../../contexts/TodoContext'
+import ConfirmDialog from '../ConfirmDialog'
 
 interface OwnerReservationSectionProps {
   /** 배정된 신청 id (GET /users/me/items 의 applicationId) */
@@ -43,9 +44,12 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
     }
   }, [applicationId])
 
+  // 되돌릴 수 없어서 확인 팝업을 먼저 띄운다 (#192)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   const handleComplete = async () => {
+    setConfirmOpen(false)
     if (!reservation || completing) return
-    if (!window.confirm('물품을 건넸나요? 전달 완료로 처리하면 되돌릴 수 없어요.')) return
     setCompleting(true)
     setCompleteError(null)
     try {
@@ -129,7 +133,7 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
               )}
               <button
                 type="button"
-                onClick={handleComplete}
+                onClick={() => setConfirmOpen(true)}
                 disabled={!canComplete || completing}
                 className={`w-full cursor-pointer rounded-xl bg-primary py-2.5 text-[13px] font-bold text-screen disabled:cursor-default disabled:opacity-50 ${
                   canComplete ? '' : 'mt-2'
@@ -149,6 +153,18 @@ export default function OwnerReservationSection({ applicationId, onCompleted }: 
             </p>
           )}
         </div>
+      )}
+      {confirmOpen && (
+        <ConfirmDialog
+          icon="volunteer_activism"
+          tone="danger"
+          title="물품을 건넸나요?"
+          description="전달 완료로 처리하면 되돌릴 수 없어요. 신청자에게 물품을 건넨 뒤에 눌러 주세요."
+          confirmLabel="전달 완료"
+          cancelLabel="아직이에요"
+          onConfirm={handleComplete}
+          onCancel={() => setConfirmOpen(false)}
+        />
       )}
     </div>
   )

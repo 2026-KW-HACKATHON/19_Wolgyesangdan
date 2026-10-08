@@ -20,6 +20,7 @@ import { RESERVATION_STATUS_LABEL, formatDateTime, formatMonthDay } from '../../
 import MaterialIcon from '../icons/MaterialIcon'
 import EmptyState from '../EmptyState'
 import ContactTile from './ContactTile'
+import ConfirmDialog from '../ConfirmDialog'
 
 /** 물품 하나에 받는 신청 정원 — 대기 순번 바의 칸 수 (백엔드 Item.MAX_APPLICANTS) */
 const MAX_APPLICANTS = 5
@@ -208,8 +209,12 @@ export default function AppliedList() {
     }
   }, [loggedIn, reloadKey])
 
+  // 취소할지 묻는 팝업을 띄운 신청 (#192)
+  const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null)
+
   const handleCancel = async (id: number) => {
-    if (cancelingId !== null || !window.confirm('신청을 취소할까요?')) return
+    setConfirmCancelId(null)
+    if (cancelingId !== null) return
     setCancelingId(id)
     setCancelError(null)
     try {
@@ -304,7 +309,7 @@ export default function AppliedList() {
                 {item.status === 'WAITING' && (
                   <button
                     type="button"
-                    onClick={() => handleCancel(item.id)}
+                    onClick={() => setConfirmCancelId(item.id)}
                     disabled={cancelingId !== null}
                     className="flex-1 cursor-pointer rounded-xl border border-border py-2.5 text-[13px] font-bold text-ink-2 disabled:cursor-default disabled:opacity-60"
                   >
@@ -328,6 +333,17 @@ export default function AppliedList() {
           </div>
         )
       })}
+      {confirmCancelId !== null && (
+        <ConfirmDialog
+          icon="event_busy"
+          title="신청을 취소할까요?"
+          description="신청 마감 전이면 다시 신청할 수 있어요. 다시 신청하면 대기 순서는 맨 뒤가 돼요."
+          confirmLabel="신청 취소"
+          cancelLabel="그대로 둘게요"
+          onConfirm={() => handleCancel(confirmCancelId)}
+          onCancel={() => setConfirmCancelId(null)}
+        />
+      )}
     </div>
   )
 }
