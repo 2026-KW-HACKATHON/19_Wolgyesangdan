@@ -1,10 +1,11 @@
-import { useState, type CSSProperties } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import ExchangeScene from '../components/ExchangeScene'
 import MaterialIcon from '../components/icons/MaterialIcon'
 import Screen from '../components/Screen'
 import { startKakaoLogin } from '../lib/kakao'
-import { rememberLoginNext } from '../lib/loginRedirect'
+import { isLoggedIn } from '../lib/authStorage'
+import { leaveLoginFlow, rememberLoginNext } from '../lib/loginRedirect'
 
 // 뒤로 흩날리는 잎 — 다시 쓰기로 키우는 동네 나무(탄소절감 리포트)와 같은 잎이다. duration·delay는 초
 const DRIFTING_LEAVES = [
@@ -36,6 +37,23 @@ export default function LoginPage({ onBrowse }: LoginPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // 로그인 후 돌아갈 화면 (?next=/items/123). 카카오 로그인 페이지를 다녀오는 동안 보관한다
   const next = useSearchParams()[0].get('next')
+  const navigate = useNavigate()
+  // 로그인 후 돌아간 화면에서 뒤로가기로 다시 온 경우 — 로그인 화면을 건너뛰고 그 전 화면으로 (#186)
+  const loggedIn = isLoggedIn()
+
+  useEffect(() => {
+    if (loggedIn) leaveLoginFlow(navigate)
+  }, [loggedIn, navigate])
+
+  // 카카오 로그인은 다른 사이트를 거치는 페이지 이동이라, 뒤로가기하면 브라우저가 로그인 전의 이 화면을
+  // 그대로 되살린다(back/forward cache) — 다시 그려지지 않으니 되살아날 때 직접 확인한다
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted && isLoggedIn()) leaveLoginFlow(navigate)
+    }
+    window.addEventListener('pageshow', handlePageShow)
+    return () => window.removeEventListener('pageshow', handlePageShow)
+  }, [navigate])
 
   const handleKakaoLogin = () => {
     try {
@@ -51,6 +69,8 @@ export default function LoginPage({ onBrowse }: LoginPageProps) {
     // TODO: 라우터 도입 후 비로그인 상태로 홈으로 이동하도록 교체
     window.location.href = '/'
   }
+
+  if (loggedIn) return null
 
   return (
     <Screen>
