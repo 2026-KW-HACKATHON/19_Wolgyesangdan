@@ -3,6 +3,9 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 're
 import AppLayout from './layouts/AppLayout'
 import DetailLayout from './layouts/DetailLayout'
 import Home from './pages/Home'
+import InquiryDetailPage from './pages/InquiryDetailPage'
+import InquiryFormPage from './pages/InquiryFormPage'
+import InquiryListPage from './pages/InquiryListPage'
 import ItemList from './pages/ItemList'
 import ContactSettingsPage from './pages/ContactSettingsPage'
 import ContactProvider from './contexts/ContactProvider'
@@ -24,6 +27,8 @@ import { PRIORITY_TYPES } from './data/priorityVerification'
 import { isLoggedIn } from './lib/authStorage'
 import { loginPath, takeLoginNext } from './lib/loginRedirect'
 import type { PrioritySubmitMeta, PriorityType } from './types/verification'
+
+const INQUIRY_LOGIN_DESCRIPTION = '문의하려면 로그인해 주세요. 로그인하면 바로 문의하기 화면으로 이어져요.'
 
 // 로그인이 필요한 화면 — 주소를 직접 입력해 들어온 비로그인 사용자에게 "로그인이 필요해요" 팝업을 띄운다 (#173).
 // 로그인하면 이 화면으로 돌아온다(#172). 바텀 탭에서 누른 경우는 BottomNav가 이동 전에 같은 팝업을 띄운다.
@@ -140,6 +145,31 @@ function App() {
             element={
               <RequireLogin description="인증하려면 로그인해 주세요. 로그인하면 바로 인증 화면으로 이어져요.">
                 <MyVerificationPage />
+              </RequireLogin>
+            }
+          />
+          {/* 문의하기 (#212) — 내 문의 목록 · 작성 · 상세 */}
+          <Route
+            path="/mypage/inquiries"
+            element={
+              <RequireLogin description={INQUIRY_LOGIN_DESCRIPTION}>
+                <InquiryListPage />
+              </RequireLogin>
+            }
+          />
+          <Route
+            path="/mypage/inquiries/new"
+            element={
+              <RequireLogin description={INQUIRY_LOGIN_DESCRIPTION}>
+                <InquiryFormPage />
+              </RequireLogin>
+            }
+          />
+          <Route
+            path="/mypage/inquiries/:id"
+            element={
+              <RequireLogin description={INQUIRY_LOGIN_DESCRIPTION}>
+                <InquiryDetailPage />
               </RequireLogin>
             }
           />
