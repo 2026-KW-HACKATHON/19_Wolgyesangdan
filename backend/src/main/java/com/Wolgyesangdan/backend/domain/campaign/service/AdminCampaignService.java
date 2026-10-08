@@ -40,10 +40,11 @@ public class AdminCampaignService {
 				.map(campaign -> AdminCampaignResponse.of(campaign, today))
 				.orElse(null);
 		// 캠페인은 회차별로 몇 개뿐이라 끝난 캠페인마다 집계 쿼리를 한 번씩 보낸다
-		List<PastCampaign> past = campaignRepository.findAll().stream()
+		List<Campaign> campaigns = campaignRepository.findAll();
+		List<PastCampaign> past = campaigns.stream()
 				.filter(campaign -> campaign.statusOn(today) == CampaignStatus.ENDED)
 				.sorted(Comparator.comparing(Campaign::periodEnd).thenComparing(Campaign::getId).reversed())
-				.map(campaign -> PastCampaign.of(campaign, campaignService.summarizeTrades(campaign)))
+				.map(campaign -> PastCampaign.of(campaign, campaignService.summarizeTrades(campaign, campaigns)))
 				.toList();
 		return new AdminCampaignListResponse(current, past);
 	}

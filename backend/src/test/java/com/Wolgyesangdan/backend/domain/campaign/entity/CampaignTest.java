@@ -3,6 +3,7 @@ package com.Wolgyesangdan.backend.domain.campaign.entity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
 
@@ -56,6 +57,43 @@ class CampaignTest {
 		campaign.resume(LocalDate.of(2026, 10, 1));
 
 		assertThat(campaign.getStatus()).isEqualTo(CampaignStatus.ACTIVE);
+	}
+
+	@Test
+	void 끝난_시각은_기간이_끝난_직후와_운영_중을_끈_시각_중_이른_쪽이다() {
+		// 끄지 않았으면 종료일(10/6) 다음 날 0시
+		assertThat(campaign.closedAt()).isEqualTo(LocalDateTime.of(2026, 10, 7, 0, 0));
+
+		campaign.end(LocalDateTime.of(2026, 10, 1, 15, 30));
+
+		assertThat(campaign.getEndedAt()).isEqualTo(LocalDateTime.of(2026, 10, 1, 15, 30));
+		assertThat(campaign.closedAt()).isEqualTo(LocalDateTime.of(2026, 10, 1, 15, 30));
+	}
+
+	@Test
+	void 기간이_끝난_뒤에_운영_중을_꺼도_끝난_시각은_기간_종료다() {
+		campaign.end(LocalDateTime.of(2026, 10, 20, 9, 0));
+
+		assertThat(campaign.closedAt()).isEqualTo(LocalDateTime.of(2026, 10, 7, 0, 0));
+	}
+
+	@Test
+	void 이미_끈_캠페인을_다시_꺼도_처음_끈_시각을_지킨다() {
+		campaign.end(LocalDateTime.of(2026, 10, 1, 15, 30));
+
+		campaign.end(LocalDateTime.of(2026, 10, 3, 9, 0));
+
+		assertThat(campaign.getEndedAt()).isEqualTo(LocalDateTime.of(2026, 10, 1, 15, 30));
+	}
+
+	@Test
+	void 운영_중을_다시_켜면_끈_시각을_지운다() {
+		campaign.end(LocalDateTime.of(2026, 10, 1, 15, 30));
+
+		campaign.resume(LocalDate.of(2026, 10, 2));
+
+		assertThat(campaign.getEndedAt()).isNull();
+		assertThat(campaign.closedAt()).isEqualTo(LocalDateTime.of(2026, 10, 7, 0, 0));
 	}
 
 }
