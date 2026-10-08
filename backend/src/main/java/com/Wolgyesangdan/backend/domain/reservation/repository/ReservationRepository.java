@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
 import com.Wolgyesangdan.backend.domain.reservation.dto.CategoryCarbonSum;
 import com.Wolgyesangdan.backend.domain.reservation.dto.DeliveryTodo;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ItemSchedule;
@@ -35,7 +36,18 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 	long countCompletedByItemOwnerId(@Param("ownerId") Long ownerId);
 
 	// ── 탄소 성과 집계 (carbonreport) ──
-	// 전부 거래 완료(COMPLETED)된 예약 기준이고, campaignId가 null이면 전체, 있으면 그 캠페인 물품만 센다.
+	// 전부 거래 완료(COMPLETED)된 예약 기준이고, campaignId가 null이면 전체, 있으면 그 캠페인의 거래만 센다.
+
+	/**
+	 * "그 캠페인의 거래"인지 (#248). 둘 중 하나면 캠페인 거래다.
+	 * - 그 캠페인에 연결된 물품 (거점 거래를 고른 물품)
+	 * - 캠페인에 연결되지 않은 물품(직거래 전용)인데 캠페인 기간(:from 이상 :to 미만) 안에 거래가 완료된 것
+	 * 다른 캠페인에 연결된 물품은 기간이 겹쳐도 세지 않는다.
+	 */
+	String IN_CAMPAIGN = """
+			(i.campaign.id = :campaignId
+				or (i.campaign is null and r.completedAt >= :from and r.completedAt < :to))
+			""";
 
 	/**
 	 * 한 사용자의 거래 완료 집계 — 거래 완료된 예약 중 그 사람이 등록자(전달)인 것과 신청자(수령)인 것의 수,
@@ -59,6 +71,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 	/**
 	 * 내가 등록해서(나눔) 거래 완료된 물품의 예상 탄소 절감량 합계 — 리포트의 "내가 키운 나무".
 	 * 수령 쪽은 세지 않아 한 거래가 두 사람에게 중복으로 잡히지 않는다 (동네 전체 = 각자 키운 나무의 합).
+	 * campaignId가 null이면 from·to는 쓰이지 않는다.
 	 */
 	@Query("""
 			select coalesce(sum(i.estimatedCarbonReduction), 0L)
@@ -68,13 +81,15 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
 				and i.owner.id = :userId
 				and i.owner.id <> a.applicant.id
-				and (:campaignId is null or i.campaign.id = :campaignId)
-			""")
-	long sumGivenCarbonByUserId(@Param("userId") Long userId, @Param("campaignId") Long campaignId);
+				and (:campaignId is null or
+			""" + IN_CAMPAIGN + ")")
+	long sumGivenCarbonByUserId(@Param("userId") Long userId, @Param("campaignId") Long campaignId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
 	/**
 	 * 카테고리 대분류별 거래 완료 수와 예상 탄소 절감량 합계. 거래가 없는 대분류는 결과에 없다.
 	 * 전체 물품 수·합계도 이 결과를 더해서 구한다 (따로 집계 쿼리를 보내지 않음).
+	 * campaignId가 null이면 from·to는 쓰이지 않는다.
 	 */
 	@Query("""
 			select new com.Wolgyesangdan.backend.domain.reservation.dto.CategoryCarbonSum(
@@ -83,10 +98,29 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 				join r.application a
 				join a.item i
 			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
-				and (:campaignId is null or i.campaign.id = :campaignId)
+				and (:campaignId is null or
+			""" + IN_CAMPAIGN + """
+				)
 			group by i.categoryGroup
 			""")
-	List<CategoryCarbonSum> sumCompletedByCategoryGroup(@Param("campaignId") Long campaignId);
+	List<CategoryCarbonSum> sumCompletedByCategoryGroup(@Param("campaignId") Long campaignId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+	/**
+	 * 한 캠페인의 거래 완료 수와 예상 탄소 절감량 합계 — 홈 캠페인 배너, 관리자 대시보드·지난 캠페인 목록에 쓴다.
+	 * 탄소 리포트의 "이번 캠페인"과 같은 기준이다.
+	 */
+	@Query("""
+			select new com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary(
+				count(r), coalesce(sum(i.estimatedCarbonReduction), 0L))
+			from Reservation r
+				join r.application a
+				join a.item i
+			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
+				and
+			""" + IN_CAMPAIGN)
+	CompletedItemSummary summarizeCompletedInCampaign(@Param("campaignId") Long campaignId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
 	/** 처음으로 거래가 완료된 일시 (월계1동 전체). 없으면 null */
 	@Query("""
@@ -96,17 +130,17 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 			""")
 	LocalDateTime findFirstCompletedAt();
 
-	/** from 이후 그 캠페인에서 거래가 완료된 일시들 (날짜별 거래 수 집계용, 캠페인 기간만이라 건수가 적다) */
+	/** 그 캠페인의 거래가 완료된 일시들 (날짜별 거래 수 집계용, 캠페인 기간만이라 건수가 적다) */
 	@Query("""
 			select r.completedAt
 			from Reservation r
 				join r.application a
 				join a.item i
 			where r.status = com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus.COMPLETED
-				and r.completedAt >= :from
-				and i.campaign.id = :campaignId
-			""")
-	List<LocalDateTime> findCompletedAtSince(@Param("from") LocalDateTime from, @Param("campaignId") Long campaignId);
+				and
+			""" + IN_CAMPAIGN)
+	List<LocalDateTime> findCompletedAtInCampaign(@Param("campaignId") Long campaignId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
 	/**
 	 * 물품별 진행 중인 예약의 배정된 신청 id와 전달 예정 일시. 노쇼·취소된 예약은 빼고,

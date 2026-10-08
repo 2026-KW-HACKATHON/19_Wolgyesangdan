@@ -3,6 +3,7 @@ package com.Wolgyesangdan.backend.domain.campaign.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,7 +22,7 @@ import com.Wolgyesangdan.backend.domain.campaign.entity.CampaignStatus;
 import com.Wolgyesangdan.backend.domain.campaign.exception.CampaignErrorCode;
 import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
 import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
-import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
+import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +36,13 @@ class AdminCampaignServiceTest {
 	private static final LocalDate TODAY = LocalDate.of(2026, 10, 8);
 
 	private final CampaignRepository campaignRepository = Mockito.mock(CampaignRepository.class);
-	private final ItemRepository itemRepository = Mockito.mock(ItemRepository.class);
+	private final ReservationRepository reservationRepository = Mockito.mock(ReservationRepository.class);
 	private final AdminCampaignService adminCampaignService = new AdminCampaignService(campaignRepository,
-			new CampaignService(campaignRepository, itemRepository), itemRepository);
+			new CampaignService(campaignRepository, reservationRepository));
 
 	@BeforeEach
 	void setUp() {
-		given(itemRepository.summarizeCompletedByCampaignId(any())).willReturn(new CompletedItemSummary(0, 0));
+		given(reservationRepository.summarizeCompletedInCampaign(any(), any(), any())).willReturn(new CompletedItemSummary(0, 0));
 		given(campaignRepository.save(any(Campaign.class))).willAnswer(invocation -> {
 			Campaign saved = invocation.getArgument(0);
 			ReflectionTestUtils.setField(saved, "id", 100L);
@@ -57,7 +58,7 @@ class AdminCampaignServiceTest {
 		Campaign endedLongAgo = campaign(2L, TODAY.minusDays(90), TODAY.minusDays(60));
 		Campaign endedRecently = campaign(3L, TODAY.minusDays(40), TODAY.minusDays(20));
 		given(campaignRepository.findAll()).willReturn(List.of(running, endedLongAgo, endedRecently));
-		given(itemRepository.summarizeCompletedByCampaignId(3L)).willReturn(new CompletedItemSummary(128, 3420));
+		given(reservationRepository.summarizeCompletedInCampaign(eq(3L), any(), any())).willReturn(new CompletedItemSummary(128, 3420));
 
 		AdminCampaignListResponse response = adminCampaignService.getCampaigns(TODAY);
 

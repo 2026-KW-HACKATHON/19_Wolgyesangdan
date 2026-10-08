@@ -9,7 +9,8 @@ import com.Wolgyesangdan.backend.domain.campaign.dto.ActiveCampaignResponse;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.entity.CampaignStatus;
 import com.Wolgyesangdan.backend.domain.campaign.repository.CampaignRepository;
-import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
+import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
+import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CampaignService {
 
 	private final CampaignRepository campaignRepository;
-	private final ItemRepository itemRepository;
+	private final ReservationRepository reservationRepository;
 
 	/**
 	 * 지금 진행 중인 캠페인, 없으면 가장 먼저 시작할 예정 캠페인. 둘 다 없으면 null.
@@ -34,8 +35,17 @@ public class CampaignService {
 	ActiveCampaignResponse getActiveCampaign(LocalDate today) {
 		return findCurrentCampaign(today)
 				.map(campaign -> ActiveCampaignResponse.of(campaign, campaign.statusOn(today),
-						itemRepository.summarizeCompletedByCampaignId(campaign.getId())))
+						summarizeTrades(campaign)))
 				.orElse(null);
+	}
+
+	/**
+	 * 그 캠페인의 거래 완료 수와 탄소 절감량 합계. 캠페인에 연결된 물품(거점 거래)과,
+	 * 캠페인 기간 안에 완료된 직거래를 함께 센다 (#248). 탄소 리포트의 "이번 캠페인"과 같은 기준이다.
+	 */
+	public CompletedItemSummary summarizeTrades(Campaign campaign) {
+		return reservationRepository.summarizeCompletedInCampaign(campaign.getId(), campaign.periodStartAt(),
+				campaign.periodEndExclusive());
 	}
 
 	/**

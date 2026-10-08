@@ -103,18 +103,21 @@ class CarbonReportQueryTest {
 	}
 
 	@Test
-	void 캠페인_범위는_그_캠페인_물품만_세고_시작일부터_오늘까지_날짜별_거래_수를_채운다() {
+	void 캠페인_범위는_캠페인_물품과_기간_중_직거래를_세고_시작일부터_오늘까지_날짜별_거래_수를_채운다() {
 		Campaign campaign = persist(campaign(TODAY.minusDays(3), TODAY.plusDays(5)));
+		Campaign endedCampaign = persist(campaign(TODAY.minusDays(30), TODAY.minusDays(20)));
 		completed(item(CategoryGroup.FURNITURE, 30, campaign), TODAY.minusDays(3).atTime(10, 0));
 		completed(item(CategoryGroup.FURNITURE, 30, campaign), TODAY.minusDays(1).atTime(10, 0));
 		completed(item(CategoryGroup.APPLIANCE, 24, campaign), TODAY.minusDays(1).atTime(18, 0));
-		completed(item(CategoryGroup.KITCHEN, 10, null), TODAY.minusDays(1).atTime(12, 0)); // 직거래 — 캠페인 아님
+		completed(item(CategoryGroup.KITCHEN, 10, null), TODAY.minusDays(1).atTime(12, 0)); // 캠페인 기간 중 직거래 — 센다 (#248)
+		completed(item(CategoryGroup.LIVING, 15, null), TODAY.minusDays(10).atTime(12, 0)); // 캠페인 시작 전 직거래
+		completed(item(CategoryGroup.ETC, 8, endedCampaign), TODAY.minusDays(1).atTime(9, 0)); // 다른 캠페인 물품
 		flushAndClear();
 
 		CarbonReportResponse report = carbonReportService.getReport(ReportScope.CAMPAIGN, null, TODAY);
 
-		assertThat(report.reusedCount()).isEqualTo(3);
-		assertThat(report.carbonReductionKg()).isEqualTo(84);
+		assertThat(report.reusedCount()).isEqualTo(4);
+		assertThat(report.carbonReductionKg()).isEqualTo(94);
 		assertThat(report.campaign().id()).isEqualTo(campaign.getId());
 		assertThat(report.campaign().status()).isEqualTo(CampaignStatus.ACTIVE);
 		assertThat(report.campaign().startDate()).isEqualTo(TODAY.minusDays(3));
@@ -125,10 +128,27 @@ class CarbonReportQueryTest {
 				.containsExactly(
 						tuple(TODAY.minusDays(3), 1L),
 						tuple(TODAY.minusDays(2), 0L),
-						tuple(TODAY.minusDays(1), 2L),
+						tuple(TODAY.minusDays(1), 3L),
 						tuple(TODAY, 0L));
 		assertThat(report.categoryBreakdown()).extracting(CategoryCarbon::carbonReductionKg)
-				.containsExactly(60L, 24L, 0L, 0L, 0L);
+				.containsExactly(60L, 24L, 10L, 0L, 0L);
+	}
+
+	@Test
+	void 직거래는_캠페인_시작일_0시부터_종료일_자정_전까지_완료된_것만_캠페인_범위에_든다() {
+		persist(campaign(TODAY.minusDays(3), TODAY));
+		completed(item(CategoryGroup.FURNITURE, 30, null), TODAY.minusDays(4).atTime(23, 59, 59)); // 시작 전날
+		completed(item(CategoryGroup.APPLIANCE, 24, null), TODAY.minusDays(3).atStartOfDay());     // 시작일 0시
+		completed(item(CategoryGroup.KITCHEN, 10, null), TODAY.atTime(23, 59, 59));                // 종료일 마지막 순간
+		completed(item(CategoryGroup.LIVING, 15, null), TODAY.plusDays(1).atStartOfDay());         // 종료 다음 날 0시
+		flushAndClear();
+
+		CarbonReportResponse report = carbonReportService.getReport(ReportScope.CAMPAIGN, null, TODAY);
+
+		assertThat(report.reusedCount()).isEqualTo(2);
+		assertThat(report.carbonReductionKg()).isEqualTo(34);
+		// 전체 범위는 기간과 관계없이 전부
+		assertThat(carbonReportService.getReport(ReportScope.ALL, null, TODAY).reusedCount()).isEqualTo(4);
 	}
 
 	@Test
@@ -164,13 +184,15 @@ class CarbonReportQueryTest {
 	void 내가_키운_탄소는_내가_등록해서_거래_완료된_물품만_같은_범위로_센다() {
 		Campaign campaign = persist(campaign(TODAY.minusDays(3), TODAY.plusDays(5)));
 		completed(item(CategoryGroup.FURNITURE, 30, campaign), TODAY.minusDays(1).atStartOfDay()); // 등록자가 나눔 (캠페인)
-		completed(item(CategoryGroup.APPLIANCE, 24, null), at(2026, 9, 1)); // 등록자가 나눔 (직거래)
+		completed(item(CategoryGroup.APPLIANCE, 24, null), at(2026, 9, 1)); // 등록자가 나눔 (캠페인 시작 전 직거래)
+		completed(item(CategoryGroup.LIVING, 15, null), TODAY.minusDays(2).atTime(12, 0)); // 등록자가 나눔 (캠페인 기간 중 직거래)
 		flushAndClear();
 
 		assertThat(carbonReportService.getReport(ReportScope.ALL, owner.getId(), TODAY).myCarbonReductionKg())
-				.isEqualTo(54);
+				.isEqualTo(69);
+		// 캠페인 물품 30 + 기간 중 직거래 15 (#248)
 		assertThat(carbonReportService.getReport(ReportScope.CAMPAIGN, owner.getId(), TODAY).myCarbonReductionKg())
-				.isEqualTo(30);
+				.isEqualTo(45);
 		// 받은 쪽은 세지 않는다 — 한 거래가 두 사람에게 중복으로 잡히지 않게 (동네 전체 = 각자 키운 나무의 합)
 		assertThat(carbonReportService.getReport(ReportScope.ALL, applicant.getId(), TODAY).myCarbonReductionKg())
 				.isZero();

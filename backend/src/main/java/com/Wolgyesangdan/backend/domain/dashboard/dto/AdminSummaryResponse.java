@@ -23,7 +23,7 @@ public record AdminSummaryResponse(
 	 * @param status 오늘 기준 진행 상태 — PLANNED 또는 ACTIVE
 	 * @param startDate 캠페인 전체 기간의 시작일 (등록/신청/수령 기간 중 가장 이른 시작일)
 	 * @param endDate 캠페인 전체 기간의 종료일 (등록/신청/수령 기간 중 가장 늦은 종료일)
-	 * @param reusedCount 이 캠페인에서 거래가 끝난 물품 수
+	 * @param reusedCount 이 캠페인에서 거래가 끝난 물품 수 — 캠페인 물품(거점 거래)과 캠페인 기간 중 완료된 직거래
 	 */
 	public record CurrentCampaign(
 			Long id,

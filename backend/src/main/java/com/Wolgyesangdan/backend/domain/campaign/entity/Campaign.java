@@ -1,6 +1,7 @@
 package com.Wolgyesangdan.backend.domain.campaign.entity;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
@@ -84,6 +85,16 @@ public class Campaign extends BaseTimeEntity {
 		return Stream.of(registrationEndDate, applicationEndDate, pickupEndDate)
 				.max(Comparator.naturalOrder())
 				.orElseThrow();
+	}
+
+	/** 캠페인 전체 기간이 시작하는 시각 — 시작일 0시 */
+	public LocalDateTime periodStartAt() {
+		return periodStart().atStartOfDay();
+	}
+
+	/** 캠페인 전체 기간이 끝난 직후 — 종료일 다음 날 0시. 이 시각 "전"까지가 캠페인 기간이다 */
+	public LocalDateTime periodEndExclusive() {
+		return periodEnd().plusDays(1).atStartOfDay();
 	}
 
 	/**

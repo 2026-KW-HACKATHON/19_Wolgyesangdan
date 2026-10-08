@@ -43,8 +43,7 @@ public class AdminSummaryService {
 
 	AdminSummaryResponse getSummary(LocalDate today) {
 		CurrentCampaign currentCampaign = campaignService.findCurrentCampaign(today)
-				.map(campaign -> CurrentCampaign.of(campaign, today,
-						itemRepository.summarizeCompletedByCampaignId(campaign.getId()).count()))
+				.map(campaign -> CurrentCampaign.of(campaign, today, campaignService.summarizeTrades(campaign).count()))
 				.orElse(null);
 		return new AdminSummaryResponse(
 				priorityVerificationRepository.countByVerificationTypeInAndStatus(PRIORITY_TYPES, VerificationStatus.PENDING),

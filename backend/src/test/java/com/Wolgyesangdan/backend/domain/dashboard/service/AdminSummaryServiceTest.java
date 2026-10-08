@@ -6,6 +6,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.Wolgyesangdan.backend.domain.application.entity.Application;
+import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.entity.CampaignStatus;
 import com.Wolgyesangdan.backend.domain.campaign.service.CampaignService;
@@ -15,6 +17,9 @@ import com.Wolgyesangdan.backend.domain.inquiry.entity.InquiryCategory;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
+import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.verification.entity.PriorityVerification;
 import com.Wolgyesangdan.backend.domain.verification.entity.VerificationStatus;
@@ -96,10 +101,11 @@ class AdminSummaryServiceTest {
 	@Test
 	void 진행_중인_캠페인과_그_캠페인의_거래_완료_수를_내려준다() {
 		Campaign campaign = persist(campaign(FAR_FUTURE.minusDays(5), FAR_FUTURE.plusDays(10)));
-		persist(item(campaign, ItemStatus.COMPLETED));
-		persist(item(campaign, ItemStatus.COMPLETED));
-		persist(item(campaign, ItemStatus.OPEN));
-		persist(item(null, ItemStatus.COMPLETED)); // 캠페인 물품이 아님
+		completed(persist(item(campaign, ItemStatus.COMPLETED)), FAR_FUTURE.minusDays(1).atTime(10, 0));
+		completed(persist(item(campaign, ItemStatus.COMPLETED)), FAR_FUTURE.atTime(10, 0));
+		persist(item(campaign, ItemStatus.OPEN)); // 아직 거래 전
+		completed(persist(item(null, ItemStatus.COMPLETED)), FAR_FUTURE.atTime(15, 0));              // 캠페인 기간 중 직거래 — 센다 (#248)
+		completed(persist(item(null, ItemStatus.COMPLETED)), FAR_FUTURE.minusDays(30).atTime(15, 0)); // 캠페인 시작 전 직거래
 		flushAndClear();
 
 		AdminSummaryResponse.CurrentCampaign current = adminSummaryService.getSummary(FAR_FUTURE).currentCampaign();
@@ -109,7 +115,7 @@ class AdminSummaryServiceTest {
 		assertThat(current.status()).isEqualTo(CampaignStatus.ACTIVE);
 		assertThat(current.startDate()).isEqualTo(FAR_FUTURE.minusDays(5));
 		assertThat(current.endDate()).isEqualTo(FAR_FUTURE.plusDays(12));
-		assertThat(current.reusedCount()).isEqualTo(2);
+		assertThat(current.reusedCount()).isEqualTo(3);
 	}
 
 	@Test
@@ -155,6 +161,15 @@ class AdminSummaryServiceTest {
 				.status(status)
 				.submittedAt(LocalDateTime.now())
 				.build();
+	}
+
+	/** 그 물품의 거래를 completedAt에 완료한 것으로 만든다 (신청자는 admin 계정을 빌려 쓴다) */
+	private void completed(Item item, LocalDateTime completedAt) {
+		Application application = persist(Application.builder()
+				.item(item).applicant(admin).priorityScore(0).status(ApplicationStatus.COMPLETED).build());
+		persist(Reservation.builder()
+				.application(application).tradeMethod(TradeMethod.DIRECT).status(ReservationStatus.COMPLETED)
+				.completedAt(completedAt).build());
 	}
 
 	private Inquiry inquiry() {
