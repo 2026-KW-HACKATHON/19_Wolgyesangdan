@@ -118,6 +118,53 @@ class ItemCreateTest {
 				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_TRADE_METHOD_INVALID);
 	}
 
+	// 캠페인 전체 기간: 등록 시작(TODAY - 1) ~ 수령 종료(신청 종료 + 2 = TODAY + 9)
+	@Test
+	void 거점_거래는_전달_가능_기간이_캠페인_기간_안이면_등록된다() {
+		Campaign campaign = campaign(TODAY.minusDays(1), TODAY.plusDays(5), TODAY.plusDays(7));
+
+		ItemDetailResponse response = itemService.createItem(owner.getId(), requestWithPeriod(
+				List.of(TradeMethod.CAMPAIGN), campaign.getId(), TODAY, TODAY.plusDays(9)));
+
+		assertThat(response.campaign().id()).isEqualTo(campaign.getId());
+		assertThat(response.availableUntil()).isEqualTo(TODAY.plusDays(9));
+	}
+
+	@Test
+	void 거점_거래인데_전달_가능_기간이_캠페인이_끝난_뒤면_불가() {
+		Campaign campaign = campaign(TODAY.minusDays(1), TODAY.plusDays(5), TODAY.plusDays(7));
+
+		assertThatThrownBy(() -> itemService.createItem(owner.getId(), requestWithPeriod(
+				List.of(TradeMethod.CAMPAIGN), campaign.getId(), TODAY.plusDays(30), TODAY.plusDays(40))))
+				.isInstanceOf(BusinessException.class)
+				.hasMessageStartingWith("거점 거래는 전달 가능 기간이 캠페인 기간(")
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_TRADE_METHOD_INVALID);
+	}
+
+	@Test
+	void 거점_거래인데_전달_가능_종료일만_캠페인_기간을_넘어도_불가() {
+		Campaign campaign = campaign(TODAY.minusDays(1), TODAY.plusDays(5), TODAY.plusDays(7));
+
+		assertThatThrownBy(() -> itemService.createItem(owner.getId(), requestWithPeriod(
+				List.of(TradeMethod.DIRECT, TradeMethod.CAMPAIGN), campaign.getId(), TODAY, TODAY.plusDays(10))))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_TRADE_METHOD_INVALID);
+		// 종료일을 비워 두면 시작일만 확인한다
+		assertThat(itemService.createItem(owner.getId(), requestWithPeriod(
+				List.of(TradeMethod.CAMPAIGN), campaign.getId(), TODAY, null)).campaign().id()).isEqualTo(campaign.getId());
+	}
+
+	@Test
+	void 직거래만이면_전달_가능_기간이_캠페인_기간_밖이어도_등록된다() {
+		Campaign campaign = campaign(TODAY.minusDays(1), TODAY.plusDays(5), TODAY.plusDays(7));
+
+		ItemDetailResponse response = itemService.createItem(owner.getId(), requestWithPeriod(
+				List.of(TradeMethod.DIRECT), campaign.getId(), TODAY.plusDays(30), TODAY.plusDays(40)));
+
+		assertThat(response.campaign()).isNull();
+		assertThat(response.availableFrom()).isEqualTo(TODAY.plusDays(30));
+	}
+
 	@Test
 	void 거점_거래인데_캠페인을_안_보내면_불가() {
 		assertThatThrownBy(() -> itemService.createItem(owner.getId(),
@@ -170,6 +217,13 @@ class ItemCreateTest {
 				.build();
 		entityManager.persist(campaign);
 		return campaign;
+	}
+
+	private static ItemCreateRequest requestWithPeriod(List<TradeMethod> tradeMethods, Long campaignId,
+			LocalDate availableFrom, LocalDate availableUntil) {
+		return new ItemCreateRequest("전자레인지", null, CategoryGroup.APPLIANCE, null, "상태 좋음", null, null, null,
+				null, null, null, availableFrom, availableUntil, null, tradeMethods, campaignId,
+				List.of("https://img/1.jpg"));
 	}
 
 	private static ItemCreateRequest request(List<TradeMethod> tradeMethods, Long campaignId, List<String> imageUrls) {
