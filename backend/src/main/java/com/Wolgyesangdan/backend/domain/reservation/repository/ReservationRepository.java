@@ -43,6 +43,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 	 * - 그 캠페인에 연결된 물품 (거점 거래를 고른 물품)
 	 * - 캠페인에 연결되지 않은 물품(직거래 전용)인데 캠페인 기간(:from 이상 :to 미만) 안에 거래가 완료된 것
 	 * 다른 캠페인에 연결된 물품은 기간이 겹쳐도 세지 않는다.
+	 * :to는 CampaignService.directTradePeriodEnd — 운영 중을 끈 시각이나 다음 캠페인 시작에서 끊어서,
+	 * 한 직거래가 두 캠페인에 잡히지 않는다 (#250).
 	 */
 	String IN_CAMPAIGN = """
 			(i.campaign.id = :campaignId

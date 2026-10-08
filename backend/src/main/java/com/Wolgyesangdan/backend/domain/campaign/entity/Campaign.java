@@ -73,6 +73,12 @@ public class Campaign extends BaseTimeEntity {
 	@Column(nullable = false, length = 30)
 	private CampaignStatus status;
 
+	/**
+	 * 운영진이 관리자 화면에서 운영 중을 끈 시각 (#250). 끄지 않았거나 다시 켰으면 null.
+	 * 이 기능 전에 끈 캠페인은 status가 ENDED여도 null이다.
+	 */
+	private LocalDateTime endedAt;
+
 	/** 캠페인 전체 기간의 시작일 — 등록/신청/수령 기간 중 가장 이른 시작일 */
 	public LocalDate periodStart() {
 		return Stream.of(registrationStartDate, applicationStartDate, pickupStartDate)
@@ -95,6 +101,15 @@ public class Campaign extends BaseTimeEntity {
 	/** 캠페인 전체 기간이 끝난 직후 — 종료일 다음 날 0시. 이 시각 "전"까지가 캠페인 기간이다 */
 	public LocalDateTime periodEndExclusive() {
 		return periodEnd().plusDays(1).atStartOfDay();
+	}
+
+	/**
+	 * 캠페인이 실제로 끝난 시각 — 기간이 끝난 직후와 운영 중을 끈 시각 중 이른 쪽 (#250).
+	 * 이 시각 "전"까지 완료된 직거래만 이 캠페인의 거래로 센다.
+	 */
+	public LocalDateTime closedAt() {
+		LocalDateTime periodEnd = periodEndExclusive();
+		return endedAt != null && endedAt.isBefore(periodEnd) ? endedAt : periodEnd;
 	}
 
 	/**
@@ -136,11 +151,21 @@ public class Campaign extends BaseTimeEntity {
 
 	/** 운영 중 끄기 — 기간이 남아 있어도 끝난 캠페인이 된다 */
 	public void end() {
+		end(LocalDateTime.now());
+	}
+
+	/** 운영 중 끄기. 끈 시각을 남겨서, 그 뒤의 직거래를 이 캠페인의 거래로 세지 않는다 (#250) */
+	public void end(LocalDateTime now) {
+		// 이미 끈 캠페인을 다시 끄는 요청이면 처음 끈 시각을 지킨다
+		if (this.status != CampaignStatus.ENDED || this.endedAt == null) {
+			this.endedAt = now;
+		}
 		this.status = CampaignStatus.ENDED;
 	}
 
 	/** 운영 중 켜기 — 예정/진행 중은 다시 날짜로 판단한다 */
 	public void resume(LocalDate today) {
 		this.status = today.isBefore(periodStart()) ? CampaignStatus.PLANNED : CampaignStatus.ACTIVE;
+		this.endedAt = null;
 	}
 }

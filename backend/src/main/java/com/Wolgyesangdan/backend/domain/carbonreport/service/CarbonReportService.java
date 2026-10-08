@@ -68,7 +68,7 @@ public class CarbonReportService {
 		Long campaignId = campaign == null ? null : campaign.getId();
 		// 캠페인 범위는 그 캠페인 물품(거점 거래) + 캠페인 기간 안에 완료된 직거래 (#248)
 		LocalDateTime from = campaign == null ? NO_PERIOD : campaign.periodStartAt();
-		LocalDateTime to = campaign == null ? NO_PERIOD : campaign.periodEndExclusive();
+		LocalDateTime to = campaign == null ? NO_PERIOD : campaignService.directTradePeriodEnd(campaign);
 		// 대분류별 합을 더해 전체 물품 수·탄소 합계를 구한다 (같은 행을 두 번 집계하지 않도록)
 		List<CategoryCarbonSum> sums = reservationRepository.sumCompletedByCategoryGroup(campaignId, from, to);
 		long reusedCount = sums.stream().mapToLong(CategoryCarbonSum::count).sum();
@@ -105,7 +105,8 @@ public class CarbonReportService {
 			return List.of();
 		}
 		Map<LocalDate, Long> countByDate = reservationRepository
-				.findCompletedAtInCampaign(campaign.getId(), campaign.periodStartAt(), campaign.periodEndExclusive())
+				.findCompletedAtInCampaign(campaign.getId(), campaign.periodStartAt(),
+						campaignService.directTradePeriodEnd(campaign))
 				.stream()
 				.collect(Collectors.groupingBy(LocalDateTime::toLocalDate, Collectors.counting()));
 		return start.datesUntil(last.plusDays(1))
