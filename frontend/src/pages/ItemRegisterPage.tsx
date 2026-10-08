@@ -165,6 +165,21 @@ function hubPeriodOf(campaign: ActiveCampaign): HubPeriod {
   return { start: starts.reduce((a, b) => (a < b ? a : b)), end: ends.reduce((a, b) => (a > b ? a : b)) }
 }
 
+/**
+ * 지금 거점 거래를 고를 수 없는 이유. 고를 수 있으면 null (#268).
+ * 서버와 같은 기준 — 캠페인이 끝나지 않았고 오늘이 물품 등록 기간 안(+ 신청 마감 전)이어야 한다 (ItemService.findCampaignAcceptingItems)
+ */
+function hubUnavailableReason(campaign: ActiveCampaign | null, today: string) {
+  if (!campaign || campaign.status === 'ENDED') return '지금은 진행 중인 캠페인이 없어서 직거래만 고를 수 있어요.'
+  const accepting =
+    today >= campaign.registrationStartDate && today <= campaign.registrationEndDate && today <= campaign.applicationEndDate
+  return accepting
+    ? null
+    : `거점 거래는 캠페인 물품 등록 기간(${monthDay(campaign.registrationStartDate)} ~ ${monthDay(campaign.registrationEndDate)})에만 고를 수 있어요.`
+}
+
+const usesHub = (trade: TradeChoice | null) => trade === 'CAMPAIGN' || trade === 'BOTH'
+
 /** "2026-10-08" → "10.8" */
 function monthDay(isoDate: string) {
   const [, month, day] = isoDate.split('-').map(Number)
@@ -176,7 +191,7 @@ function monthDay(isoDate: string) {
  * 서버도 같은 규칙으로 거절한다 (ItemService.validateAvailablePeriodInCampaign). 비워 둔 날짜는 확인하지 않는다
  */
 function hubPeriodError(form: RegisterForm, period: HubPeriod | null) {
-  if (!period || (form.trade !== 'CAMPAIGN' && form.trade !== 'BOTH')) return null
+  if (!period || !usesHub(form.trade)) return null
   const outside = [form.pickupStart, form.pickupEnd].some((date) => date && (date < period.start || date > period.end))
   return outside
     ? `거점 거래는 전달 가능 기간이 캠페인 기간(${monthDay(period.start)} ~ ${monthDay(period.end)}) 안이어야 해요. 기간을 고치거나 직거래를 골라 주세요.`
@@ -233,10 +248,8 @@ export default function ItemRegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  // 거점 거래로 등록할 때 보낼 캠페인. 없거나 못 불러오면 거점 거래 등록은 서버가 거절한다
-  const [campaignId, setCampaignId] = useState<number>()
-  // 거점 거래를 할 수 있는 기간 — 전달 가능 기간이 이 안인지 확인한다 (#256)
-  const [hubPeriod, setHubPeriod] = useState<HubPeriod | null>(null)
+  // 거점 거래로 등록할 때 보낼 캠페인. undefined: 불러오는 중, null: 진행 중·예정 캠페인이 없거나 불러오지 못함
+  const [campaign, setCampaign] = useState<ActiveCampaign | null | undefined>(undefined)
   // 카테고리별 탄소 절감 예상치(kg CO₂e). 등록 시 서버가 저장하는 값과 같은 참조표라 화면 숫자와 등록 결과가 맞는다.
   // 불러오는 중이거나 실패하면 null — 예상치 박스를 숨긴다
   const [carbonByCategory, setCarbonByCategory] = useState<Partial<Record<CategoryGroup, number>> | null>(null)
@@ -253,15 +266,18 @@ export default function ItemRegisterPage() {
       .catch(() => {
         // 예상치는 참고용이라 실패해도 등록은 그대로 진행할 수 있다
       })
+    // 캠페인을 못 불러오면 거점 거래는 고를 수 없는 것으로 본다 (직거래 등록에는 필요 없다)
+    const applyCampaign = (loaded: ActiveCampaign | null) => {
+      if (ignore) return
+      setCampaign(loaded)
+      // 임시저장에 거점 거래가 남아 있는데 지금은 고를 수 없으면 선택을 푼다
+      if (hubUnavailableReason(loaded, todayIso())) {
+        setForm((prev) => (usesHub(prev.trade) ? { ...prev, trade: null } : prev))
+      }
+    }
     getActiveCampaign()
-      .then((campaign) => {
-        if (ignore || !campaign) return
-        setCampaignId(campaign.id)
-        setHubPeriod(hubPeriodOf(campaign))
-      })
-      .catch(() => {
-        // 직거래 등록에는 필요 없다. 거점 거래를 고르면 서버 오류 문구로 안내한다
-      })
+      .then(applyCampaign)
+      .catch(() => applyCampaign(null))
     return () => {
       ignore = true
     }
@@ -272,8 +288,12 @@ export default function ItemRegisterPage() {
   const photosFailed = files.some((f) => f.status === 'error')
   // 사진은 전부 올라간 뒤에만 등록할 수 있다 (올리지 못한 사진은 지우고 다시 첨부)
   const hasPhoto = files.length > 0 && !photosUploading && !photosFailed
-  const hubError = hubPeriodError(form, hubPeriod)
-  const valid = isFormValid(form, hasPhoto) && !hubError
+  // 거점 거래를 고를 수 없는 이유 — 캠페인을 불러오는 동안은 null이지만 그동안은 아래 hubReady로 막는다
+  const hubBlocked = campaign === undefined ? null : hubUnavailableReason(campaign, today)
+  const hubReady = campaign !== undefined && !hubBlocked
+  // 거점 거래를 할 수 있는 기간 — 전달 가능 기간이 이 안인지 확인한다 (#256)
+  const hubError = hubPeriodError(form, campaign ? hubPeriodOf(campaign) : null)
+  const valid = isFormValid(form, hasPhoto) && !hubError && (!usesHub(form.trade) || hubReady)
   // 연락 수단이 없으면 들어오자마자 안내한다 — 사진을 다 올린 뒤에야 막히지 않도록 (#161)
   const showSheet = !contactLoading && !contact
 
@@ -335,7 +355,7 @@ export default function ItemRegisterPage() {
     let created: { id: number }
     try {
       const imageUrls = files.flatMap((f) => (f.imageUrl ? [f.imageUrl] : []))
-      created = await createItem(toCreateRequest(form, imageUrls, campaignId))
+      created = await createItem(toCreateRequest(form, imageUrls, campaign?.id))
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : '등록하지 못했어요. 잠시 후 다시 시도해 주세요.')
       return
@@ -499,14 +519,17 @@ export default function ItemRegisterPage() {
           <div className="flex flex-col gap-2" role="radiogroup" aria-label="거래 방식">
             {TRADE_CHOICES.map((choice) => {
               const selected = form.trade === choice.value
+              // 거점이 들어간 선택지는 지금 거점 거래를 할 수 있을 때만 고를 수 있다 (#268)
+              const disabled = usesHub(choice.value) && !hubReady
               return (
                 <button
                   key={choice.value}
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  disabled={disabled}
                   onClick={() => set('trade', choice.value)}
-                  className={`flex cursor-pointer items-center gap-3 rounded-[14px] bg-surface px-4 py-3.5 text-left ${
+                  className={`flex cursor-pointer items-center gap-3 rounded-[14px] bg-surface px-4 py-3.5 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
                     selected ? 'border-2 border-primary py-[13px]' : 'border border-border'
                   }`}
                 >
@@ -520,9 +543,8 @@ export default function ItemRegisterPage() {
             })}
           </div>
           <p className="mt-2 text-[12px] font-medium text-label-alt">
-            {form.trade === 'CAMPAIGN' || form.trade === 'BOTH'
-              ? '거점 수령은 캠페인 거점을 통해 진행돼요.'
-              : '직거래는 신청자와 직접 만나 전달해요.'}
+            {hubBlocked ??
+              (usesHub(form.trade) ? '거점 수령은 캠페인 거점을 통해 진행돼요.' : '직거래는 신청자와 직접 만나 전달해요.')}
           </p>
           {hubError && (
             <p role="alert" className="mt-1.5 text-[12px] leading-normal font-semibold text-terracotta">
