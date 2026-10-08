@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { applyForItem } from '../api/applications'
 import { ApiError } from '../api/client'
 import { getItem } from '../api/items'
@@ -78,7 +78,10 @@ export default function ItemDetail() {
   const [appliedId, setAppliedId] = useState<string | null>(null)
   const [applyError, setApplyError] = useState<{ id: string; code: string; message: string } | null>(null)
 
-  const [toast, setToast] = useState({ visible: false, message: '' })
+  // 물품 등록 직후 넘어온 경우 "등록했어요" 토스트로 시작한다 (#193)
+  const location = useLocation()
+  const justRegistered = (location.state as { registered?: boolean } | null)?.registered === true
+  const [toast, setToast] = useState(() => ({ visible: justRegistered, message: '물품을 등록했어요' }))
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -86,6 +89,13 @@ export default function ItemDetail() {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!justRegistered) return
+    toastTimeoutRef.current = setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2000)
+    // 새로고침·뒤로가기로 다시 들어와도 토스트가 또 뜨지 않게 기록의 표시를 지운다
+    navigate(location.pathname + location.search, { replace: true, state: null })
+  }, [justRegistered, navigate, location.pathname, location.search])
 
   const showToast = (message: string) => {
     setToast({ visible: true, message })
