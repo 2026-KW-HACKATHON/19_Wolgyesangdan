@@ -44,6 +44,7 @@ class EnumColumnTypeTest {
 						where table_schema = database()
 							and (table_name, column_name) in (
 								('applications', 'status'), ('campaigns', 'status'),
+								('inquiries', 'category'), ('inquiries', 'status'),
 								('item_trade_methods', 'trade_method'), ('items', 'status'),
 								('priority_verifications', 'status'), ('priority_verifications', 'verification_type'),
 								('priority_verifications', 'document_type'),
@@ -52,7 +53,7 @@ class EnumColumnTypeTest {
 						""")
 				.getResultList();
 
-		assertThat(columnTypes).hasSize(11).allMatch("varchar(30)"::equals);
+		assertThat(columnTypes).hasSize(13).allMatch("varchar(30)"::equals);
 	}
 
 }
