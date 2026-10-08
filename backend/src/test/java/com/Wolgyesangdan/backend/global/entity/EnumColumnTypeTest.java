@@ -48,11 +48,12 @@ class EnumColumnTypeTest {
 								('priority_verifications', 'status'), ('priority_verifications', 'verification_type'),
 								('priority_verifications', 'document_type'),
 								('reservations', 'status'), ('reservations', 'trade_method'),
-								('users', 'contact_type'), ('users', 'role'))
+								('users', 'contact_type'), ('users', 'role'),
+								('verification_audit_logs', 'action'))
 						""")
 				.getResultList();
 
-		assertThat(columnTypes).hasSize(11).allMatch("varchar(30)"::equals);
+		assertThat(columnTypes).hasSize(12).allMatch("varchar(30)"::equals);
 	}
 
 }
