@@ -4,6 +4,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,6 +117,27 @@ class AdminItemControllerTest {
 	}
 
 	@Test
+	void 신청을_조기_마감하고_바뀐_물품을_내려준다() throws Exception {
+		given(adminItemService.closeApplications(1L)).willReturn(new AdminItemResponse(1L, "전자레인지", "등록자",
+				CategoryGroup.APPLIANCE, ItemStatus.ASSIGNED, LocalDateTime.of(2026, 10, 8, 10, 0, 0), false));
+
+		mockMvc.perform(post("/admin/items/1/close-applications").header(HttpHeaders.AUTHORIZATION, adminToken()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(1))
+				.andExpect(jsonPath("$.status").value("ASSIGNED"));
+	}
+
+	@Test
+	void 신청_받는_중이_아닌_물품을_조기_마감하면_409_ITEM_NOT_ACCEPTING_APPLICATIONS() throws Exception {
+		given(adminItemService.closeApplications(1L))
+				.willThrow(new BusinessException(ItemErrorCode.ITEM_NOT_ACCEPTING_APPLICATIONS));
+
+		mockMvc.perform(post("/admin/items/1/close-applications").header(HttpHeaders.AUTHORIZATION, adminToken()))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("ITEM_NOT_ACCEPTING_APPLICATIONS"));
+	}
+
+	@Test
 	void 비로그인이면_401() throws Exception {
 		mockMvc.perform(get("/admin/items"))
 				.andExpect(status().isUnauthorized());
@@ -131,6 +153,9 @@ class AdminItemControllerTest {
 						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(7L))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"hidden\":true}"))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(post("/admin/items/1/close-applications")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(7L)))
 				.andExpect(status().isForbidden());
 	}
 

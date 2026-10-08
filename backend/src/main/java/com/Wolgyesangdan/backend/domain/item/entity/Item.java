@@ -139,6 +139,11 @@ public class Item extends BaseTimeEntity {
 		}
 	}
 
+	/** 관리자 조기 마감 — 신청 마감 시각을 지금으로 당긴다 (#274) */
+	public void closeApplications(LocalDateTime now) {
+		this.applicationDeadline = now;
+	}
+
 	/** 배정 확정 — 전달·수령이 끝날 때까지 "예약 중" */
 	public void assign() {
 		this.status = ItemStatus.ASSIGNED;

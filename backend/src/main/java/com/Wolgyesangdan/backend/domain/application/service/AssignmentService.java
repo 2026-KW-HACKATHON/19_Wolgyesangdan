@@ -11,18 +11,21 @@ import com.Wolgyesangdan.backend.domain.application.repository.ApplicationReposi
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
+import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemTradeMethodRepository;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
 import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
 import com.Wolgyesangdan.backend.domain.reservation.repository.ReservationRepository;
+import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 신청 마감 → 배정 (요구사항 ASGN-01·02·05). AssignmentScheduler가 1분마다 호출한다.
+ * 신청 마감 → 배정 (요구사항 ASGN-01·02·05). AssignmentScheduler가 1분마다 호출하고,
+ * 관리자 조기 마감(#274)은 AdminItemService가 호출한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -68,7 +71,26 @@ public class AssignmentService {
 				|| !item.getApplicationDeadline().isBefore(now)) {
 			return Result.SKIPPED;
 		}
+		return assignLocked(item, now);
+	}
 
+	/**
+	 * 관리자 조기 마감 (#274) — 신청 마감 시각을 지금으로 당기고 스케줄러를 기다리지 않고 바로 배정한다.
+	 * 배정 규칙은 assign과 같다. 신청을 받는 중(OPEN)이거나 정원이 차서 마감된(CLOSED) 물품만 할 수 있다.
+	 */
+	@Transactional
+	public Result closeAndAssign(Long itemId, LocalDateTime now) {
+		Item item = itemRepository.findByIdForUpdate(itemId)
+				.orElseThrow(() -> new BusinessException(ItemErrorCode.ITEM_NOT_FOUND));
+		if (!ASSIGNABLE_STATUSES.contains(item.getStatus())) {
+			throw new BusinessException(ItemErrorCode.ITEM_NOT_ACCEPTING_APPLICATIONS);
+		}
+		item.closeApplications(now);
+		return assignLocked(item, now);
+	}
+
+	// 잠근 물품을 배정한다 — 1순위를 SELECTED로 바꾸고 예약을 만들거나, 신청자가 없으면 물품을 종료한다
+	private Result assignLocked(Item item, LocalDateTime now) {
 		List<Application> waiting = applicationRepository
 				.findByItemAndStatusOrderByPriorityScoreDescCreatedAtAscIdAsc(item, ApplicationStatus.WAITING);
 		if (waiting.isEmpty()) {
@@ -78,7 +100,7 @@ public class AssignmentService {
 
 		Application selected = waiting.get(0);
 		selected.select(now);
-		TradeMethod tradeMethod = tradeMethodOf(itemId);
+		TradeMethod tradeMethod = tradeMethodOf(item.getId());
 		reservationRepository.save(Reservation.builder()
 				.application(selected)
 				.tradeMethod(tradeMethod)
