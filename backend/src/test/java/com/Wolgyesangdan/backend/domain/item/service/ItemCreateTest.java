@@ -16,6 +16,7 @@ import com.Wolgyesangdan.backend.domain.item.entity.CategoryCarbonReference;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemType;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.domain.user.entity.ContactType;
@@ -195,10 +196,45 @@ class ItemCreateTest {
 	}
 
 	@Test
+	void 품목을_고르면_품목_값으로_탄소_절감량을_계산하고_세부_카테고리에_품목_이름을_넣는다() {
+		ItemDetailResponse response = itemService.createItem(owner.getId(), withItemType(CategoryGroup.APPLIANCE,
+				ItemType.REFRIGERATOR, List.of(TradeMethod.DIRECT), null, List.of("https://img/1.jpg")));
+
+		assertThat(response.estimatedCarbonReduction()).isEqualTo(240);
+		assertThat(response.itemType()).isEqualTo(ItemType.REFRIGERATOR);
+		assertThat(response.category()).isEqualTo("냉장고");
+		assertThat(response.carbonBasis()).isEqualTo(ItemType.REFRIGERATOR.getBasis());
+
+		entityManager.flush();
+		entityManager.clear();
+		Item saved = entityManager.find(Item.class, response.id());
+		assertThat(saved.getItemType()).isEqualTo(ItemType.REFRIGERATOR);
+		assertThat(saved.getEstimatedCarbonReduction()).isEqualTo(240);
+	}
+
+	@Test
+	void 품목을_고르지_않으면_대분류_값을_쓰고_근거는_비운다() {
+		ItemDetailResponse response = itemService.createItem(owner.getId(),
+				request(List.of(TradeMethod.DIRECT), null, List.of("https://img/1.jpg")));
+
+		assertThat(response.estimatedCarbonReduction()).isEqualTo(24);
+		assertThat(response.itemType()).isNull();
+		assertThat(response.carbonBasis()).isNull();
+	}
+
+	@Test
+	void 품목이_대분류와_맞지_않으면_ITEM_TYPE_CATEGORY_MISMATCH() {
+		assertThatThrownBy(() -> itemService.createItem(owner.getId(), withItemType(CategoryGroup.APPLIANCE,
+				ItemType.SOFA, List.of(TradeMethod.DIRECT), null, List.of("https://img/1.jpg"))))
+				.isInstanceOf(BusinessException.class)
+				.extracting("errorCode").isEqualTo(ItemErrorCode.ITEM_TYPE_CATEGORY_MISMATCH);
+	}
+
+	@Test
 	void 하자가_없으면_하자_설명은_저장하지_않는다() {
 		ItemCreateRequest base = request(List.of(TradeMethod.DIRECT), null, List.of("https://img/1.jpg"));
 		ItemCreateRequest withStrayDefectText = new ItemCreateRequest(base.name(), base.category(),
-				base.categoryGroup(), base.description(), base.conditionGrade(), base.usagePeriod(), false,
+				base.categoryGroup(), base.itemType(), base.description(), base.conditionGrade(), base.usagePeriod(), false,
 				"실수로 남은 설명", base.workingStatus(), base.size(), base.transportDifficulty(), base.availableFrom(),
 				base.availableUntil(), base.disposalDeadline(), base.tradeMethods(), base.campaignId(),
 				base.imageUrls());
@@ -221,13 +257,18 @@ class ItemCreateTest {
 
 	private static ItemCreateRequest requestWithPeriod(List<TradeMethod> tradeMethods, Long campaignId,
 			LocalDate availableFrom, LocalDate availableUntil) {
-		return new ItemCreateRequest("전자레인지", null, CategoryGroup.APPLIANCE, null, "상태 좋음", null, null, null,
+		return new ItemCreateRequest("전자레인지", null, CategoryGroup.APPLIANCE, null, null, "상태 좋음", null, null, null,
 				null, null, null, availableFrom, availableUntil, null, tradeMethods, campaignId,
 				List.of("https://img/1.jpg"));
 	}
 
 	private static ItemCreateRequest request(List<TradeMethod> tradeMethods, Long campaignId, List<String> imageUrls) {
-		return new ItemCreateRequest("전자레인지", null, CategoryGroup.APPLIANCE, null, "상태 좋음", null, null, null,
+		return withItemType(CategoryGroup.APPLIANCE, null, tradeMethods, campaignId, imageUrls);
+	}
+
+	private static ItemCreateRequest withItemType(CategoryGroup categoryGroup, ItemType itemType,
+			List<TradeMethod> tradeMethods, Long campaignId, List<String> imageUrls) {
+		return new ItemCreateRequest("전자레인지", null, categoryGroup, itemType, null, "상태 좋음", null, null, null,
 				null, null, null, null, null, null, tradeMethods, campaignId, imageUrls);
 	}
 

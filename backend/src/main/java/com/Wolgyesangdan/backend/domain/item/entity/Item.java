@@ -79,6 +79,12 @@ public class Item extends BaseTimeEntity {
 	@Column(length = 20)
 	private String workingStatus;
 
+	/** 품목 (#284). 목록에 없는 물건이면 null — 대분류 값으로 탄소 절감량을 계산한 물품 */
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(length = 30)
+	private ItemType itemType;
+
 	@Column(length = 50)
 	private String size;
 

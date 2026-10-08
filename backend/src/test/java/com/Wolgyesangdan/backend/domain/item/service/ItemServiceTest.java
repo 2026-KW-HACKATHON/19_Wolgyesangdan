@@ -1,6 +1,7 @@
 package com.Wolgyesangdan.backend.domain.item.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.List;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryCarbonReference;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemType;
 import com.Wolgyesangdan.backend.domain.item.repository.CategoryCarbonReferenceRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemImageRepository;
 import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
@@ -39,12 +41,32 @@ class ItemServiceTest {
 				reference(CategoryGroup.LIVING, 15),
 				reference(CategoryGroup.APPLIANCE, 24)));
 
-		assertThat(itemService.getCategories()).containsExactly(
-				new CategoryResponse(CategoryGroup.FURNITURE, 30),
-				new CategoryResponse(CategoryGroup.APPLIANCE, 24),
-				new CategoryResponse(CategoryGroup.KITCHEN, 10),
-				new CategoryResponse(CategoryGroup.LIVING, 15),
-				new CategoryResponse(CategoryGroup.ETC, 8));
+		assertThat(itemService.getCategories()).extracting(CategoryResponse::categoryGroup, CategoryResponse::carbonReductionKg)
+				.containsExactly(
+						tuple(CategoryGroup.FURNITURE, 30),
+						tuple(CategoryGroup.APPLIANCE, 24),
+						tuple(CategoryGroup.KITCHEN, 10),
+						tuple(CategoryGroup.LIVING, 15),
+						tuple(CategoryGroup.ETC, 8));
+	}
+
+	@Test
+	void 대분류마다_속한_품목을_선언_순서대로_함께_내려준다() {
+		given(categoryCarbonReferenceRepository.findAll()).willReturn(List.of(
+				reference(CategoryGroup.APPLIANCE, 70), reference(CategoryGroup.ETC, 8)));
+
+		List<CategoryResponse> categories = itemService.getCategories();
+
+		CategoryResponse appliance = categories.getFirst();
+		assertThat(appliance.itemTypes()).extracting(CategoryResponse.ItemTypeResponse::itemType)
+				.containsExactlyElementsOf(ItemType.of(CategoryGroup.APPLIANCE));
+		CategoryResponse.ItemTypeResponse refrigerator = appliance.itemTypes().getFirst();
+		assertThat(refrigerator.itemType()).isEqualTo(ItemType.REFRIGERATOR);
+		assertThat(refrigerator.label()).isEqualTo("냉장고");
+		assertThat(refrigerator.carbonReductionKg()).isEqualTo(240);
+		assertThat(refrigerator.basis()).contains("UK DESNZ 2024");
+		assertThat(categories.get(1).itemTypes()).extracting(CategoryResponse.ItemTypeResponse::itemType)
+				.containsExactly(ItemType.BICYCLE);
 	}
 
 	private static CategoryCarbonReference reference(CategoryGroup categoryGroup, int carbonReductionKg) {

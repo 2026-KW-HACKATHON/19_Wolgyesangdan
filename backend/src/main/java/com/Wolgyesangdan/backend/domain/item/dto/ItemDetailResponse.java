@@ -11,17 +11,20 @@ import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemType;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 
 /**
  * 물품 상세. 등록자의 연락처는 담지 않는다 — 배정된 상대에게만 예약 상세 API로 공개.
  * isMine·myApplication은 보는 사람 기준 값이다 (비회원이면 false·null, #168).
+ * itemType·carbonBasis는 품목을 고른 물품만 값이 있다 (#284). null이면 대분류 값으로 계산한 물품.
  */
 public record ItemDetailResponse(
 		Long id,
 		String name,
 		String category,
 		CategoryGroup categoryGroup,
+		ItemType itemType,
 		String description,
 		String conditionGrade,
 		String usagePeriod,
@@ -31,6 +34,7 @@ public record ItemDetailResponse(
 		String size,
 		String transportDifficulty,
 		int estimatedCarbonReduction,
+		String carbonBasis,
 		LocalDate availableFrom,
 		LocalDate availableUntil,
 		LocalDate disposalDeadline,
@@ -52,6 +56,7 @@ public record ItemDetailResponse(
 				item.getName(),
 				item.getCategory(),
 				item.getCategoryGroup(),
+				item.getItemType(),
 				item.getDescription(),
 				item.getConditionGrade(),
 				item.getUsagePeriod(),
@@ -61,6 +66,7 @@ public record ItemDetailResponse(
 				item.getSize(),
 				item.getTransportDifficulty(),
 				item.getEstimatedCarbonReduction(),
+				item.getItemType() == null ? null : item.getItemType().getBasis(),
 				item.getAvailableFrom(),
 				item.getAvailableUntil(),
 				item.getDisposalDeadline(),

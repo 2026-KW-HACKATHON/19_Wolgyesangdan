@@ -29,6 +29,7 @@ import com.Wolgyesangdan.backend.domain.item.entity.CategoryCarbonReference;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemImage;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemType;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemTradeMethod;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
@@ -160,7 +161,8 @@ public class ItemService {
 	 * - 거점 거래를 포함하면 캠페인 물품 등록 기간 안이어야 하고, 신청 마감은 캠페인 신청 종료일 23:59:59
 	 * - 거점 거래를 포함하면 전달 가능 기간(적었다면)도 캠페인 기간 안이어야 한다 (#256)
 	 * - 직거래만이면 신청 마감은 등록일 + 3일 23:59:59
-	 * - 등록 즉시 OPEN, 예상 탄소 절감량은 카테고리 기준표 값을 스냅샷으로 저장
+	 * - 등록 즉시 OPEN, 예상 탄소 절감량은 품목 값(#284), 품목이 없으면 대분류 기준표 값을 스냅샷으로 저장
+	 * - 품목은 고른 대분류에 속해야 한다
 	 */
 	@Transactional
 	public ItemDetailResponse createItem(Long userId, ItemCreateRequest request) {
@@ -181,9 +183,15 @@ public class ItemService {
 		LocalDateTime applicationDeadline = campaign != null
 				? campaign.getApplicationEndDate().atTime(END_OF_DAY)
 				: today.plusDays(DIRECT_APPLICATION_DAYS).atTime(END_OF_DAY);
-		int carbonReduction = categoryCarbonReferenceRepository.findByCategoryGroup(request.categoryGroup())
-				.orElseThrow(() -> new IllegalStateException("탄소 참조값이 없는 카테고리: " + request.categoryGroup()))
-				.getCarbonReductionKg();
+		ItemType itemType = request.itemType();
+		if (itemType != null && itemType.getCategoryGroup() != request.categoryGroup()) {
+			throw new BusinessException(ItemErrorCode.ITEM_TYPE_CATEGORY_MISMATCH);
+		}
+		int carbonReduction = itemType != null
+				? itemType.getCarbonReductionKg()
+				: categoryCarbonReferenceRepository.findByCategoryGroup(request.categoryGroup())
+						.orElseThrow(() -> new IllegalStateException("탄소 참조값이 없는 카테고리: " + request.categoryGroup()))
+						.getCarbonReductionKg();
 		boolean defect = Boolean.TRUE.equals(request.defectYn());
 
 		Item item = itemRepository.save(Item.builder()
@@ -191,7 +199,9 @@ public class ItemService {
 				.campaign(campaign)
 				.name(request.name().strip())
 				.categoryGroup(request.categoryGroup())
-				.category(request.category())
+				.itemType(itemType)
+				// 세부 카테고리는 품목 이름으로 채운다 — 품목이 없으면 요청에 온 값 그대로
+				.category(itemType != null ? itemType.getLabel() : request.category())
 				.description(request.description())
 				.conditionGrade(request.conditionGrade())
 				.usagePeriod(request.usagePeriod())
