@@ -15,6 +15,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -49,6 +50,14 @@ public class User extends BaseTimeEntity {
 	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(length = 30)
 	private ContactType contactType;
+
+	// 운영 DB가 ddl-auto: update라 컬럼이 추가될 때 기존 회원 행에도 USER가 들어가도록 DB 기본값을 둔다
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@ColumnDefault("'USER'")
+	@Column(nullable = false, length = 30)
+	@Builder.Default
+	private Role role = Role.USER;
 
 	/**
 	 * 공개할 연락 수단을 바꾸고 그 값을 갱신한다. 다른 쪽 값은 지우지 않고 보존한다 —

@@ -3,6 +3,7 @@ package com.Wolgyesangdan.backend.global.security;
 import java.io.IOException;
 import java.util.List;
 
+import com.Wolgyesangdan.backend.domain.user.entity.Role;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
 
 import jakarta.servlet.FilterChain;
@@ -12,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -38,9 +40,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		String token = resolveToken(request);
 		if (token != null) {
 			try {
-				Long userId = jwtProvider.getUserIdFromAccessToken(token);
-				SecurityContextHolder.getContext()
-						.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of()));
+				AccessTokenPayload payload = jwtProvider.parseAccessToken(token);
+				// principal은 지금처럼 userId 그대로 (@AuthenticationPrincipal Long userId), 관리자만 ROLE_ADMIN 권한을 붙인다
+				List<SimpleGrantedAuthority> authorities = payload.role() == Role.ADMIN
+						? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+						: List.of();
+				SecurityContextHolder.getContext().setAuthentication(
+						UsernamePasswordAuthenticationToken.authenticated(payload.userId(), null, authorities));
 			} catch (BusinessException e) {
 				request.setAttribute(AUTH_ERROR_CODE_ATTRIBUTE, e.getErrorCode());
 			}

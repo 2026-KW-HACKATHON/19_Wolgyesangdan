@@ -17,6 +17,7 @@ import com.Wolgyesangdan.backend.domain.auth.dto.TokenResponse;
 import com.Wolgyesangdan.backend.domain.auth.entity.RefreshToken;
 import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.auth.repository.RefreshTokenRepository;
+import com.Wolgyesangdan.backend.domain.user.entity.Role;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
@@ -81,6 +82,7 @@ public class AuthService {
 		User user = existingUser.orElseGet(() -> userRepository.save(User.builder()
 				.kakaoId(request.kakaoId())
 				.nickname(request.nickname())
+				.role(Boolean.TRUE.equals(request.admin()) ? Role.ADMIN : Role.USER)
 				.build()));
 		return LoginResponse.of(issueTokens(user), existingUser.isEmpty(), user);
 	}
@@ -88,7 +90,7 @@ public class AuthService {
 	private TokenResponse issueTokens(User user) {
 		refreshTokenRepository.deleteExpiredByUserId(user.getId(), LocalDateTime.now());
 
-		String accessToken = jwtProvider.createAccessToken(user.getId());
+		String accessToken = jwtProvider.createAccessToken(user.getId(), user.getRole());
 		String refreshToken = jwtProvider.createRefreshToken(user.getId());
 		refreshTokenRepository.save(RefreshToken.builder()
 				.user(user)

@@ -2,12 +2,14 @@ package com.Wolgyesangdan.backend.global.config;
 
 import java.util.List;
 
+import com.Wolgyesangdan.backend.global.security.JwtAccessDeniedHandler;
 import com.Wolgyesangdan.backend.global.security.JwtAuthenticationEntryPoint;
 import com.Wolgyesangdan.backend.global.security.JwtAuthenticationFilter;
 import com.Wolgyesangdan.backend.global.security.JwtProperties;
 import com.Wolgyesangdan.backend.global.security.JwtProvider;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
  * JWT 기반 stateless 인증 설정.
@@ -40,7 +43,8 @@ public class SecurityConfig {
 	private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http,
+			@Qualifier("handlerExceptionResolver") HandlerExceptionResolver handlerExceptionResolver) throws Exception {
 		http
 				.csrf(AbstractHttpConfigurer::disable)
 				.formLogin(AbstractHttpConfigurer::disable)
@@ -58,8 +62,12 @@ public class SecurityConfig {
 						// 헬스 체크 (로드밸런서·배포 확인용)
 						.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
 						.requestMatchers("/error").permitAll()
+						// 관리자 API — 비로그인은 401, 일반 회원은 403
+						.requestMatchers("/admin/**").hasRole("ADMIN")
 						.anyRequest().authenticated())
-				.exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+				.exceptionHandling(exception -> exception
+						.authenticationEntryPoint(jwtAuthenticationEntryPoint)
+						.accessDeniedHandler(new JwtAccessDeniedHandler(handlerExceptionResolver)))
 				.addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
 		return http.build();
 	}

@@ -18,9 +18,11 @@ import com.Wolgyesangdan.backend.domain.auth.dto.LoginResponse;
 import com.Wolgyesangdan.backend.domain.auth.dto.TokenRefreshRequest;
 import com.Wolgyesangdan.backend.domain.auth.exception.AuthErrorCode;
 import com.Wolgyesangdan.backend.domain.auth.repository.RefreshTokenRepository;
+import com.Wolgyesangdan.backend.domain.user.entity.Role;
 import com.Wolgyesangdan.backend.domain.user.entity.User;
 import com.Wolgyesangdan.backend.domain.user.repository.UserRepository;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
+import com.Wolgyesangdan.backend.global.security.AccessTokenPayload;
 import com.Wolgyesangdan.backend.global.security.JwtProperties;
 import com.Wolgyesangdan.backend.global.security.JwtProvider;
 
@@ -61,6 +63,21 @@ class AuthServiceTest {
 		assertThat(response.user()).isEqualTo(new LoginResponse.UserInfo(1L, "용민", "a@b.com"));
 		assertThat(jwtProvider.getUserIdFromAccessToken(response.accessToken())).isEqualTo(1L);
 		assertThat(jwtProvider.getUserIdFromRefreshToken(response.refreshToken())).isEqualTo(1L);
+	}
+
+	@Test
+	void 일반_회원의_access_토큰은_USER_관리자는_ADMIN_권한이_담긴다() {
+		User admin = withId(User.builder().kakaoId("1").nickname("운영자").role(Role.ADMIN).build(), 9L);
+		given(kakaoOAuthClient.getUser("admin-code")).willReturn(new KakaoUser("1", "운영자", null));
+		given(userRepository.findByKakaoId("1")).willReturn(Optional.of(admin));
+		given(kakaoOAuthClient.getUser("code")).willReturn(new KakaoUser("4012345678", "용민", null));
+		given(userRepository.findByKakaoId("4012345678")).willReturn(Optional.empty());
+
+		String adminToken = authService.kakaoLogin(new KakaoLoginRequest("admin-code")).accessToken();
+		String userToken = authService.kakaoLogin(new KakaoLoginRequest("code")).accessToken();
+
+		assertThat(jwtProvider.parseAccessToken(adminToken)).isEqualTo(new AccessTokenPayload(9L, Role.ADMIN));
+		assertThat(jwtProvider.parseAccessToken(userToken)).isEqualTo(new AccessTokenPayload(1L, Role.USER));
 	}
 
 	@Test

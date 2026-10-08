@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
+import com.Wolgyesangdan.backend.domain.user.entity.Role;
 import com.Wolgyesangdan.backend.global.config.SecurityConfig;
 
 import io.jsonwebtoken.Jwts;
@@ -100,6 +101,41 @@ class SecurityConfigTest {
 				.andExpect(content().string("anonymous"));
 	}
 
+	@Test
+	void 관리자_API를_토큰_없이_호출하면_401_AUTH_UNAUTHORIZED() throws Exception {
+		mockMvc.perform(get("/admin/test"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+	}
+
+	@Test
+	void 관리자_API를_일반_회원이_호출하면_403_AUTH_FORBIDDEN() throws Exception {
+		mockMvc.perform(get("/admin/test").header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(7L)))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.status").value(403))
+				.andExpect(jsonPath("$.code").value("AUTH_FORBIDDEN"));
+	}
+
+	@Test
+	void 관리자_API를_관리자가_호출하면_통과하고_principal은_userId() throws Exception {
+		mockMvc.perform(get("/admin/test")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtProvider.createAccessToken(7L, Role.ADMIN)))
+				.andExpect(status().isOk())
+				.andExpect(content().string("7"));
+	}
+
+	@Test
+	void role_클레임이_없는_예전_토큰은_일반_회원으로_본다() throws Exception {
+		String legacyToken = signedToken("access", Instant.now().plusSeconds(60));
+
+		mockMvc.perform(get("/test/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + legacyToken))
+				.andExpect(status().isOk())
+				.andExpect(content().string("7"));
+		mockMvc.perform(get("/admin/test").header(HttpHeaders.AUTHORIZATION, "Bearer " + legacyToken))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("AUTH_FORBIDDEN"));
+	}
+
 	private String signedToken(String type, Instant expiration) {
 		return Jwts.builder()
 				.subject("7")
@@ -114,6 +150,11 @@ class SecurityConfigTest {
 
 		@GetMapping("/test/me")
 		String me(@AuthenticationPrincipal Long userId) {
+			return String.valueOf(userId);
+		}
+
+		@GetMapping("/admin/test")
+		String admin(@AuthenticationPrincipal Long userId) {
 			return String.valueOf(userId);
 		}
 
