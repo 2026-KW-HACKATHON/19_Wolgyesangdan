@@ -61,6 +61,14 @@ public class Application extends BaseTimeEntity {
 
 	private LocalDateTime selectedAt;
 
+	/**
+	 * 신청자에게 보여줄 대기 순번 (#265). 물품이 아직 배정 전이면 null — 순번은 배정이 끝난 뒤에만 공개한다.
+	 * 응답 DTO는 waitlistRank 대신 이 값을 내려준다.
+	 */
+	public Integer visibleWaitlistRank() {
+		return item.isBeforeAssignment() ? null : waitlistRank;
+	}
+
 	public void assignWaitlistRank(int waitlistRank) {
 		this.waitlistRank = waitlistRank;
 	}

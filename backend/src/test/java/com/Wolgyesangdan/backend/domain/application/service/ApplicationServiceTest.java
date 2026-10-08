@@ -149,7 +149,7 @@ class ApplicationServiceTest {
 		entityManager.flush();
 
 		assertThat(again.status()).isEqualTo(ApplicationStatus.WAITING);
-		assertThat(again.waitlistRank()).isEqualTo(1);
+		assertThat(entityManager.find(Application.class, again.id()).getWaitlistRank()).isEqualTo(1);
 		assertThat(again.id()).isNotEqualTo(first.id());
 		// 취소한 신청은 지워지고 새 신청 하나만 남는다
 		assertThat(entityManager.find(Application.class, first.id())).isNull();
@@ -170,7 +170,7 @@ class ApplicationServiceTest {
 		ApplicationCreateResponse again = applicationService.apply(applicant.getId(), item.getId());
 		entityManager.flush();
 
-		assertThat(again.waitlistRank()).isEqualTo(2);
+		assertThat(entityManager.find(Application.class, again.id()).getWaitlistRank()).isEqualTo(2);
 		assertThat(entityManager.find(Application.class, secondResponse.id()).getWaitlistRank()).isEqualTo(1);
 	}
 
@@ -197,14 +197,16 @@ class ApplicationServiceTest {
 	}
 
 	@Test
-	void 신청하면_WAITING으로_저장되고_순번을_받는다() {
+	void 신청하면_WAITING으로_저장되고_순번을_받지만_응답으로는_알려주지_않는다() {
 		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
 
 		ApplicationCreateResponse response = applicationService.apply(applicant.getId(), item.getId());
 
 		assertThat(response.itemId()).isEqualTo(item.getId());
 		assertThat(response.status()).isEqualTo(ApplicationStatus.WAITING);
-		assertThat(response.waitlistRank()).isEqualTo(1);
+		// 순번은 매겨 두되(배정에 쓴다), 배정 전에는 신청자에게 알려주지 않는다 (#265)
+		assertThat(entityManager.find(Application.class, response.id()).getWaitlistRank()).isEqualTo(1);
+		assertThat(response.waitlistRank()).isNull();
 	}
 
 	@Test
@@ -220,7 +222,9 @@ class ApplicationServiceTest {
 		entityManager.flush();
 
 		// 우선배정 신청자가 먼저 신청한 사람보다 앞선 순번(1번)을 가져가고, 먼저 신청한 사람은 2번으로 밀린다
-		assertThat(priorityResponse.waitlistRank()).isEqualTo(1);
+		assertThat(entityManager.find(Application.class, priorityResponse.id()).getWaitlistRank()).isEqualTo(1);
+		// 순번이 바뀐 것은 누구의 응답으로도 드러나지 않는다 (#265)
+		assertThat(priorityResponse.waitlistRank()).isNull();
 		Application firstApplication = entityManager.find(Application.class, firstResponse.id());
 		assertThat(firstApplication.getWaitlistRank()).isEqualTo(2);
 	}
@@ -296,7 +300,7 @@ class ApplicationServiceTest {
 		User second = persistEligibleApplicant("두번째신청자");
 		ApplicationCreateResponse secondResponse = applicationService.apply(second.getId(), item.getId());
 		entityManager.flush();
-		assertThat(secondResponse.waitlistRank()).isEqualTo(2);
+		assertThat(entityManager.find(Application.class, secondResponse.id()).getWaitlistRank()).isEqualTo(2);
 
 		applicationService.cancel(applicant.getId(), firstResponse.id());
 
@@ -373,7 +377,8 @@ class ApplicationServiceTest {
 		assertThat(first.itemName()).isEqualTo(newer.getName());
 		assertThat(first.itemThumbnailImageUrl()).isEqualTo("https://img/newer.jpg");
 		assertThat(first.status()).isEqualTo(ApplicationStatus.WAITING);
-		assertThat(first.waitlistRank()).isEqualTo(1);
+		// 아직 배정 전이라 대기 순번은 내려주지 않는다 (#265)
+		assertThat(first.waitlistRank()).isNull();
 		assertThat(result.getContent().get(1).id()).isEqualTo(olderResponse.id());
 	}
 
@@ -423,12 +428,64 @@ class ApplicationServiceTest {
 		entityManager.flush();
 		Application application = entityManager.find(Application.class, response.id());
 		application.select(LocalDateTime.now());
+		item.assign();
 		entityManager.flush();
 
 		Page<MyApplicationSummaryResponse> result = applicationService.getMyApplications(applicant.getId(), 0, 20);
 
 		assertThat(result.getContent().get(0).status()).isEqualTo(ApplicationStatus.SELECTED);
 		assertThat(result.getContent().get(0).waitlistRank()).isEqualTo(1);
+	}
+
+	// 배정에서 밀려 대기 중인 신청자도, 배정이 끝난 뒤에는 자기 순번(승계 순서)을 볼 수 있다 (#265)
+	@Test
+	void 배정이_끝나면_대기_중인_신청자에게도_waitlistRank를_내려준다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		User second = persistEligibleApplicant("두번째신청자");
+		ApplicationCreateResponse firstResponse = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.apply(second.getId(), item.getId());
+		entityManager.flush();
+
+		// 마감 전 — 두 사람 모두 순번을 모른다
+		assertThat(applicationService.getMyApplications(applicant.getId(), 0, 20).getContent().get(0).waitlistRank())
+				.isNull();
+		assertThat(applicationService.getMyApplications(second.getId(), 0, 20).getContent().get(0).waitlistRank())
+				.isNull();
+
+		entityManager.find(Application.class, firstResponse.id()).select(LocalDateTime.now());
+		item.assign();
+		entityManager.flush();
+
+		MyApplicationSummaryResponse waiting = applicationService.getMyApplications(second.getId(), 0, 20).getContent().get(0);
+		assertThat(waiting.status()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(waiting.waitlistRank()).isEqualTo(2);
+		assertThat(waiting.itemStatus()).isEqualTo(ItemStatus.ASSIGNED);
+	}
+
+	// 배정된 사람과 거래가 끝나면, 대기하던 신청자는 물품 상태(COMPLETED)와 자기 순번으로 "배정받지 못함"을 알 수 있다 (#265)
+	@Test
+	void 거래가_끝난_물품의_대기자에게는_물품_상태_COMPLETED와_순번을_내려준다() {
+		Item item = persist(item(owner, ItemStatus.OPEN, LocalDateTime.now().plusDays(1), 0));
+		User second = persistEligibleApplicant("두번째신청자");
+		ApplicationCreateResponse firstResponse = applicationService.apply(applicant.getId(), item.getId());
+		entityManager.flush();
+		applicationService.apply(second.getId(), item.getId());
+		entityManager.flush();
+		Application selected = entityManager.find(Application.class, firstResponse.id());
+		selected.select(LocalDateTime.now());
+		item.assign();
+		selected.complete();
+		item.complete();
+		entityManager.flush();
+
+		MyApplicationSummaryResponse missed = applicationService.getMyApplications(second.getId(), 0, 20).getContent().get(0);
+		assertThat(missed.status()).isEqualTo(ApplicationStatus.WAITING);
+		assertThat(missed.itemStatus()).isEqualTo(ItemStatus.COMPLETED);
+		assertThat(missed.waitlistRank()).isEqualTo(2);
+		MyApplicationSummaryResponse received = applicationService.getMyApplications(applicant.getId(), 0, 20).getContent().get(0);
+		assertThat(received.status()).isEqualTo(ApplicationStatus.COMPLETED);
+		assertThat(received.itemStatus()).isEqualTo(ItemStatus.COMPLETED);
 	}
 
 	@Test

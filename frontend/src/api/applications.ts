@@ -1,4 +1,4 @@
-import type { PageResponse } from '../types/item'
+import type { ItemStatus, PageResponse } from '../types/item'
 import { apiFetch } from './client'
 
 export type ApplicationStatus = 'WAITING' | 'SELECTED' | 'CANCELED' | 'COMPLETED'
@@ -8,7 +8,7 @@ export interface ApplicationCreateResponse {
   id: number
   itemId: number
   status: ApplicationStatus
-  /** 대기 순번 (1부터) */
+  /** 대기 순번. 배정 전에는 알려주지 않아서 신청 직후에는 항상 null (#265) */
   waitlistRank: number | null
   appliedAt: string
 }
@@ -30,8 +30,10 @@ export interface MyApplicationSummary {
   itemName: string
   itemThumbnailImageUrl: string | null
   status: ApplicationStatus
-  /** 대기 순번. 배정된 뒤에도 그대로 남고, 취소하면 null */
+  /** 대기 순번 (1부터). 물품이 아직 배정 전이면 null (#265). 배정된 뒤에는 그대로 남고, 취소하면 null */
   waitlistRank: number | null
+  /** 물품의 지금 상태. 대기 중(WAITING)인 신청인데 COMPLETED면 다른 신청자와 거래가 끝나 배정받지 못한 것 (#265) */
+  itemStatus: ItemStatus
   appliedAt: string
 }
 

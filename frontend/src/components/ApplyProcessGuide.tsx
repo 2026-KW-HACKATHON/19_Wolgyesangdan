@@ -18,7 +18,7 @@ export default function ApplyProcessGuide({ item }: { item: ItemDetail }) {
       title: item.applicationDeadline
         ? `${formatDateTime(item.applicationDeadline)}까지 신청을 받아요`
         : '신청 마감까지 신청을 받아요',
-      detail: '우선배정 인증(신입생·기초수급자)이 있으면 앞 순번이 돼요.',
+      detail: '순번은 신청 마감 뒤에 정해져요. 우선배정 인증(신입생·기초수급자)이 있으면 앞 순번이 돼요.',
     },
     {
       title: '마감되면 자동으로 배정돼요',
