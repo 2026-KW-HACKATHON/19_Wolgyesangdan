@@ -25,6 +25,7 @@ import com.Wolgyesangdan.backend.domain.item.dto.ItemSort;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSummaryResponse;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.ItemStatus;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemType;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.item.exception.ItemErrorCode;
 import com.Wolgyesangdan.backend.global.exception.BusinessException;
@@ -66,16 +67,23 @@ class ItemControllerTest {
 	@Test
 	void 비로그인으로_카테고리_목록을_조회한다() throws Exception {
 		given(itemService.getCategories()).willReturn(List.of(
-				new CategoryResponse(CategoryGroup.FURNITURE, 30),
-				new CategoryResponse(CategoryGroup.APPLIANCE, 24)));
+				new CategoryResponse(CategoryGroup.FURNITURE, 30, "가구 근거", List.of()),
+				new CategoryResponse(CategoryGroup.APPLIANCE, 24, "가전 근거", List.of(
+						new CategoryResponse.ItemTypeResponse(ItemType.REFRIGERATOR, "냉장고", 240, "냉장고 근거")))));
 
 		mockMvc.perform(get("/items/categories"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(2))
 				.andExpect(jsonPath("$[0].categoryGroup").value("가구"))
 				.andExpect(jsonPath("$[0].carbonReductionKg").value(30))
+				.andExpect(jsonPath("$[0].basis").value("가구 근거"))
+				.andExpect(jsonPath("$[0].itemTypes.length()").value(0))
 				.andExpect(jsonPath("$[1].categoryGroup").value("가전"))
-				.andExpect(jsonPath("$[1].carbonReductionKg").value(24));
+				.andExpect(jsonPath("$[1].carbonReductionKg").value(24))
+				.andExpect(jsonPath("$[1].itemTypes[0].itemType").value("REFRIGERATOR"))
+				.andExpect(jsonPath("$[1].itemTypes[0].label").value("냉장고"))
+				.andExpect(jsonPath("$[1].itemTypes[0].carbonReductionKg").value(240))
+				.andExpect(jsonPath("$[1].itemTypes[0].basis").value("냉장고 근거"));
 	}
 
 	@Test
@@ -167,9 +175,9 @@ class ItemControllerTest {
 
 	@Test
 	void 비로그인으로_물품_상세를_조회한다() throws Exception {
-		given(itemService.getItem(1L, null)).willReturn(new ItemDetailResponse(1L, "전자레인지", "생활가전",
-				CategoryGroup.APPLIANCE, "설명", "상태 좋음", "2년 사용", false, null, "정상 작동", "48cm", "보통", 24,
-				LocalDate.of(2026, 9, 20), LocalDate.of(2026, 10, 4), null, LocalDateTime.of(2026, 10, 2, 23, 59, 59),
+		given(itemService.getItem(1L, null)).willReturn(new ItemDetailResponse(1L, "전자레인지", "전자레인지",
+				CategoryGroup.APPLIANCE, ItemType.MICROWAVE, "설명", "상태 좋음", "2년 사용", false, null, "정상 작동", "48cm",
+				"보통", 68, "20L급 12kg · UK DESNZ 2024 소형 가전", LocalDate.of(2026, 9, 20), LocalDate.of(2026, 10, 4), null, LocalDateTime.of(2026, 10, 2, 23, 59, 59),
 				ItemStatus.OPEN, 3, 5, List.of(TradeMethod.DIRECT),
 				List.of(new ItemDetailResponse.ImageResponse("https://example.com/a.jpg", 0)),
 				null, new ItemDetailResponse.OwnerInfo("월계1동 이웃", 3), false, null));
@@ -178,6 +186,9 @@ class ItemControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(1))
 				.andExpect(jsonPath("$.categoryGroup").value("가전"))
+				.andExpect(jsonPath("$.itemType").value("MICROWAVE"))
+				.andExpect(jsonPath("$.estimatedCarbonReduction").value(68))
+				.andExpect(jsonPath("$.carbonBasis").value("20L급 12kg · UK DESNZ 2024 소형 가전"))
 				.andExpect(jsonPath("$.defectYn").value(false))
 				.andExpect(jsonPath("$.availableFrom").value("2026-09-20"))
 				.andExpect(jsonPath("$.disposalDeadline").isEmpty())
@@ -196,9 +207,9 @@ class ItemControllerTest {
 	void 로그인_상태로_물품_상세를_조회하면_내_신청을_함께_내려준다() throws Exception {
 		ItemDetailResponse base = detail(1L);
 		given(itemService.getItem(1L, 7L)).willReturn(new ItemDetailResponse(base.id(), base.name(), base.category(),
-				base.categoryGroup(), base.description(), base.conditionGrade(), base.usagePeriod(), base.defectYn(),
+				base.categoryGroup(), base.itemType(), base.description(), base.conditionGrade(), base.usagePeriod(), base.defectYn(),
 				base.defectDescription(), base.workingStatus(), base.size(), base.transportDifficulty(),
-				base.estimatedCarbonReduction(), base.availableFrom(), base.availableUntil(), base.disposalDeadline(),
+				base.estimatedCarbonReduction(), base.carbonBasis(), base.availableFrom(), base.availableUntil(), base.disposalDeadline(),
 				base.applicationDeadline(), base.status(), base.applicantCount(), base.maxApplicants(),
 				base.tradeMethods(), base.images(), base.campaign(), base.owner(), false,
 				new ItemDetailResponse.MyApplication(30L, ApplicationStatus.WAITING, 2)));
@@ -342,8 +353,8 @@ class ItemControllerTest {
 	}
 
 	private static ItemDetailResponse detail(Long id) {
-		return new ItemDetailResponse(id, "전자레인지", null, CategoryGroup.APPLIANCE, null, "상태 좋음", null, false,
-				null, null, null, null, 24, null, null, null, LocalDateTime.of(2026, 10, 8, 23, 59, 59),
+		return new ItemDetailResponse(id, "전자레인지", null, CategoryGroup.APPLIANCE, null, null, "상태 좋음", null, false,
+				null, null, null, null, 24, null, null, null, null, LocalDateTime.of(2026, 10, 8, 23, 59, 59),
 				ItemStatus.OPEN, 0, 5, List.of(TradeMethod.DIRECT),
 				List.of(new ItemDetailResponse.ImageResponse("https://img/1.jpg", 0)), null,
 				new ItemDetailResponse.OwnerInfo("등록자", 0), true, null);

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
+import com.Wolgyesangdan.backend.domain.item.entity.ItemType;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 
 import jakarta.validation.constraints.AssertTrue;
@@ -16,11 +17,13 @@ import jakarta.validation.constraints.Size;
 /**
  * 물품 등록 요청. 필수는 사진·물품명·카테고리 대분류·상태 등급·거래 방식 5가지 (2026-10-05 결정, #56).
  * 예상 탄소 절감량·신청 마감 시각·상태·신청자 수는 받지 않고 서버가 정한다.
+ * itemType(품목)은 선택 — 고르면 품목 값, 비우면 대분류 값으로 탄소 절감량을 계산한다 (#284).
  */
 public record ItemCreateRequest(
 		@NotBlank @Size(max = 100) String name,
 		@Size(max = 30) String category,
 		@NotNull CategoryGroup categoryGroup,
+		ItemType itemType,
 		@Size(max = 2000) String description,
 		@NotBlank
 		@Pattern(regexp = "^(거의 새것|상태 좋음|사용감 있음)$",
