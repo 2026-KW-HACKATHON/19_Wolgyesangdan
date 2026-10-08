@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlRequest;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemAvailability;
 import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
@@ -43,6 +44,7 @@ public class ItemController {
 	/**
 	 * 물품 목록 (비회원 허용). 모든 검색 조건은 선택이다.
 	 * categoryGroup은 한글 표시값(가구 등)으로 받는다. page는 0부터, size는 1~100 범위로 보정한다.
+	 * availability는 보여줄 상태 범위 — OPEN(신청 가능만) / ACTIVE(기본, 거래 끝난 것 숨김) / ALL (#190).
 	 */
 	@GetMapping
 	public PageResponse<ItemSummaryResponse> getItems(
@@ -50,9 +52,10 @@ public class ItemController {
 			@RequestParam(required = false) CategoryGroup categoryGroup,
 			@RequestParam(required = false) TradeMethod tradeMethod,
 			@RequestParam(defaultValue = "LATEST") ItemSort sort,
+			@RequestParam(defaultValue = "ACTIVE") ItemAvailability availability,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
-		ItemSearchCondition condition = new ItemSearchCondition(keyword, categoryGroup, tradeMethod, sort);
+		ItemSearchCondition condition = new ItemSearchCondition(keyword, categoryGroup, tradeMethod, sort, availability);
 		return PageResponse.from(
 				itemService.getItems(condition, Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE)));
 	}

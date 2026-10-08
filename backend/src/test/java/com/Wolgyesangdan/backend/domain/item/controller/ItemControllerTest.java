@@ -17,6 +17,7 @@ import java.util.List;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.item.dto.CategoryResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ImageUploadUrlResponse;
+import com.Wolgyesangdan.backend.domain.item.dto.ItemAvailability;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemCreateRequest;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemDetailResponse;
 import com.Wolgyesangdan.backend.domain.item.dto.ItemSearchCondition;
@@ -101,6 +102,25 @@ class ItemControllerTest {
 				// Spring Page 내부 필드는 나가지 않는다
 				.andExpect(jsonPath("$.pageable").doesNotExist())
 				.andExpect(jsonPath("$.sort").doesNotExist());
+	}
+
+	@Test
+	void 상태_범위_availability를_받아서_넘긴다() throws Exception {
+		ItemSearchCondition expected = new ItemSearchCondition(null, null, null, ItemSort.LATEST, ItemAvailability.OPEN);
+		given(itemService.getItems(expected, 0, 20)).willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+		mockMvc.perform(get("/items").param("availability", "OPEN"))
+				.andExpect(status().isOk());
+
+		verify(itemService).getItems(expected, 0, 20);
+	}
+
+	@Test
+	void 없는_상태_범위면_400_INVALID_INPUT() throws Exception {
+		mockMvc.perform(get("/items").param("availability", "DONE"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+				.andExpect(jsonPath("$.errors[0].field").value("availability"));
 	}
 
 	@Test
