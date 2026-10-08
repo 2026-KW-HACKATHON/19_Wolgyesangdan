@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ClipboardEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import BottomActionBar from '../components/BottomActionBar'
@@ -11,6 +11,14 @@ import type { ContactType } from '../types/contact'
 
 const OPENCHAT_PATTERN = /^https:\/\/open\.kakao\.com\/o\/[A-Za-z0-9]+$/
 const PHONE_PATTERN = /^010-\d{4}-\d{4}$/
+
+/**
+ * 카카오톡에서 링크를 복사하면 "카카오톡 오픈채팅을 시작해 보세요." 같은 안내 문구·방 이름이 함께 딸려온다.
+ * 그 안에 오픈채팅 주소가 있으면 주소만 꺼낸다 (#261). 없으면 null
+ */
+function findOpenchatLink(text: string) {
+  return text.match(/https:\/\/open\.kakao\.com\/o\/[A-Za-z0-9]+/)?.[0] ?? null
+}
 
 /** 숫자만 받아서 010-XXXX-XXXX 형태로 맞춘다. */
 function formatPhone(raw: string) {
@@ -59,11 +67,19 @@ function ContactSettingsForm() {
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText()
-      setLink(text.trim())
+      setLink(findOpenchatLink(text) ?? text.trim())
       setPasteFailed(false)
     } catch {
       setPasteFailed(true)
     }
+  }
+
+  // 직접 붙여넣을 때도 오픈채팅 주소가 들어 있으면 주소만 넣는다. 없으면 브라우저 기본 붙여넣기
+  const handleLinkPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const found = findOpenchatLink(e.clipboardData.getData('text'))
+    if (!found) return
+    e.preventDefault()
+    setLink(found)
   }
 
   const handleVerify = () => {
@@ -145,6 +161,7 @@ function ContactSettingsForm() {
                 id="openchat-link"
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
+                onPaste={handleLinkPaste}
                 placeholder="https://open.kakao.com/o/…"
                 className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-label outline-none placeholder:text-label-alt"
               />
