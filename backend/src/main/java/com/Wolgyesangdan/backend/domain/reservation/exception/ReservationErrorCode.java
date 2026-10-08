@@ -19,7 +19,12 @@ public enum ReservationErrorCode implements BaseErrorCode {
 	RESERVATION_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 거래가 완료된 예약입니다."),
 	RESERVATION_NOT_DIRECT(HttpStatus.CONFLICT, "거점 거래는 운영진이 완료 처리합니다."),
 	RESERVATION_NOT_RECONFIRMED(HttpStatus.CONFLICT, "신청자가 수령을 재확인한 뒤에 완료할 수 있습니다."),
-	RESERVATION_NOT_COMPLETABLE(HttpStatus.CONFLICT, "완료할 수 없는 예약입니다.");
+	RESERVATION_NOT_COMPLETABLE(HttpStatus.CONFLICT, "완료할 수 없는 예약입니다."),
+	// 관리자 거점 거래 처리 (#252)
+	RESERVATION_NOT_HUB_TRADE(HttpStatus.CONFLICT, "거점 거래 예약이 아닙니다."),
+	RESERVATION_ALREADY_CLOSED(HttpStatus.CONFLICT, "이미 끝난 예약입니다."),
+	RESERVATION_ALREADY_AT_HUB(HttpStatus.CONFLICT, "이미 거점에 입고된 물품입니다."),
+	RESERVATION_NOT_AT_HUB(HttpStatus.CONFLICT, "거점에 입고된 뒤에 처리할 수 있습니다.");
 
 	private final HttpStatus status;
 	private final String message;

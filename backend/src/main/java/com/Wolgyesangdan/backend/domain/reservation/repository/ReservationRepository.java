@@ -14,6 +14,8 @@ import com.Wolgyesangdan.backend.domain.reservation.dto.TradeCounts;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
 import com.Wolgyesangdan.backend.domain.reservation.entity.ReservationStatus;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -163,6 +165,32 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 	/** 상세 조회용 — 신청·신청자·물품·등록자를 한 번에 가져온다 */
 	@EntityGraph(attributePaths = {"application.applicant", "application.item.owner"})
 	Optional<Reservation> findWithParticipantsByApplicationId(Long applicationId);
+
+	/** 관리자 거점 거래 처리용 — 신청·신청자·물품·등록자를 한 번에 가져온다 (#252) */
+	@EntityGraph(attributePaths = {"application.applicant", "application.item.owner"})
+	Optional<Reservation> findWithParticipantsById(Long id);
+
+	/**
+	 * 관리자 거점 거래 목록 — 거점 거래 예약만. closed가 null이면 전부, true면 끝난 것(:closedStatuses)만,
+	 * false면 진행 중인 것만. 정렬은 Pageable로 준다.
+	 */
+	@EntityGraph(attributePaths = {"application.applicant", "application.item.owner"})
+	@Query(value = """
+			select r from Reservation r
+			where r.tradeMethod = com.Wolgyesangdan.backend.domain.item.entity.TradeMethod.CAMPAIGN
+				and (:closed is null
+					or (:closed = true and r.status in :closedStatuses)
+					or (:closed = false and r.status not in :closedStatuses))
+			""",
+			countQuery = """
+			select count(r) from Reservation r
+			where r.tradeMethod = com.Wolgyesangdan.backend.domain.item.entity.TradeMethod.CAMPAIGN
+				and (:closed is null
+					or (:closed = true and r.status in :closedStatuses)
+					or (:closed = false and r.status not in :closedStatuses))
+			""")
+	Page<Reservation> findHubTrades(@Param("closed") Boolean closed,
+			@Param("closedStatuses") Collection<ReservationStatus> closedStatuses, Pageable pageable);
 
 	/** 재확인용 — 신청자 확인에 필요한 신청 건을 한 번에 가져온다 */
 	@EntityGraph(attributePaths = "application")
