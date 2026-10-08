@@ -15,7 +15,7 @@ const PHONE_PATTERN = /^010-\d{4}-\d{4}$/
 // 글 안에 들어 있는 오픈채팅 링크 (형식은 OPENCHAT_PATTERN과 같다)
 const OPENCHAT_LINK_IN_TEXT = /https:\/\/open\.kakao\.com\/o\/[A-Za-z0-9]+/
 // 한글(완성형 글자·자모)과 공백
-const HANGUL_OR_SPACE = /[ᄀ-ᇿ㄰-㆏ꥠ-꥿가-퟿\s]/g
+const HANGUL_OR_SPACE = /[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uAC00-\uD7FF\s]/g
 
 /**
  * 붙여넣은 글에서 오픈채팅 링크만 남긴다 (#262). 카카오톡에서 링크를 복사하면 방 이름·안내 문구 같은
