@@ -18,6 +18,7 @@ import type {
   TradeMethod,
   TransportDifficulty,
 } from '../types/item'
+import type { ActiveCampaign } from '../types/campaign'
 import { registerPhotoStore, useRegisterPhotos } from '../lib/registerPhotoStore'
 import type { UploadedFile } from '../types/verification'
 
@@ -151,6 +152,37 @@ function isFormValid(form: RegisterForm, hasPhoto: boolean) {
   )
 }
 
+/** 거점 거래를 할 수 있는 기간 — 캠페인 전체 기간(등록·신청·수령 기간 중 가장 이른 시작일 ~ 가장 늦은 종료일). 날짜는 YYYY-MM-DD */
+interface HubPeriod {
+  start: string
+  end: string
+}
+
+function hubPeriodOf(campaign: ActiveCampaign): HubPeriod {
+  const starts = [campaign.registrationStartDate, campaign.applicationStartDate, campaign.pickupStartDate]
+  const ends = [campaign.registrationEndDate, campaign.applicationEndDate, campaign.pickupEndDate]
+  // YYYY-MM-DD는 글자 순서가 곧 날짜 순서다
+  return { start: starts.reduce((a, b) => (a < b ? a : b)), end: ends.reduce((a, b) => (a > b ? a : b)) }
+}
+
+/** "2026-10-08" → "10.8" */
+function monthDay(isoDate: string) {
+  const [, month, day] = isoDate.split('-').map(Number)
+  return `${month}.${day}`
+}
+
+/**
+ * 거점 거래를 골랐는데 전달 가능 기간이 캠페인 기간을 벗어나면 그 안내 문구 (#256). 문제없으면 null.
+ * 서버도 같은 규칙으로 거절한다 (ItemService.validateAvailablePeriodInCampaign). 비워 둔 날짜는 확인하지 않는다
+ */
+function hubPeriodError(form: RegisterForm, period: HubPeriod | null) {
+  if (!period || (form.trade !== 'CAMPAIGN' && form.trade !== 'BOTH')) return null
+  const outside = [form.pickupStart, form.pickupEnd].some((date) => date && (date < period.start || date > period.end))
+  return outside
+    ? `거점 거래는 전달 가능 기간이 캠페인 기간(${monthDay(period.start)} ~ ${monthDay(period.end)}) 안이어야 해요. 기간을 고치거나 직거래를 골라 주세요.`
+    : null
+}
+
 function FieldLabel({ children, required }: { children: ReactNode; required?: boolean }) {
   return (
     <div className="mb-2 text-[14px] font-bold text-body">
@@ -203,6 +235,8 @@ export default function ItemRegisterPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   // 거점 거래로 등록할 때 보낼 캠페인. 없거나 못 불러오면 거점 거래 등록은 서버가 거절한다
   const [campaignId, setCampaignId] = useState<number>()
+  // 거점 거래를 할 수 있는 기간 — 전달 가능 기간이 이 안인지 확인한다 (#256)
+  const [hubPeriod, setHubPeriod] = useState<HubPeriod | null>(null)
   // 카테고리별 탄소 절감 예상치(kg CO₂e). 등록 시 서버가 저장하는 값과 같은 참조표라 화면 숫자와 등록 결과가 맞는다.
   // 불러오는 중이거나 실패하면 null — 예상치 박스를 숨긴다
   const [carbonByCategory, setCarbonByCategory] = useState<Partial<Record<CategoryGroup, number>> | null>(null)
@@ -221,7 +255,9 @@ export default function ItemRegisterPage() {
       })
     getActiveCampaign()
       .then((campaign) => {
-        if (!ignore && campaign) setCampaignId(campaign.id)
+        if (ignore || !campaign) return
+        setCampaignId(campaign.id)
+        setHubPeriod(hubPeriodOf(campaign))
       })
       .catch(() => {
         // 직거래 등록에는 필요 없다. 거점 거래를 고르면 서버 오류 문구로 안내한다
@@ -236,7 +272,8 @@ export default function ItemRegisterPage() {
   const photosFailed = files.some((f) => f.status === 'error')
   // 사진은 전부 올라간 뒤에만 등록할 수 있다 (올리지 못한 사진은 지우고 다시 첨부)
   const hasPhoto = files.length > 0 && !photosUploading && !photosFailed
-  const valid = isFormValid(form, hasPhoto)
+  const hubError = hubPeriodError(form, hubPeriod)
+  const valid = isFormValid(form, hasPhoto) && !hubError
   // 연락 수단이 없으면 들어오자마자 안내한다 — 사진을 다 올린 뒤에야 막히지 않도록 (#161)
   const showSheet = !contactLoading && !contact
 
@@ -487,6 +524,11 @@ export default function ItemRegisterPage() {
               ? '거점 수령은 캠페인 거점을 통해 진행돼요.'
               : '직거래는 신청자와 직접 만나 전달해요.'}
           </p>
+          {hubError && (
+            <p role="alert" className="mt-1.5 text-[12px] leading-normal font-semibold text-terracotta">
+              {hubError}
+            </p>
+          )}
         </div>
 
         <div className="flex-1" />

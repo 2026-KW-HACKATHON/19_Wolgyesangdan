@@ -9,7 +9,9 @@ import java.util.HashMap;
 import java.util.stream.IntStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.application.repository.ApplicationRepository;
@@ -156,6 +158,7 @@ public class ItemService {
 	 * 물품 등록 (2026-10-05 결정, #56)
 	 * - 연락 수단을 설정하지 않았으면 등록 불가
 	 * - 거점 거래를 포함하면 캠페인 물품 등록 기간 안이어야 하고, 신청 마감은 캠페인 신청 종료일 23:59:59
+	 * - 거점 거래를 포함하면 전달 가능 기간(적었다면)도 캠페인 기간 안이어야 한다 (#256)
 	 * - 직거래만이면 신청 마감은 등록일 + 3일 23:59:59
 	 * - 등록 즉시 OPEN, 예상 탄소 절감량은 카테고리 기준표 값을 스냅샷으로 저장
 	 */
@@ -172,6 +175,9 @@ public class ItemService {
 		Campaign campaign = tradeMethods.contains(TradeMethod.CAMPAIGN)
 				? findCampaignAcceptingItems(request.campaignId(), today)
 				: null;
+		if (campaign != null) {
+			validateAvailablePeriodInCampaign(request, campaign);
+		}
 		LocalDateTime applicationDeadline = campaign != null
 				? campaign.getApplicationEndDate().atTime(END_OF_DAY)
 				: today.plusDays(DIRECT_APPLICATION_DAYS).atTime(END_OF_DAY);
@@ -223,6 +229,21 @@ public class ItemService {
 						Collectors.collectingAndThen(
 								Collectors.minBy(Comparator.comparingInt(ItemImage::getDisplayOrder)),
 								image -> image.map(ItemImage::getImageUrl).orElse(null))));
+	}
+
+	// 거점 거래는 캠페인 기간에만 진행되므로, 전달 가능 기간을 적었다면 시작·종료일 모두 캠페인 전체 기간 안이어야 한다 (#256).
+	// "직거래 + 거점"을 함께 고른 물품도 배정되면 거점 거래로 진행되므로 같이 확인한다. 비워 둔 날짜는 확인하지 않는다
+	private static void validateAvailablePeriodInCampaign(ItemCreateRequest request, Campaign campaign) {
+		LocalDate start = campaign.periodStart();
+		LocalDate end = campaign.periodEnd();
+		boolean outside = Stream.of(request.availableFrom(), request.availableUntil())
+				.filter(Objects::nonNull)
+				.anyMatch(date -> date.isBefore(start) || date.isAfter(end));
+		if (outside) {
+			throw new BusinessException(ItemErrorCode.ITEM_TRADE_METHOD_INVALID,
+					"거점 거래는 전달 가능 기간이 캠페인 기간(%d.%d ~ %d.%d) 안이어야 합니다.".formatted(
+							start.getMonthValue(), start.getDayOfMonth(), end.getMonthValue(), end.getDayOfMonth()));
+		}
 	}
 
 	// 거점 거래는 캠페인 물품 등록 기간(registration_start_date ~ registration_end_date) 안에만 고를 수 있다
