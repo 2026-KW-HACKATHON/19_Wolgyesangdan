@@ -10,6 +10,7 @@ import com.Wolgyesangdan.backend.domain.application.entity.Application;
 import com.Wolgyesangdan.backend.domain.application.entity.ApplicationStatus;
 import com.Wolgyesangdan.backend.domain.campaign.entity.Campaign;
 import com.Wolgyesangdan.backend.domain.campaign.entity.CampaignStatus;
+import com.Wolgyesangdan.backend.domain.carbonreport.service.CarbonReportService;
 import com.Wolgyesangdan.backend.domain.item.dto.CompletedItemSummary;
 import com.Wolgyesangdan.backend.domain.item.entity.CategoryGroup;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
@@ -33,7 +34,8 @@ import org.springframework.context.annotation.Import;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaAuditingConfig.class, CampaignService.class})
+// CarbonReportQueryTest와 같은 설정을 써서 테스트 컨텍스트(와 DB 연결 풀)를 새로 만들지 않고 같이 쓴다
+@Import({JpaAuditingConfig.class, CarbonReportService.class, CampaignService.class})
 class CampaignTradeSummaryQueryTest {
 
 	private static final LocalDate DAY = LocalDate.of(2026, 10, 8);
