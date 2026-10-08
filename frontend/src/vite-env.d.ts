@@ -15,7 +15,8 @@ interface KakaoSdk {
   init: (appKey: string) => void
   isInitialized: () => boolean
   Auth: {
-    authorize: (settings: { redirectUri: string; state?: string }) => void
+    /** throughTalk: 모바일에서 카카오톡 앱으로 간편 로그인을 시도할지 (기본 true) */
+    authorize: (settings: { redirectUri: string; state?: string; throughTalk?: boolean }) => void
   }
 }
 
