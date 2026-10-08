@@ -110,9 +110,11 @@ export interface ItemDetail {
   myApplication: { id: number; status: ApplicationStatus; waitlistRank: number | null } | null
 }
 
-/** POST /items 요청. 필수는 사진·물품명·카테고리 대분류·상태 등급·거래 방식 */
+/** POST /items 요청 (PUT /items/{itemId} 수정도 같은 본문). 필수는 사진·물품명·카테고리 대분류·상태 등급·거래 방식 */
 export interface ItemCreateRequest {
   name: string
+  /** 세부 카테고리. 품목을 고르면 서버가 품목 이름으로 채운다 — 수정 때 기존 값을 지키려고만 보낸다 */
+  category?: string
   categoryGroup: CategoryGroup
   /** 품목 (선택). 고르면 품목 값, 비우면 대분류 값으로 탄소 절감량을 계산한다 */
   itemType?: string
@@ -121,6 +123,8 @@ export interface ItemCreateRequest {
   usagePeriod?: string
   defectYn?: boolean
   defectDescription?: string
+  /** 작동 여부. 등록 화면에는 입력 칸이 없다 — 수정 때 기존 값을 지키려고만 보낸다 */
+  workingStatus?: string
   size?: string
   transportDifficulty?: TransportDifficulty
   /** YYYY-MM-DD */
