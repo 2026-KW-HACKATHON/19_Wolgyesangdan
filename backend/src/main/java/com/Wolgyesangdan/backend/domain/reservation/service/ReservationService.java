@@ -7,6 +7,7 @@ import com.Wolgyesangdan.backend.domain.item.repository.ItemRepository;
 import com.Wolgyesangdan.backend.domain.item.entity.Item;
 import com.Wolgyesangdan.backend.domain.item.entity.TradeMethod;
 import com.Wolgyesangdan.backend.domain.reservation.dto.CompleteResponse;
+import com.Wolgyesangdan.backend.domain.reservation.dto.MyTodoResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReconfirmResponse;
 import com.Wolgyesangdan.backend.domain.reservation.dto.ReservationDetailResponse;
 import com.Wolgyesangdan.backend.domain.reservation.entity.Reservation;
@@ -32,8 +33,27 @@ public class ReservationService {
 			ReservationStatus.HUB_RECEIVED,
 			ReservationStatus.PICKUP_SCHEDULED);
 
+	/** 등록자가 전달을 마쳐야 하는 상태 — 끝나지 않은(완료·노쇼·취소 아님) 예약 */
+	private static final EnumSet<ReservationStatus> DELIVERY_PENDING_STATUSES = EnumSet.of(
+			ReservationStatus.SCHEDULED,
+			ReservationStatus.HUB_DROP_SCHEDULED,
+			ReservationStatus.HUB_RECEIVED,
+			ReservationStatus.PICKUP_SCHEDULED,
+			ReservationStatus.RECONFIRMED);
+
 	private final ReservationRepository reservationRepository;
 	private final ItemRepository itemRepository;
+
+	/** 내가 지금 해야 할 일 — 신청자로서 수령 재확인, 등록자로서 전달 (#187). 쿼리 2번 */
+	public MyTodoResponse getMyTodo(Long userId) {
+		return getMyTodo(userId, LocalDateTime.now());
+	}
+
+	MyTodoResponse getMyTodo(Long userId, LocalDateTime now) {
+		return new MyTodoResponse(
+				reservationRepository.findReconfirmTodos(userId, RECONFIRMABLE_STATUSES, now),
+				reservationRepository.findDeliveryTodos(userId, DELIVERY_PENDING_STATUSES));
+	}
 
 	/**
 	 * 신청에 딸린 예약 상세. 그 신청의 신청자와 물품 등록자만 볼 수 있고, 서로 상대방의 닉네임·연락 수단을 받는다.
